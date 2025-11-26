@@ -103,3 +103,43 @@ jobs:
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-crates:
+    name: Publish to crates.io
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish crates
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          # Publish crates in dependency order
+          # Wait between publishes to allow crates.io to index
+
+          echo "Publishing brewx-index..."
+          cargo publish -p brewx-index --allow-dirty || echo "brewx-index may already be published"
+          sleep 30
+
+          echo "Publishing brewx-state..."
+          cargo publish -p brewx-state --allow-dirty || echo "brewx-state may already be published"
+          sleep 30
+
+          echo "Publishing brewx-resolve..."
+          cargo publish -p brewx-resolve --allow-dirty || echo "brewx-resolve may already be published"
+          sleep 30
+
+          echo "Publishing brewx-fetch..."
+          cargo publish -p brewx-fetch --allow-dirty || echo "brewx-fetch may already be published"
+          sleep 30
+
+          echo "Publishing brewx-install..."
+          cargo publish -p brewx-install --allow-dirty || echo "brewx-install may already be published"
+          sleep 30
+
+          echo "Publishing brewx..."
+          cargo publish --allow-dirty || echo "brewx may already be published"

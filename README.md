@@ -201,6 +201,10 @@ brewx/
 │   └── brewx-state/       # Local state management
 ├── scripts/
 │   └── sync.py            # Index sync script
+├── packaging/             # Package manager distribution
+│   ├── homebrew/          # Homebrew formula
+│   ├── aur/               # Arch Linux PKGBUILD
+│   └── nix/               # Nix flake
 ├── completions/           # Shell completions
 └── docs/                  # Documentation
 ```
@@ -212,6 +216,7 @@ brewx/
 - [Architecture](docs/ARCHITECTURE.md)
 - [Technical Specification](docs/SPEC.md)
 - [Contributing](docs/CONTRIBUTING.md)
+- [Packaging Guide](docs/PACKAGING.md)
 
 ## Development
 
