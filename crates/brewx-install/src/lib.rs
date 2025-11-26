@@ -11,9 +11,10 @@ mod extract;
 mod link;
 mod receipt;
 
-pub use error::{Error, Result};
-pub use extract::extract_bottle;
-pub use link::{link_package, unlink_package};
-pub use receipt::{InstallReceipt, write_receipt};
+#[cfg(test)]
+mod tests;
 
-use std::path::Path;
+pub use error::{Error, Result};
+pub use extract::{extract_bottle, remove_package};
+pub use link::{link_package, unlink_package};
+pub use receipt::{InstallReceipt, RuntimeDependency, write_receipt};

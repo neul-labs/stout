@@ -10,6 +10,9 @@ mod error;
 mod installed;
 mod paths;
 
+#[cfg(test)]
+mod tests;
+
 pub use config::Config;
 pub use error::{Error, Result};
 pub use installed::{InstalledPackage, InstalledPackages};

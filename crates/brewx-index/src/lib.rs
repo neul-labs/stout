@@ -13,11 +13,14 @@ mod query;
 mod schema;
 mod sync;
 
+#[cfg(test)]
+mod tests;
+
 pub use db::Database;
 pub use error::{Error, Result};
 pub use formula::{Bottle, Dependency, DependencyType, Formula, FormulaInfo};
 pub use query::Query;
-pub use sync::IndexSync;
+pub use sync::{IndexSync, Manifest};
 
 /// Base URL for the brewx-index repository
 pub const DEFAULT_INDEX_URL: &str = "https://raw.githubusercontent.com/anthropics/brewx-index/main";

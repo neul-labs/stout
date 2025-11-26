@@ -30,5 +30,6 @@ async fn main() -> Result<()> {
         Command::Update(args) => cli::update::run(args).await,
         Command::Upgrade(args) => cli::upgrade::run(args).await,
         Command::Doctor(args) => cli::doctor::run(args).await,
+        Command::Completions(args) => cli::completions::run(args).await,
     }
 }

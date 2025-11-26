@@ -1,5 +1,6 @@
 //! CLI command definitions and handlers
 
+pub mod completions;
 pub mod doctor;
 pub mod info;
 pub mod install;
@@ -56,4 +57,7 @@ pub enum Command {
 
     /// Check system health
     Doctor(doctor::Args),
+
+    /// Generate shell completions
+    Completions(completions::Args),
 }

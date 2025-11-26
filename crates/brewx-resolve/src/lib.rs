@@ -9,8 +9,9 @@ mod error;
 mod graph;
 mod plan;
 
+#[cfg(test)]
+mod tests;
+
 pub use error::{Error, Result};
 pub use graph::DependencyGraph;
 pub use plan::{InstallPlan, InstallStep};
-
-use brewx_index::{Database, Formula, FormulaInfo};

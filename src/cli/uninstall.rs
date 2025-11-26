@@ -61,7 +61,7 @@ pub async fn run(args: Args) -> Result<()> {
         unlink_package(&install_path, &paths.prefix)?;
 
         // Remove from Cellar
-        brewx_install::extract::remove_package(&paths.cellar, name, &pkg.version)?;
+        brewx_install::remove_package(&paths.cellar, name, &pkg.version)?;
 
         // Update state
         installed.remove(name);

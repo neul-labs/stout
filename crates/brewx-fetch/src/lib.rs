@@ -12,8 +12,11 @@ mod error;
 mod progress;
 mod verify;
 
+#[cfg(test)]
+mod tests;
+
 pub use cache::DownloadCache;
-pub use client::DownloadClient;
+pub use client::{BottleSpec, DownloadClient};
 pub use error::{Error, Result};
 pub use progress::{DownloadProgress, ProgressReporter};
 pub use verify::verify_sha256;

@@ -28,6 +28,7 @@ tokio = { version = "1", features = ["full"] }
 
 # CLI
 clap = { version = "4", features = ["derive", "env"] }
+clap_complete = "4"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -38,7 +39,7 @@ toml = "0.8"
 rusqlite = { version = "0.32", features = ["bundled", "backup"] }
 
 # HTTP
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "gzip"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "gzip", "json"] }
 
 # Compression
 zstd = "0.13"
@@ -96,6 +97,7 @@ brewx-state.workspace = true
 
 tokio.workspace = true
 clap.workspace = true
+clap_complete.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 

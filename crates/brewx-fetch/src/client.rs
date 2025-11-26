@@ -4,25 +4,40 @@ use crate::cache::DownloadCache;
 use crate::error::{Error, Result};
 use crate::progress::ProgressReporter;
 use crate::verify::sha256_bytes;
+use futures::future::join_all;
 use reqwest::Client;
 use std::path::PathBuf;
-use tokio::io::AsyncWriteExt;
-use tracing::{debug, info};
+use std::sync::Arc;
+use tokio::sync::Semaphore;
+use tracing::{debug, info, warn};
 
 /// Download client for bottles
+#[derive(Clone)]
 pub struct DownloadClient {
     client: Client,
-    cache: DownloadCache,
+    cache: Arc<DownloadCache>,
+    /// Semaphore to limit concurrent downloads
+    semaphore: Arc<Semaphore>,
 }
 
 impl DownloadClient {
-    pub fn new(cache: DownloadCache) -> Result<Self> {
+    /// Create a new download client with specified concurrency limit
+    pub fn new(cache: DownloadCache, max_concurrent: usize) -> Result<Self> {
         let client = Client::builder()
             .user_agent(concat!("brewx/", env!("CARGO_PKG_VERSION")))
             .build()
             .map_err(Error::Http)?;
 
-        Ok(Self { client, cache })
+        Ok(Self {
+            client,
+            cache: Arc::new(cache),
+            semaphore: Arc::new(Semaphore::new(max_concurrent)),
+        })
+    }
+
+    /// Create with default concurrency (4)
+    pub fn with_cache(cache: DownloadCache) -> Result<Self> {
+        Self::new(cache, 4)
     }
 
     /// Download a bottle, returning the path to the downloaded file
@@ -89,42 +104,60 @@ impl DownloadClient {
         Ok(path)
     }
 
+    /// Download a single bottle with semaphore (for use in parallel downloads)
+    async fn download_bottle_with_semaphore(
+        &self,
+        spec: BottleSpec,
+        progress: Arc<ProgressReporter>,
+    ) -> Result<PathBuf> {
+        // Acquire semaphore permit to limit concurrency
+        let _permit = self.semaphore.acquire().await.map_err(|_| {
+            Error::DownloadFailed("Semaphore closed".to_string())
+        })?;
+
+        self.download_bottle(
+            &spec.name,
+            &spec.version,
+            &spec.platform,
+            &spec.url,
+            &spec.sha256,
+            Some(&progress),
+        )
+        .await
+    }
+
     /// Download multiple bottles in parallel
-    pub async fn download_bottles(
+    pub async fn download_bottles_parallel(
         &self,
         bottles: Vec<BottleSpec>,
-        progress: &ProgressReporter,
-    ) -> Result<Vec<PathBuf>> {
-        use futures::future::join_all;
-
-        let summary = progress.new_summary(bottles.len() as u64, "Downloading packages...");
-
+        progress: Arc<ProgressReporter>,
+    ) -> Vec<Result<PathBuf>> {
         let futures: Vec<_> = bottles
             .into_iter()
             .map(|spec| {
-                let client = self.client.clone();
-                let cache = self.cache.bottle_path(&spec.name, &spec.version, &spec.platform);
-                async move {
-                    let result = self
-                        .download_bottle(
-                            &spec.name,
-                            &spec.version,
-                            &spec.platform,
-                            &spec.url,
-                            &spec.sha256,
-                            Some(progress),
-                        )
-                        .await;
-                    summary.inc(1);
-                    result
-                }
+                let client = self.clone();
+                let progress = Arc::clone(&progress);
+                async move { client.download_bottle_with_semaphore(spec, progress).await }
             })
             .collect();
 
-        let results = join_all(futures).await;
-        summary.finish();
+        join_all(futures).await
+    }
 
-        results.into_iter().collect()
+    /// Download multiple bottles in parallel, failing fast on first error
+    pub async fn download_bottles(
+        &self,
+        bottles: Vec<BottleSpec>,
+        progress: Arc<ProgressReporter>,
+    ) -> Result<Vec<PathBuf>> {
+        let results = self.download_bottles_parallel(bottles, progress).await;
+
+        // Collect results, returning first error if any
+        let mut paths = Vec::with_capacity(results.len());
+        for result in results {
+            paths.push(result?);
+        }
+        Ok(paths)
     }
 
     /// Get the cache
@@ -141,4 +174,35 @@ pub struct BottleSpec {
     pub platform: String,
     pub url: String,
     pub sha256: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+    use tempfile::tempdir;
+
+    #[tokio::test]
+    async fn test_client_creation() {
+        let tmp = tempdir().unwrap();
+        let cache = DownloadCache::new(tmp.path());
+        let client = DownloadClient::new(cache, 4);
+        assert!(client.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_cache_check() {
+        let tmp = tempdir().unwrap();
+        let cache = DownloadCache::new(tmp.path());
+
+        // Store a fake bottle
+        let data = b"test bottle content";
+        let hash = sha256_bytes(data);
+        cache.store_bottle("test", "1.0.0", "x86_64_linux", data).unwrap();
+
+        let client = DownloadClient::new(cache, 4).unwrap();
+
+        // Should find it in cache
+        assert!(client.cache().has_bottle("test", "1.0.0", "x86_64_linux"));
+    }
 }

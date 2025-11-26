@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use tracing::{debug, info, warn};
 
 /// Manifest file structure
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Manifest {
     pub version: String,
     pub index_version: String,

@@ -1,13 +1,15 @@
 //! Install command
 
 use anyhow::{bail, Context, Result};
-use brewx_fetch::{DownloadCache, DownloadClient, ProgressReporter};
-use brewx_index::{Database, IndexSync};
+use brewx_fetch::{BottleSpec, DownloadCache, DownloadClient, ProgressReporter};
+use brewx_index::{Database, Formula, IndexSync};
 use brewx_install::{extract_bottle, link_package, write_receipt, InstallReceipt, RuntimeDependency};
-use brewx_resolve::{DependencyGraph, InstallPlan};
+use brewx_resolve::{DependencyGraph, InstallPlan, InstallStep};
 use brewx_state::{Config, InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
+use std::sync::Arc;
+use std::time::Instant;
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -24,6 +26,8 @@ pub struct Args {
 }
 
 pub async fn run(args: Args) -> Result<()> {
+    let start = Instant::now();
+
     if args.formulas.is_empty() {
         bail!("No formulas specified");
     }
@@ -124,13 +128,13 @@ pub async fn run(args: Args) -> Result<()> {
 
     // Detect platform
     let platform = detect_platform();
-    println!("\n{}...", style("Downloading").cyan());
 
-    // Fetch full formula data and prepare downloads
+    // Fetch full formula data and prepare bottle specs
+    println!("\n{}...", style("Fetching formula data").cyan());
     let sync = IndexSync::new(Some(&config.index.base_url), &paths.brewx_dir)?;
-    let cache = DownloadCache::new(&paths.brewx_dir);
-    let client = DownloadClient::new(cache)?;
-    let progress = ProgressReporter::new();
+
+    let mut formulas_to_install: Vec<(InstallStep, Formula)> = Vec::new();
+    let mut bottle_specs: Vec<BottleSpec> = Vec::new();
 
     for step in plan.new_packages() {
         let formula = sync
@@ -142,21 +146,39 @@ pub async fn run(args: Args) -> Result<()> {
             .bottle_for_platform(&platform)
             .context(format!("No bottle for {} on {}", step.name, platform))?;
 
-        // Download
-        let bottle_path = client
-            .download_bottle(
-                &step.name,
-                &step.version,
-                &platform,
-                &bottle.url,
-                &bottle.sha256,
-                Some(&progress),
-            )
-            .await?;
+        bottle_specs.push(BottleSpec {
+            name: step.name.clone(),
+            version: step.version.clone(),
+            platform: platform.clone(),
+            url: bottle.url.clone(),
+            sha256: bottle.sha256.clone(),
+        });
 
+        formulas_to_install.push((step.clone(), formula));
+    }
+
+    // Download all bottles in parallel
+    println!(
+        "\n{} {} packages...",
+        style("Downloading").cyan(),
+        bottle_specs.len()
+    );
+
+    let cache = DownloadCache::new(&paths.brewx_dir);
+    let client = DownloadClient::new(cache, config.install.parallel_downloads as usize)?;
+    let progress = Arc::new(ProgressReporter::new());
+
+    let bottle_paths = client
+        .download_bottles(bottle_specs, Arc::clone(&progress))
+        .await
+        .context("Failed to download bottles")?;
+
+    // Install all packages sequentially (linking order matters)
+    println!("\n{}...", style("Installing").cyan());
+
+    for ((step, formula), bottle_path) in formulas_to_install.iter().zip(bottle_paths.iter()) {
         // Extract
-        println!("  {} {}", style("Installing").cyan(), step.name);
-        let install_path = extract_bottle(&bottle_path, &paths.cellar)?;
+        let install_path = extract_bottle(bottle_path, &paths.cellar)?;
 
         // Link
         link_package(&install_path, &paths.prefix)?;
@@ -186,11 +208,12 @@ pub async fn run(args: Args) -> Result<()> {
     // Save state
     installed.save(&paths)?;
 
+    let elapsed = start.elapsed();
     println!(
-        "\n{} {} packages in {:?}",
+        "\n{} {} packages in {:.1}s",
         style("Installed").green().bold(),
         plan.total_packages(),
-        std::time::Duration::from_secs(0) // TODO: actual timing
+        elapsed.as_secs_f64()
     );
 
     Ok(())
