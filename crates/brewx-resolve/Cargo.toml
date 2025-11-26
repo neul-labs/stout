@@ -1,0 +1,12 @@
+[package]
+name = "brewx-resolve"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Dependency resolution for brewx"
+
+[dependencies]
+brewx-index.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

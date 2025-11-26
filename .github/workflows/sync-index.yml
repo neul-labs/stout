@@ -1,0 +1,63 @@
+name: Sync Index
+
+on:
+  schedule:
+    # Every 30 minutes
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      full_rebuild:
+        description: 'Full rebuild (ignore incremental)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  sync:
+    name: Sync Index
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r scripts/requirements.txt
+
+      - name: Run sync
+        run: |
+          python scripts/sync.py --output dist ${{ github.event.inputs.full_rebuild == 'true' && '--full' || '' }}
+
+      - name: Show results
+        run: |
+          echo "=== Manifest ==="
+          cat dist/manifest.json
+          echo ""
+          echo "=== File sizes ==="
+          ls -lh dist/
+          echo ""
+          echo "=== Formula count ==="
+          ls dist/formulas/*/ | wc -l
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: brewx-index
+          path: |
+            dist/index.db.zst
+            dist/manifest.json
+            dist/formulas/
+
+      # For the brewx-index repository, commit and push
+      # - name: Commit and push
+      #   run: |
+      #     git config user.name "github-actions[bot]"
+      #     git config user.email "github-actions[bot]@users.noreply.github.com"
+      #     git add dist/
+      #     git commit -m "Update index $(date -u +%Y.%m.%d.%H%M)" || echo "No changes"
+      #     git push

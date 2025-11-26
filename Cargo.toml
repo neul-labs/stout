@@ -1,0 +1,113 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/brewx-index",
+    "crates/brewx-resolve",
+    "crates/brewx-fetch",
+    "crates/brewx-install",
+    "crates/brewx-state",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/anthropics/brewx"
+rust-version = "1.75"
+
+[workspace.dependencies]
+# Internal crates
+brewx-index = { path = "crates/brewx-index" }
+brewx-resolve = { path = "crates/brewx-resolve" }
+brewx-fetch = { path = "crates/brewx-fetch" }
+brewx-install = { path = "crates/brewx-install" }
+brewx-state = { path = "crates/brewx-state" }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# Database
+rusqlite = { version = "0.32", features = ["bundled", "backup"] }
+
+# HTTP
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "gzip"] }
+
+# Compression
+zstd = "0.13"
+flate2 = "1"
+
+# Archive
+tar = "0.4"
+
+# Crypto
+sha2 = "0.10"
+
+# Terminal UI
+indicatif = "0.17"
+console = "0.15"
+dialoguer = "0.11"
+
+# Formatting
+humansize = "2"
+humantime = "2"
+
+# Paths
+dirs = "5"
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Misc
+once_cell = "1"
+strsim = "0.11"  # Fuzzy matching for "did you mean?"
+
+[package]
+name = "brewx"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "A fast, Rust-based Homebrew-compatible package manager"
+
+[[bin]]
+name = "brewx"
+path = "src/main.rs"
+
+[dependencies]
+brewx-index.workspace = true
+brewx-resolve.workspace = true
+brewx-fetch.workspace = true
+brewx-install.workspace = true
+brewx-state.workspace = true
+
+tokio.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+indicatif.workspace = true
+console.workspace = true
+dialoguer.workspace = true
+
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

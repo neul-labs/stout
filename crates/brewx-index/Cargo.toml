@@ -1,0 +1,18 @@
+[package]
+name = "brewx-index"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "SQLite index management for brewx"
+
+[dependencies]
+rusqlite.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+zstd.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+dirs.workspace = true
