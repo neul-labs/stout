@@ -1,5 +1,6 @@
 //! Index synchronization from remote
 
+use crate::cask::Cask;
 use crate::db::Database;
 use crate::error::{Error, Result};
 use crate::formula::Formula;
@@ -175,5 +176,66 @@ impl IndexSync {
         std::fs::write(&cache_path, &json)?;
 
         Ok(formula)
+    }
+
+    /// Fetch a cask's full JSON data
+    pub async fn fetch_cask(&self, token: &str) -> Result<Cask> {
+        let first_char = token.chars().next().unwrap_or('_');
+        let url = format!(
+            "{}/casks/{}/{}.json.zst",
+            self.base_url, first_char, token
+        );
+
+        debug!("Fetching cask from {}", url);
+
+        let response = self.client.get(&url).send().await?;
+
+        if !response.status().is_success() {
+            return Err(Error::CaskNotFound(token.to_string()));
+        }
+
+        let compressed = response.bytes().await?;
+
+        // Decompress
+        let mut decoder = zstd::Decoder::new(Cursor::new(compressed))?;
+        let mut json_bytes = Vec::new();
+        decoder.read_to_end(&mut json_bytes)?;
+
+        // Parse
+        let cask: Cask = serde_json::from_slice(&json_bytes)?;
+
+        Ok(cask)
+    }
+
+    /// Fetch and cache a cask
+    pub async fn fetch_cask_cached(&self, token: &str, expected_hash: Option<&str>) -> Result<Cask> {
+        let cache_path = self.cache_dir.join("casks").join(format!("{}.json", token));
+
+        // Check cache
+        if let Some(hash) = expected_hash {
+            if cache_path.exists() {
+                let cached = std::fs::read_to_string(&cache_path)?;
+                let mut hasher = Sha256::new();
+                hasher.update(cached.as_bytes());
+                let cached_hash = format!("{:x}", hasher.finalize());
+
+                if cached_hash == hash {
+                    debug!("Using cached cask for {}", token);
+                    return Ok(serde_json::from_str(&cached)?);
+                }
+            }
+        }
+
+        // Fetch fresh
+        let cask = self.fetch_cask(token).await?;
+
+        // Cache it
+        if let Some(parent) = cache_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let json = serde_json::to_string_pretty(&cask)?;
+        std::fs::write(&cache_path, &json)?;
+
+        Ok(cask)
     }
 }

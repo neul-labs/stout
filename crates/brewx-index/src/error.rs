@@ -19,6 +19,9 @@ pub enum Error {
     #[error("Formula not found: {0}")]
     FormulaNotFound(String),
 
+    #[error("Cask not found: {0}")]
+    CaskNotFound(String),
+
     #[error("Index not initialized. Run 'brewx update' first.")]
     IndexNotInitialized,
 
@@ -27,6 +30,9 @@ pub enum Error {
 
     #[error("Invalid index format: {0}")]
     InvalidIndex(String),
+
+    #[error("Signature verification failed: {0}")]
+    SignatureInvalid(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

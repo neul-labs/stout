@@ -21,6 +21,15 @@ pub enum Error {
 
     #[error("Invalid bottle format: {0}")]
     InvalidBottle(String),
+
+    #[error("Build failed: {0}")]
+    Build(String),
+
+    #[error("Bottle creation failed: {0}")]
+    Bottle(String),
+
+    #[error("{0}")]
+    Other(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

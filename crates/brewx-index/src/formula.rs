@@ -156,6 +156,21 @@ impl Formula {
         &self.dependencies.build
     }
 
+    /// Get all test dependencies
+    pub fn test_deps(&self) -> &[String] {
+        &self.dependencies.test
+    }
+
+    /// Get all optional dependencies
+    pub fn optional_deps(&self) -> &[String] {
+        &self.dependencies.optional
+    }
+
+    /// Get all recommended dependencies
+    pub fn recommended_deps(&self) -> &[String] {
+        &self.dependencies.recommended
+    }
+
     /// Check if this formula has a bottle for any platform
     pub fn has_any_bottle(&self) -> bool {
         !self.bottles.is_empty()

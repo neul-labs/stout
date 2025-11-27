@@ -16,6 +16,10 @@ pub struct InstalledPackage {
     pub installed_by: String,
     #[serde(default)]
     pub requested: bool,
+    #[serde(default)]
+    pub pinned: bool,
+    #[serde(default)]
+    pub dependencies: Vec<String>,
 }
 
 fn default_installed_by() -> String {
@@ -58,7 +62,21 @@ impl InstalledPackages {
 
     /// Add or update a package
     pub fn add(&mut self, name: &str, version: &str, revision: u32, requested: bool) {
+        self.add_with_deps(name, version, revision, requested, Vec::new());
+    }
+
+    /// Add or update a package with dependencies
+    pub fn add_with_deps(
+        &mut self,
+        name: &str,
+        version: &str,
+        revision: u32,
+        requested: bool,
+        dependencies: Vec<String>,
+    ) {
         let now = chrono_lite_now();
+        // Preserve pinned status if updating existing package
+        let pinned = self.packages.get(name).map(|p| p.pinned).unwrap_or(false);
         self.packages.insert(
             name.to_string(),
             InstalledPackage {
@@ -67,8 +85,40 @@ impl InstalledPackages {
                 installed_at: now,
                 installed_by: "brewx".to_string(),
                 requested,
+                pinned,
+                dependencies,
             },
         );
+    }
+
+    /// Pin a package to prevent upgrades
+    pub fn pin(&mut self, name: &str) -> bool {
+        if let Some(pkg) = self.packages.get_mut(name) {
+            pkg.pinned = true;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Unpin a package to allow upgrades
+    pub fn unpin(&mut self, name: &str) -> bool {
+        if let Some(pkg) = self.packages.get_mut(name) {
+            pkg.pinned = false;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Check if a package is pinned
+    pub fn is_pinned(&self, name: &str) -> bool {
+        self.packages.get(name).map(|p| p.pinned).unwrap_or(false)
+    }
+
+    /// List pinned packages
+    pub fn pinned(&self) -> impl Iterator<Item = (&String, &InstalledPackage)> {
+        self.packages.iter().filter(|(_, p)| p.pinned)
     }
 
     /// Remove a package
@@ -112,6 +162,11 @@ impl InstalledPackages {
     /// List packages that are dependencies
     pub fn dependencies(&self) -> impl Iterator<Item = (&String, &InstalledPackage)> {
         self.packages.iter().filter(|(_, p)| !p.requested)
+    }
+
+    /// Iterate over all installed packages
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &InstalledPackage)> {
+        self.packages.iter()
     }
 }
 

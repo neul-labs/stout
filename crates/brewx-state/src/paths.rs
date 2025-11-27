@@ -60,6 +60,11 @@ impl Paths {
         self.brewx_dir.join("state").join("installed.toml")
     }
 
+    /// Package history file
+    pub fn history_file(&self) -> PathBuf {
+        self.brewx_dir.join("state").join("history.json")
+    }
+
     /// Formula cache directory
     pub fn formula_cache(&self) -> PathBuf {
         self.brewx_dir.join("cache").join("formulas")

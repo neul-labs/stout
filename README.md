@@ -117,19 +117,174 @@ brewx list
 brewx doctor
 ```
 
+### Cask Support (Applications)
+
+brewx can also install macOS applications (casks) and Linux apps (AppImage, Flatpak):
+
+```bash
+# Search for applications
+brewx cask search firefox
+
+# Install an application
+brewx cask install firefox
+
+# List installed applications
+brewx cask list
+
+# Get application info
+brewx cask info visual-studio-code
+
+# Uninstall an application
+brewx cask uninstall firefox
+
+# Upgrade applications
+brewx cask upgrade
+```
+
 ## Commands
+
+brewx implements 35+ commands with full Homebrew CLI compatibility:
+
+### Package Management
+
+| Command | brew Equivalent | Description |
+|---------|-----------------|-------------|
+| `brewx install <pkg>` | `brew install` | Install packages |
+| `brewx uninstall <pkg>` | `brew uninstall` | Uninstall packages |
+| `brewx reinstall <pkg>` | `brew reinstall` | Reinstall packages |
+| `brewx upgrade [pkg]` | `brew upgrade` | Upgrade installed packages |
+| `brewx update` | `brew update` | Update the formula index |
+| `brewx outdated` | `brew outdated` | Show packages with available updates |
+| `brewx autoremove` | `brew autoremove` | Remove unused dependencies |
+
+### Discovery & Information
+
+| Command | brew Equivalent | Description |
+|---------|-----------------|-------------|
+| `brewx search <query>` | `brew search` | Search for packages |
+| `brewx info <pkg>` | `brew info` | Show package information |
+| `brewx list` | `brew list` | List installed packages |
+| `brewx deps <pkg>` | `brew deps` | Show package dependencies |
+| `brewx uses <pkg>` | `brew uses` | Show packages that depend on a package |
+| `brewx why <pkg>` | `brew why` | Show why a package is installed |
+| `brewx home <pkg>` | `brew home` | Open package homepage in browser |
+
+### Package Control
+
+| Command | brew Equivalent | Description |
+|---------|-----------------|-------------|
+| `brewx pin <pkg>` | `brew pin` | Pin packages to prevent upgrades |
+| `brewx unpin <pkg>` | `brew unpin` | Unpin packages to allow upgrades |
+| `brewx link <pkg>` | `brew link` | Create symlinks for a package |
+| `brewx unlink <pkg>` | `brew unlink` | Remove symlinks (keep package) |
+| `brewx switch <pkg> <ver>` | `brew switch` | Switch between installed versions |
+| `brewx rollback <pkg>` | - | Rollback to previous version |
+
+### System & Maintenance
+
+| Command | brew Equivalent | Description |
+|---------|-----------------|-------------|
+| `brewx cleanup` | `brew cleanup` | Remove old downloads and cache files |
+| `brewx doctor` | `brew doctor` | Check system health |
+| `brewx config` | `brew config` | Show brewx configuration |
+| `brewx services` | `brew services` | Manage background services |
+| `brewx tap` | `brew tap` | Manage custom formula repositories |
+| `brewx lock` | - | Manage lockfiles for reproducible environments |
+| `brewx history [pkg]` | - | Show package version history |
+| `brewx completions <shell>` | - | Generate shell completions |
+
+### Cask (Application) Management
+
+| Command | brew Equivalent | Description |
+|---------|-----------------|-------------|
+| `brewx cask install <app>` | `brew install --cask` | Install applications |
+| `brewx cask uninstall <app>` | `brew uninstall --cask` | Uninstall applications |
+| `brewx cask search <query>` | `brew search --cask` | Search for applications |
+| `brewx cask info <app>` | `brew info --cask` | Show application information |
+| `brewx cask list` | `brew list --cask` | List installed applications |
+| `brewx cask outdated` | `brew outdated --cask` | Show outdated applications |
+| `brewx cask upgrade [app]` | `brew upgrade --cask` | Upgrade applications |
+
+### Bundle & Snapshot
+
+| Command | brew Equivalent | Description |
+|---------|-----------------|-------------|
+| `brewx bundle` | `brew bundle` | Install from Brewfile |
+| `brewx bundle dump` | `brew bundle dump` | Generate Brewfile from installed |
+| `brewx bundle check` | `brew bundle check` | Check if Brewfile satisfied |
+| `brewx bundle list` | `brew bundle list` | List Brewfile entries |
+| `brewx bundle cleanup` | `brew bundle cleanup` | Remove packages not in Brewfile |
+| `brewx snapshot create <name>` | - | Create named snapshot |
+| `brewx snapshot list` | - | List all snapshots |
+| `brewx snapshot restore <name>` | - | Restore snapshot |
+
+### Security & Audit
+
+| Command | brew Equivalent | Description |
+|---------|-----------------|-------------|
+| `brewx audit` | `brew audit` | Scan packages for known vulnerabilities |
+| `brewx audit <pkg>` | - | Audit specific package |
+| `brewx audit --update` | - | Update vulnerability database |
+
+### Offline & Mirroring
+
+| Command | brew Equivalent | Description |
+|---------|-----------------|-------------|
+| `brewx mirror create <dir> <pkgs>` | - | Create offline mirror |
+| `brewx mirror serve <dir>` | - | Serve mirror via HTTP |
+| `brewx mirror info <dir>` | - | Show mirror information |
+| `brewx mirror verify <dir>` | - | Verify mirror integrity |
+
+### Developer Tools
+
+| Command | brew Equivalent | Description |
+|---------|-----------------|-------------|
+| `brewx install -s --jobs=8` | `brew install -s` | Build from source with parallel jobs |
+| `brewx install -s --cc=clang` | `brew install --cc` | Build with custom compiler |
+| `brewx bottle create <pkg>` | `brew bottle` | Create bottle from installed package |
+| `brewx create <url>` | `brew create` | Create formula from URL |
+| `brewx create --cask <url>` | `brew create --cask` | Create cask from URL |
+| `brewx test <pkg>` | `brew test` | Test installed packages |
+| `brewx analytics on\|off\|status` | `brew analytics` | Manage opt-in analytics |
+
+### Multi-prefix Support
+
+brewx supports multiple installation prefixes for isolated environments:
 
 | Command | Description |
 |---------|-------------|
-| `brewx install <pkg>` | Install packages |
-| `brewx uninstall <pkg>` | Uninstall packages |
-| `brewx search <query>` | Search for packages |
-| `brewx info <pkg>` | Show package information |
-| `brewx list` | List installed packages |
-| `brewx update` | Update the formula index |
-| `brewx upgrade` | Upgrade installed packages |
-| `brewx doctor` | Check system health |
-| `brewx completions <shell>` | Generate shell completions |
+| `brewx prefix create <path>` | Create a new prefix directory structure |
+| `brewx prefix list` | List all known prefixes |
+| `brewx prefix info [path]` | Show prefix information and disk usage |
+| `brewx prefix default <path>` | Set the default prefix |
+| `brewx prefix remove <path>` | Remove a prefix |
+| `brewx --prefix=<path> install <pkg>` | Install to a specific prefix |
+| `brewx --prefix=<path> list` | List packages in a specific prefix |
+
+#### Example: Project-specific Dependencies
+
+```bash
+# Create an isolated prefix for a project
+brewx prefix create ~/projects/myapp/.brewx
+
+# Install packages to that prefix
+brewx --prefix=~/projects/myapp/.brewx install python@3.11 node@20
+
+# Add to project-specific PATH
+export PATH="$HOME/projects/myapp/.brewx/bin:$PATH"
+
+# List packages in the prefix
+brewx --prefix=~/projects/myapp/.brewx list
+```
+
+#### Environment Variable
+
+You can also set the default prefix via environment variable:
+
+```bash
+export BREWX_PREFIX=~/projects/myapp/.brewx
+brewx install jq  # Installs to custom prefix
+```
 
 ## How It Works
 
@@ -198,9 +353,16 @@ brewx/
 │   ├── brewx-resolve/     # Dependency resolution
 │   ├── brewx-fetch/       # Download management
 │   ├── brewx-install/     # Package installation
-│   └── brewx-state/       # Local state management
+│   ├── brewx-state/       # Local state management
+│   ├── brewx-cask/        # Cask (application) management
+│   ├── brewx-bundle/      # Brewfile parsing and snapshots
+│   ├── brewx-audit/       # Vulnerability auditing
+│   └── brewx-mirror/      # Offline mirror support
 ├── scripts/
-│   └── sync.py            # Index sync script
+│   ├── sync.py            # Formula index sync script
+│   ├── sync_casks.py      # Cask index sync script
+│   ├── sync_linux_apps.py # Linux apps sync script
+│   └── sync_vulns.py      # Vulnerability index sync script
 ├── packaging/             # Package manager distribution
 │   ├── homebrew/          # Homebrew formula
 │   ├── aur/               # Arch Linux PKGBUILD
@@ -217,6 +379,7 @@ brewx/
 - [Technical Specification](docs/SPEC.md)
 - [Contributing](docs/CONTRIBUTING.md)
 - [Packaging Guide](docs/PACKAGING.md)
+- [Roadmap](docs/ROADMAP.md)
 
 ## Development
 

@@ -14,6 +14,8 @@ pub struct Config {
     pub install: InstallConfig,
     #[serde(default)]
     pub cache: CacheConfig,
+    #[serde(default)]
+    pub analytics: AnalyticsConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,6 +55,13 @@ pub struct CacheConfig {
     /// Download cache TTL in seconds
     #[serde(default = "default_download_ttl")]
     pub download_ttl: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnalyticsConfig {
+    /// Enable anonymous usage analytics (opt-in)
+    #[serde(default)]
+    pub enabled: bool,
 }
 
 // Defaults
@@ -122,12 +131,21 @@ impl Default for CacheConfig {
     }
 }
 
+impl Default for AnalyticsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false, // Opt-in by default
+        }
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
             index: IndexConfig::default(),
             install: InstallConfig::default(),
             cache: CacheConfig::default(),
+            analytics: AnalyticsConfig::default(),
         }
     }
 }

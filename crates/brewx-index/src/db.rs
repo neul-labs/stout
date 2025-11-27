@@ -1,5 +1,6 @@
 //! Database operations
 
+use crate::cask::CaskInfo;
 use crate::error::{Error, Result};
 use crate::formula::{Dependency, DependencyType, FormulaInfo};
 use crate::schema::{self, meta_keys, CREATE_SCHEMA};
@@ -258,6 +259,149 @@ impl Database {
         Ok(names)
     }
 
+    // ==================== Cask methods ====================
+
+    /// Get the cask count
+    pub fn cask_count(&self) -> Result<u32> {
+        let count: u32 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM casks", [], |row| row.get(0))?;
+        Ok(count)
+    }
+
+    /// Look up a cask by token
+    pub fn get_cask(&self, token: &str) -> Result<Option<CaskInfo>> {
+        let cask = self
+            .conn
+            .query_row(
+                r#"
+                SELECT token, name, version, desc, homepage, tap,
+                       deprecated, disabled, artifact_type, json_hash
+                FROM casks
+                WHERE token = ?
+                "#,
+                [token],
+                |row| {
+                    Ok(CaskInfo {
+                        token: row.get(0)?,
+                        name: row.get(1)?,
+                        version: row.get(2)?,
+                        desc: row.get(3)?,
+                        homepage: row.get(4)?,
+                        tap: row.get(5)?,
+                        deprecated: row.get(6)?,
+                        disabled: row.get(7)?,
+                        artifact_type: row.get(8)?,
+                        json_hash: row.get(9)?,
+                    })
+                },
+            )
+            .optional()?;
+        Ok(cask)
+    }
+
+    /// Search casks using FTS
+    pub fn search_casks(&self, query: &str, limit: usize) -> Result<Vec<CaskInfo>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT c.token, c.name, c.version, c.desc, c.homepage, c.tap,
+                   c.deprecated, c.disabled, c.artifact_type, c.json_hash
+            FROM casks c
+            JOIN casks_fts fts ON c.rowid = fts.rowid
+            WHERE casks_fts MATCH ?
+            ORDER BY rank
+            LIMIT ?
+            "#,
+        )?;
+
+        let casks = stmt
+            .query_map(params![query, limit as i64], |row| {
+                Ok(CaskInfo {
+                    token: row.get(0)?,
+                    name: row.get(1)?,
+                    version: row.get(2)?,
+                    desc: row.get(3)?,
+                    homepage: row.get(4)?,
+                    tap: row.get(5)?,
+                    deprecated: row.get(6)?,
+                    disabled: row.get(7)?,
+                    artifact_type: row.get(8)?,
+                    json_hash: row.get(9)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        Ok(casks)
+    }
+
+    /// List all casks (paginated)
+    pub fn list_casks(&self, offset: usize, limit: usize) -> Result<Vec<CaskInfo>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT token, name, version, desc, homepage, tap,
+                   deprecated, disabled, artifact_type, json_hash
+            FROM casks
+            ORDER BY token
+            LIMIT ? OFFSET ?
+            "#,
+        )?;
+
+        let casks = stmt
+            .query_map(params![limit as i64, offset as i64], |row| {
+                Ok(CaskInfo {
+                    token: row.get(0)?,
+                    name: row.get(1)?,
+                    version: row.get(2)?,
+                    desc: row.get(3)?,
+                    homepage: row.get(4)?,
+                    tap: row.get(5)?,
+                    deprecated: row.get(6)?,
+                    disabled: row.get(7)?,
+                    artifact_type: row.get(8)?,
+                    json_hash: row.get(9)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        Ok(casks)
+    }
+
+    /// Find similar cask tokens (for "did you mean?" suggestions)
+    pub fn find_similar_casks(&self, token: &str, limit: usize) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT token FROM casks
+            WHERE token LIKE ? OR token LIKE ? OR name LIKE ?
+            ORDER BY
+                CASE
+                    WHEN token LIKE ? THEN 0
+                    ELSE 1
+                END,
+                length(token)
+            LIMIT ?
+            "#,
+        )?;
+
+        let pattern_prefix = format!("{}%", token);
+        let pattern_contains = format!("%{}%", token);
+
+        let tokens = stmt
+            .query_map(
+                params![pattern_prefix, pattern_contains, pattern_contains, pattern_prefix, limit as i64],
+                |row| row.get(0),
+            )?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        Ok(tokens)
+    }
+
+    /// Search both formulas and casks
+    pub fn search_all(&self, query: &str, limit: usize) -> Result<(Vec<FormulaInfo>, Vec<CaskInfo>)> {
+        let formulas = self.search(query, limit)?;
+        let casks = self.search_casks(query, limit)?;
+        Ok((formulas, casks))
+    }
+
     /// Begin a transaction for bulk operations
     pub fn transaction(&mut self) -> Result<Transaction<'_>> {
         Ok(Transaction {
@@ -341,7 +485,44 @@ impl<'a> Transaction<'a> {
             DELETE FROM bottles;
             DELETE FROM aliases;
             DELETE FROM formulas;
+            DELETE FROM cask_dependencies;
+            DELETE FROM casks;
             "#,
+        )?;
+        Ok(())
+    }
+
+    // ==================== Cask transaction methods ====================
+
+    /// Insert or update a cask
+    pub fn upsert_cask(&self, cask: &CaskInfo) -> Result<()> {
+        self.tx.execute(
+            r#"
+            INSERT OR REPLACE INTO casks
+            (token, name, version, desc, homepage, tap, deprecated, disabled, artifact_type, json_hash)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
+            params![
+                cask.token,
+                cask.name,
+                cask.version,
+                cask.desc,
+                cask.homepage,
+                cask.tap,
+                cask.deprecated,
+                cask.disabled,
+                cask.artifact_type,
+                cask.json_hash,
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Insert a cask dependency
+    pub fn insert_cask_dependency(&self, cask: &str, dep_name: &str, dep_type: &str) -> Result<()> {
+        self.tx.execute(
+            "INSERT OR IGNORE INTO cask_dependencies (cask, dep_name, dep_type) VALUES (?, ?, ?)",
+            params![cask, dep_name, dep_type],
         )?;
         Ok(())
     }

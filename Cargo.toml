@@ -6,6 +6,10 @@ members = [
     "crates/brewx-fetch",
     "crates/brewx-install",
     "crates/brewx-state",
+    "crates/brewx-cask",
+    "crates/brewx-bundle",
+    "crates/brewx-audit",
+    "crates/brewx-mirror",
 ]
 
 [workspace.package]
@@ -22,9 +26,14 @@ brewx-resolve = { path = "crates/brewx-resolve" }
 brewx-fetch = { path = "crates/brewx-fetch" }
 brewx-install = { path = "crates/brewx-install" }
 brewx-state = { path = "crates/brewx-state" }
+brewx-cask = { path = "crates/brewx-cask" }
+brewx-bundle = { path = "crates/brewx-bundle" }
+brewx-audit = { path = "crates/brewx-audit" }
+brewx-mirror = { path = "crates/brewx-mirror" }
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }
+futures-util = "0.3"
 
 # CLI
 clap = { version = "4", features = ["derive", "env"] }
@@ -50,6 +59,8 @@ tar = "0.4"
 
 # Crypto
 sha2 = "0.10"
+ed25519-dalek = { version = "2", features = ["std", "rand_core"] }
+hex = "0.4"
 
 # Terminal UI
 indicatif = "0.17"
@@ -74,6 +85,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Misc
 once_cell = "1"
 strsim = "0.11"  # Fuzzy matching for "did you mean?"
+num_cpus = "1.16"
 
 [package]
 name = "brewx"
@@ -94,12 +106,17 @@ brewx-resolve.workspace = true
 brewx-fetch.workspace = true
 brewx-install.workspace = true
 brewx-state.workspace = true
+brewx-cask.workspace = true
+brewx-bundle.workspace = true
+brewx-audit.workspace = true
+brewx-mirror.workspace = true
 
 tokio.workspace = true
 clap.workspace = true
 clap_complete.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+reqwest.workspace = true
 
 indicatif.workspace = true
 console.workspace = true
@@ -107,7 +124,13 @@ dialoguer.workspace = true
 
 anyhow.workspace = true
 tracing.workspace = true
+humansize.workspace = true
 tracing-subscriber.workspace = true
+flate2.workspace = true
+tar.workspace = true
+sha2.workspace = true
+walkdir = "2"
+dirs.workspace = true
 
 [profile.release]
 lto = true

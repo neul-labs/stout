@@ -61,6 +61,32 @@ impl InstallReceipt {
             changed_files: Vec::new(),
         }
     }
+
+    /// Create a new receipt for a source-built installation
+    pub fn new_source(
+        tap: &str,
+        on_request: bool,
+        dependencies: Vec<RuntimeDependency>,
+    ) -> Self {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        Self {
+            homebrew_version: "4.0.0".to_string(),
+            installed_as_dependency: !on_request,
+            installed_on_request: on_request,
+            install_time: now,
+            source: ReceiptSource {
+                tap: tap.to_string(),
+                path: None,
+            },
+            runtime_dependencies: dependencies,
+            poured_from_bottle: false, // Built from source
+            changed_files: Vec::new(),
+        }
+    }
 }
 
 /// Write an INSTALL_RECEIPT.json file
