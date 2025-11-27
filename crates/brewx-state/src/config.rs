@@ -16,6 +16,8 @@ pub struct Config {
     pub cache: CacheConfig,
     #[serde(default)]
     pub analytics: AnalyticsConfig,
+    #[serde(default)]
+    pub security: SecurityConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,9 +66,29 @@ pub struct AnalyticsConfig {
     pub enabled: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityConfig {
+    /// Require valid Ed25519 signatures on index updates
+    /// Default: true in release builds, false in debug
+    #[serde(default = "default_require_signature")]
+    pub require_signature: bool,
+    /// Allow unsigned indexes (for development/testing)
+    /// Default: false in release builds, true in debug
+    #[serde(default = "default_allow_unsigned")]
+    pub allow_unsigned: bool,
+    /// Maximum age of signature in seconds before rejecting
+    /// Default: 7 days (604800 seconds)
+    #[serde(default = "default_max_signature_age")]
+    pub max_signature_age: u64,
+    /// Additional trusted public keys (hex-encoded Ed25519 public keys)
+    /// The default brewx-index key is always trusted
+    #[serde(default)]
+    pub additional_trusted_keys: Vec<String>,
+}
+
 // Defaults
 fn default_base_url() -> String {
-    "https://raw.githubusercontent.com/anthropics/brewx-index/main".to_string()
+    "https://raw.githubusercontent.com/neul-labs/brewx-index/main".to_string()
 }
 
 fn default_true() -> bool {
@@ -98,6 +120,18 @@ fn default_formula_ttl() -> u64 {
 }
 
 fn default_download_ttl() -> u64 {
+    604800 // 7 days
+}
+
+fn default_require_signature() -> bool {
+    cfg!(not(debug_assertions))
+}
+
+fn default_allow_unsigned() -> bool {
+    cfg!(debug_assertions)
+}
+
+fn default_max_signature_age() -> u64 {
     604800 // 7 days
 }
 
@@ -139,6 +173,29 @@ impl Default for AnalyticsConfig {
     }
 }
 
+impl Default for SecurityConfig {
+    fn default() -> Self {
+        Self {
+            require_signature: default_require_signature(),
+            allow_unsigned: default_allow_unsigned(),
+            max_signature_age: default_max_signature_age(),
+            additional_trusted_keys: vec![],
+        }
+    }
+}
+
+impl SecurityConfig {
+    /// Convert to brewx-index SecurityPolicy
+    pub fn to_security_policy(&self) -> brewx_index::SecurityPolicy {
+        brewx_index::SecurityPolicy {
+            require_signature: self.require_signature,
+            max_signature_age: self.max_signature_age,
+            additional_keys: self.additional_trusted_keys.clone(),
+            allow_unsigned: self.allow_unsigned,
+        }
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -146,6 +203,7 @@ impl Default for Config {
             install: InstallConfig::default(),
             cache: CacheConfig::default(),
             analytics: AnalyticsConfig::default(),
+            security: SecurityConfig::default(),
         }
     }
 }

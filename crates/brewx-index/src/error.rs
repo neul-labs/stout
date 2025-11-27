@@ -33,6 +33,15 @@ pub enum Error {
 
     #[error("Signature verification failed: {0}")]
     SignatureInvalid(String),
+
+    #[error("Signature missing: index manifest is not signed")]
+    SignatureMissing,
+
+    #[error("Signature expired: signed {0} seconds ago (max allowed: {1})")]
+    SignatureExpired(u64, u64),
+
+    #[error("Untrusted key: the signing key is not in the trusted keys list")]
+    UntrustedKey,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

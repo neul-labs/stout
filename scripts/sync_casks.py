@@ -397,6 +397,9 @@ def sync(output_dir: Path, full: bool = False) -> dict:
     compressed_path = casks_dir / "index.db.zst"
     compressed_path.write_bytes(compressed_db)
 
+    # Remove uncompressed database
+    db_path.unlink()
+
     db_hash = sha256_bytes(compressed_db)
     log.info(
         f"Database: {len(db_bytes)} bytes -> {len(compressed_db)} bytes ({len(compressed_db)/len(db_bytes)*100:.1f}%)"

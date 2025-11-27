@@ -124,7 +124,11 @@ pub async fn run(args: Args) -> Result<()> {
 
     // Fetch formula data and prepare bottle specs
     println!("\n{}...", style("Fetching formula data").cyan());
-    let sync = IndexSync::new(Some(&config.index.base_url), &paths.brewx_dir)?;
+    let sync = IndexSync::with_security_policy(
+        Some(&config.index.base_url),
+        &paths.brewx_dir,
+        config.security.to_security_policy(),
+    )?;
 
     let mut formulas_to_upgrade: Vec<(UpgradeCandidate, Formula)> = Vec::new();
     let mut bottle_specs: Vec<BottleSpec> = Vec::new();

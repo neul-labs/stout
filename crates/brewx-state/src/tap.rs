@@ -30,10 +30,10 @@ impl Default for TapManager {
 
         // Default tap is the brewx-index
         taps.insert(
-            "anthropics/brewx-index".to_string(),
+            "neul-labs/brewx-index".to_string(),
             Tap {
-                name: "anthropics/brewx-index".to_string(),
-                url: "https://raw.githubusercontent.com/anthropics/brewx-index/main".to_string(),
+                name: "neul-labs/brewx-index".to_string(),
+                url: "https://raw.githubusercontent.com/neul-labs/brewx-index/main".to_string(),
                 pinned: false,
             },
         );

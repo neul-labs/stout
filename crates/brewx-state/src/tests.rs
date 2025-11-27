@@ -15,7 +15,7 @@ fn test_config_default() {
     let config = Config::default();
 
     // Check default values
-    assert!(config.index.base_url.contains("anthropics/brewx-index"));
+    assert!(config.index.base_url.contains("neul-labs/brewx-index"));
     assert!(config.index.auto_update);
     assert_eq!(config.index.update_interval, 1800);
 
@@ -122,7 +122,7 @@ auto_update = false
     // Specified value
     assert!(!config.index.auto_update);
     // Should use defaults for unspecified values
-    assert!(config.index.base_url.contains("anthropics/brewx-index"));
+    assert!(config.index.base_url.contains("neul-labs/brewx-index"));
     assert_eq!(config.install.parallel_downloads, 4);
 }
 

@@ -16,7 +16,7 @@ pub async fn run(_args: Args) -> Result<()> {
     println!("  {}", env!("CARGO_PKG_VERSION"));
 
     println!("\n{}", style("ORIGIN").green().bold());
-    println!("  {}", "https://github.com/anthropics/brewx");
+    println!("  {}", "https://github.com/neul-labs/brewx");
 
     println!("\n{}", style("HOMEBREW_PREFIX").green().bold());
     println!("  {}", paths.prefix.display());
@@ -78,6 +78,28 @@ pub async fn run(_args: Args) -> Result<()> {
     // Rust info
     println!("\n{}", style("RUST_VERSION").green().bold());
     println!("  {}", rustc_version());
+
+    // Security info
+    println!("\n{}", style("SECURITY").green().bold());
+    let sig_status = if config.security.require_signature {
+        style("Signatures required").green()
+    } else {
+        style("Signatures optional").yellow()
+    };
+    println!("  {}", sig_status);
+
+    if config.security.allow_unsigned {
+        println!("  {} {}", style("⚠").yellow(), style("Unsigned indexes allowed").yellow());
+    } else {
+        println!("  {} {}", style("✓").green(), "Unsigned indexes blocked");
+    }
+
+    let max_age_days = config.security.max_signature_age / (24 * 60 * 60);
+    println!("  Max signature age: {} days", max_age_days);
+
+    if !config.security.additional_trusted_keys.is_empty() {
+        println!("  {} additional trusted keys configured", config.security.additional_trusted_keys.len());
+    }
 
     Ok(())
 }

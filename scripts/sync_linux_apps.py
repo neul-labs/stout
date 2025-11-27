@@ -118,7 +118,6 @@ def fetch_flatpaks() -> list[LinuxApp]:
     """Fetch Flatpak catalog from Flathub."""
     logger.info("Fetching Flathub catalog...")
 
-    # Flathub has multiple categories
     apps = []
     seen_ids = set()
 
@@ -129,29 +128,42 @@ def fetch_flatpaks() -> list[LinuxApp]:
             logger.warning("No Flathub data available")
             return []
 
-        for app_id, app_data in data.items():
-            if app_id in seen_ids:
-                continue
-            seen_ids.add(app_id)
+        # Handle both list and dict formats from the API
+        items = []
+        if isinstance(data, list):
+            items = data
+        elif isinstance(data, dict):
+            items = list(data.values()) if data else []
 
+        for app_data in items:
             try:
+                # Get app_id from the data
+                app_id = app_data.get('id', app_data.get('flatpakAppId', ''))
+                if not app_id or app_id in seen_ids:
+                    continue
+                seen_ids.add(app_id)
+
                 name = app_data.get('name', app_id.split('.')[-1])
+
+                # Safely extract categories, filtering None values
+                categories = app_data.get('categories', []) or []
+                categories = [c for c in categories if c is not None]
 
                 app = LinuxApp(
                     token=tokenize(name),
                     name=name,
                     version=app_data.get('version', 'latest'),
                     desc=app_data.get('summary', ''),
-                    homepage=app_data.get('url', ''),
+                    homepage=app_data.get('url', app_data.get('homepage', '')),
                     source='flatpak',
                     flatpak_id=app_id,
                     icon_url=app_data.get('icon'),
-                    categories=app_data.get('categories', []),
+                    categories=categories,
                     license=app_data.get('license'),
                 )
                 apps.append(app)
             except Exception as e:
-                logger.debug(f"Failed to parse Flatpak entry {app_id}: {e}")
+                logger.debug(f"Failed to parse Flatpak entry: {e}")
                 continue
 
     except Exception as e:
@@ -229,7 +241,9 @@ def create_database(apps: list[LinuxApp], db_path: Path) -> None:
 
     # Insert apps
     for app in apps:
-        categories_str = ','.join(app.categories) if app.categories else ''
+        # Filter out None values from categories before joining
+        clean_categories = [c for c in (app.categories or []) if c is not None]
+        categories_str = ','.join(clean_categories)
 
         # Calculate JSON hash for delta updates
         app_json = json.dumps({
@@ -276,7 +290,7 @@ def write_compressed_json(apps: list[LinuxApp], output_dir: Path) -> None:
     """Write individual compressed JSON files for each app."""
     import zstandard as zstd
 
-    apps_dir = output_dir / "linux_apps"
+    apps_dir = output_dir / "linux-apps" / "data"
     apps_dir.mkdir(parents=True, exist_ok=True)
 
     compressor = zstd.ZstdCompressor(level=19)
@@ -312,9 +326,12 @@ def write_compressed_json(apps: list[LinuxApp], output_dir: Path) -> None:
     logger.info(f"Wrote {len(apps)} compressed JSON files")
 
 def main():
+    import zstandard as zstd
+    from datetime import datetime
+
     parser = argparse.ArgumentParser(description="Sync Linux apps metadata")
-    parser.add_argument('--output', '-o', default='index/linux',
-                       help='Output directory (default: index/linux)')
+    parser.add_argument('--output', '-o', default='.',
+                       help='Output directory (default: current directory)')
     parser.add_argument('--sources', '-s', nargs='+',
                        default=['appimage', 'flatpak'],
                        choices=['appimage', 'flatpak', 'snap'],
@@ -330,6 +347,12 @@ def main():
 
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create linux-apps directory structure
+    linux_apps_dir = output_dir / "linux-apps"
+    linux_apps_dir.mkdir(exist_ok=True)
+    linux_apps_data_dir = linux_apps_dir / "data"
+    linux_apps_data_dir.mkdir(exist_ok=True)
 
     all_apps = []
 
@@ -360,9 +383,24 @@ def main():
     unique_apps = list(seen_tokens.values())
     logger.info(f"Total unique apps: {len(unique_apps)}")
 
-    # Create database
-    db_path = output_dir / "linux_apps.db"
+    # Create database in linux-apps/
+    db_path = linux_apps_dir / "index.db"
     create_database(unique_apps, db_path)
+
+    # Compress database
+    logger.info("Compressing database...")
+    db_bytes = db_path.read_bytes()
+    compressor = zstd.ZstdCompressor(level=19)
+    compressed_db = compressor.compress(db_bytes)
+
+    compressed_path = linux_apps_dir / "index.db.zst"
+    compressed_path.write_bytes(compressed_db)
+
+    # Remove uncompressed database
+    db_path.unlink()
+
+    db_hash = hashlib.sha256(compressed_db).hexdigest()
+    logger.info(f"Database compressed: {len(db_bytes)} -> {len(compressed_db)} bytes")
 
     # Write compressed JSON files
     if not args.no_compress:
@@ -370,6 +408,16 @@ def main():
             write_compressed_json(unique_apps, output_dir)
         except ImportError:
             logger.warning("zstandard not available, skipping compressed JSON output")
+
+    # Create local manifest
+    manifest = {
+        "count": len(unique_apps),
+        "index_sha256": db_hash,
+        "index_size": len(compressed_db),
+        "created_at": datetime.utcnow().isoformat() + "Z",
+    }
+    manifest_path = linux_apps_dir / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2))
 
     logger.info("Linux apps sync complete!")
 
@@ -382,7 +430,7 @@ def main():
     print(f"  Total apps: {len(unique_apps)}")
     for source, count in sorted(by_source.items()):
         print(f"  {source}: {count}")
-    print(f"  Database: {db_path}")
+    print(f"  Database: {compressed_path}")
 
 if __name__ == '__main__':
     main()

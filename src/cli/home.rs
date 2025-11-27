@@ -26,7 +26,11 @@ pub async fn run(args: Args) -> Result<()> {
         }
 
         // Try to get formula info
-        let sync = IndexSync::new(Some(&config.index.base_url), &paths.brewx_dir)?;
+        let sync = IndexSync::with_security_policy(
+            Some(&config.index.base_url),
+            &paths.brewx_dir,
+            config.security.to_security_policy(),
+        )?;
 
         // Try as formula first
         if let Ok(formula) = sync.fetch_formula_cached(name, None).await {

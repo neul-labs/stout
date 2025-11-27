@@ -1,12 +1,12 @@
-# Maintainer: Anthropic <brewx@anthropic.com>
-# Contributor: Anthropic <brewx@anthropic.com>
+# Maintainer: Neul Labs <brewx@neul-labs.com>
+# Contributor: Neul Labs <brewx@neul-labs.com>
 
 pkgname=brewx-bin
 pkgver=0.1.0
 pkgrel=1
 pkgdesc="Fast, Rust-based Homebrew-compatible package manager (pre-built binary)"
 arch=('x86_64' 'aarch64')
-url="https://github.com/anthropics/brewx"
+url="https://github.com/neul-labs/brewx"
 license=('MIT')
 depends=('gcc-libs')
 optdepends=(
@@ -17,7 +17,7 @@ optdepends=(
 provides=('brewx')
 conflicts=('brewx' 'brewx-git')
 
-_base_url="https://github.com/anthropics/brewx/releases/download/v$pkgver"
+_base_url="https://github.com/neul-labs/brewx/releases/download/v$pkgver"
 
 source_x86_64=("$pkgname-$pkgver-x86_64.tar.gz::${_base_url}/brewx-x86_64-unknown-linux-gnu.tar.gz")
 source_aarch64=("$pkgname-$pkgver-aarch64.tar.gz::${_base_url}/brewx-aarch64-unknown-linux-gnu.tar.gz")

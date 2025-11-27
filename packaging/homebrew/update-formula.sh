@@ -18,7 +18,7 @@ VERSION="${VERSION#v}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FORMULA_FILE="${SCRIPT_DIR}/brewx.rb"
-BASE_URL="https://github.com/anthropics/brewx/releases/download/v${VERSION}"
+BASE_URL="https://github.com/neul-labs/brewx/releases/download/v${VERSION}"
 
 echo "Updating formula for version ${VERSION}..."
 

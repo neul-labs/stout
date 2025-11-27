@@ -45,16 +45,24 @@
             darwin.apple_sdk.frameworks.SystemConfiguration
           ];
 
+          BREWX_GEN_MAN = "1";
+
           postInstall = ''
             installShellCompletion --cmd brewx \
               --bash <($out/bin/brewx completions bash) \
               --zsh <($out/bin/brewx completions zsh) \
               --fish <($out/bin/brewx completions fish)
+
+            # Install man pages
+            manDir=$(find target -name "brewx-*" -type d -path "*/out" | head -1)/man
+            if [ -d "$manDir" ]; then
+              installManPage $manDir/*.1
+            fi
           '';
 
           meta = with pkgs.lib; {
             description = "Fast, Rust-based Homebrew-compatible package manager";
-            homepage = "https://github.com/anthropics/brewx";
+            homepage = "https://github.com/neul-labs/brewx";
             license = licenses.mit;
             mainProgram = "brewx";
           };

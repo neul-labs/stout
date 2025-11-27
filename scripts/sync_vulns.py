@@ -280,8 +280,12 @@ def sync_vulnerabilities(
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Create vulnerabilities directory
+    vulns_dir = output_dir / "vulnerabilities"
+    vulns_dir.mkdir(exist_ok=True)
+
     # Create database
-    db_path = output_dir / "vulnerabilities.db"
+    db_path = vulns_dir / "index.db"
     conn = create_database(db_path)
     cursor = conn.cursor()
 
@@ -416,10 +420,14 @@ def sync_vulnerabilities(
     log.info("Compressing database...")
     compressed, db_hash = compress_database(db_path)
 
-    compressed_path = output_dir / "vulnerabilities.db.zst"
+    compressed_path = vulns_dir / "index.db.zst"
     compressed_path.write_bytes(compressed)
 
     db_size = db_path.stat().st_size
+
+    # Remove uncompressed database
+    db_path.unlink()
+
     log.info(
         f"Database: {db_size} bytes -> {len(compressed)} bytes "
         f"({len(compressed)/db_size*100:.1f}%)"
@@ -438,7 +446,7 @@ def sync_vulnerabilities(
         "created_at": datetime.utcnow().isoformat() + "Z",
     }
 
-    manifest_path = output_dir / "manifest.json"
+    manifest_path = vulns_dir / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2))
 
     log.info(f"Created manifest: {manifest_path}")

@@ -1,6 +1,6 @@
 #!/bin/bash
 # brewx installer script
-# Usage: curl -fsSL https://raw.githubusercontent.com/anthropics/brewx/main/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | bash
 #
 # Environment variables:
 #   BREWX_INSTALL_DIR - Installation directory (default: ~/.local/bin or /usr/local/bin)
@@ -19,7 +19,7 @@ NC='\033[0m' # No Color
 BOLD='\033[1m'
 
 # GitHub repository
-REPO="anthropics/brewx"
+REPO="neul-labs/brewx"
 BINARY_NAME="brewx"
 
 # Print functions

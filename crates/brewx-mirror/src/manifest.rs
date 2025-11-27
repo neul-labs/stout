@@ -38,6 +38,37 @@ pub struct MirrorManifest {
     /// Total size of the mirror in bytes
     #[serde(default)]
     pub total_size: u64,
+
+    /// Upstream index signature (copied from source)
+    /// This allows verification that the mirror contains authentic data
+    #[serde(default)]
+    pub upstream_signature: Option<UpstreamSignature>,
+
+    /// Mirror signature (optional, for enterprise deployments)
+    /// Enterprises can sign their mirrors with their own keys
+    #[serde(default)]
+    pub mirror_signature: Option<String>,
+
+    /// Unix timestamp when mirror was signed
+    #[serde(default)]
+    pub signed_at: Option<u64>,
+}
+
+/// Upstream signature information copied from the original index
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpstreamSignature {
+    /// Original index SHA256
+    pub index_sha256: String,
+    /// Original signature
+    pub signature: String,
+    /// Original signed_at timestamp
+    pub signed_at: u64,
+    /// Original index version
+    pub index_version: String,
+    /// Formula count at time of signing
+    pub formula_count: u32,
+    /// Cask count at time of signing
+    pub cask_count: u32,
 }
 
 impl MirrorManifest {
@@ -53,7 +84,25 @@ impl MirrorManifest {
             linux_apps: LinuxAppManifest::default(),
             checksums: HashMap::new(),
             total_size: 0,
+            upstream_signature: None,
+            mirror_signature: None,
+            signed_at: None,
         }
+    }
+
+    /// Set the upstream signature from the original index manifest
+    pub fn set_upstream_signature(&mut self, sig: UpstreamSignature) {
+        self.upstream_signature = Some(sig);
+    }
+
+    /// Check if the mirror has a valid upstream signature
+    pub fn has_upstream_signature(&self) -> bool {
+        self.upstream_signature.is_some()
+    }
+
+    /// Check if the mirror has been signed by the mirror operator
+    pub fn has_mirror_signature(&self) -> bool {
+        self.mirror_signature.is_some()
     }
 
     /// Load manifest from file

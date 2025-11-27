@@ -144,7 +144,7 @@ fn remove_tap(manager: &mut TapManager, paths: &Paths, name: &str) -> Result<()>
     }
 
     // Don't allow removing the core tap
-    if name == "homebrew/core" || name == "anthropics/brewx-index" {
+    if name == "homebrew/core" || name == "neul-labs/brewx-index" {
         bail!("Cannot remove the core tap");
     }
 

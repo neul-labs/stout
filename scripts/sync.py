@@ -214,12 +214,14 @@ def sync(output_dir: Path, full: bool = False) -> dict:
     output_dir.mkdir(parents=True, exist_ok=True)
     formulas_dir = output_dir / "formulas"
     formulas_dir.mkdir(exist_ok=True)
+    formulas_data_dir = formulas_dir / "data"
+    formulas_data_dir.mkdir(exist_ok=True)
 
     # Fetch formulas
     hb_formulas = fetch_homebrew_formulas()
 
-    # Create database
-    db_path = output_dir / "index.db"
+    # Create database inside formulas/
+    db_path = formulas_dir / "index.db"
     conn = create_database(db_path)
     cursor = conn.cursor()
 
@@ -238,9 +240,9 @@ def sync(output_dir: Path, full: bool = False) -> dict:
         compressed = compress_json(brewx_formula)
         json_hash = sha256_bytes(compressed)
 
-        # Write to formulas/<first_letter>/<name>.json.zst
+        # Write to formulas/data/<first_letter>/<name>.json.zst
         first_letter = name[0].lower()
-        letter_dir = formulas_dir / first_letter
+        letter_dir = formulas_data_dir / first_letter
         letter_dir.mkdir(exist_ok=True)
 
         formula_path = letter_dir / f"{name}.json.zst"
@@ -329,15 +331,19 @@ def sync(output_dir: Path, full: bool = False) -> dict:
     compressor = zstd.ZstdCompressor(level=ZSTD_LEVEL)
     compressed_db = compressor.compress(db_bytes)
 
-    compressed_path = output_dir / "index.db.zst"
+    # Write compressed database to formulas/index.db.zst
+    compressed_path = formulas_dir / "index.db.zst"
     compressed_path.write_bytes(compressed_db)
+
+    # Remove uncompressed database
+    db_path.unlink()
 
     db_hash = sha256_bytes(compressed_db)
     log.info(
         f"Database: {len(db_bytes)} bytes -> {len(compressed_db)} bytes ({len(compressed_db)/len(db_bytes)*100:.1f}%)"
     )
 
-    # Create manifest
+    # Create local manifest for formulas
     manifest = {
         "version": version,
         "index_version": version,
@@ -348,7 +354,7 @@ def sync(output_dir: Path, full: bool = False) -> dict:
         "homebrew_commit": hb_formulas[0].get("tap_git_head") if hb_formulas else None,
     }
 
-    manifest_path = output_dir / "manifest.json"
+    manifest_path = formulas_dir / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2))
 
     log.info(f"Created manifest: {manifest_path}")

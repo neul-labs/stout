@@ -1,12 +1,12 @@
-# Maintainer: Anthropic <brewx@anthropic.com>
-# Contributor: Anthropic <brewx@anthropic.com>
+# Maintainer: Neul Labs <brewx@neul-labs.com>
+# Contributor: Neul Labs <brewx@neul-labs.com>
 
 pkgname=brewx
 pkgver=0.1.0
 pkgrel=1
 pkgdesc="Fast, Rust-based Homebrew-compatible package manager"
 arch=('x86_64' 'aarch64')
-url="https://github.com/anthropics/brewx"
+url="https://github.com/neul-labs/brewx"
 license=('MIT')
 depends=('gcc-libs')
 makedepends=('cargo')
@@ -17,13 +17,14 @@ optdepends=(
 )
 provides=('brewx')
 conflicts=('brewx-bin' 'brewx-git')
-source=("$pkgname-$pkgver.tar.gz::https://github.com/anthropics/$pkgname/archive/v$pkgver.tar.gz")
+source=("$pkgname-$pkgver.tar.gz::https://github.com/neul-labs/$pkgname/archive/v$pkgver.tar.gz")
 sha256sums=('PLACEHOLDER_SHA256')
 
 build() {
     cd "$pkgname-$pkgver"
     export RUSTUP_TOOLCHAIN=stable
     export CARGO_TARGET_DIR=target
+    export BREWX_GEN_MAN=1
     cargo build --release --locked
 }
 
@@ -53,4 +54,11 @@ package() {
     "$pkgdir/usr/bin/$pkgname" completions bash > "$pkgdir/usr/share/bash-completion/completions/$pkgname"
     "$pkgdir/usr/bin/$pkgname" completions zsh > "$pkgdir/usr/share/zsh/site-functions/_$pkgname"
     "$pkgdir/usr/bin/$pkgname" completions fish > "$pkgdir/usr/share/fish/vendor_completions.d/$pkgname.fish"
+
+    # Install man pages
+    install -dm755 "$pkgdir/usr/share/man/man1"
+    local man_dir=$(find target/release/build -name "brewx-*" -type d -path "*/out" | head -1)/man
+    if [ -d "$man_dir" ]; then
+        install -m644 "$man_dir"/*.1 "$pkgdir/usr/share/man/man1/"
+    fi
 }

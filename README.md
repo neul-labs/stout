@@ -2,7 +2,7 @@
 
 A fast, Rust-based Homebrew-compatible package manager.
 
-[![Build](https://github.com/anthropics/brewx/actions/workflows/ci.yml/badge.svg)](https://github.com/anthropics/brewx/actions/workflows/ci.yml)
+[![Build](https://github.com/neul-labs/brewx/actions/workflows/ci.yml/badge.svg)](https://github.com/neul-labs/brewx/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## Why brewx?
@@ -25,7 +25,7 @@ The secret? brewx eliminates Ruby entirely. It uses a pre-computed SQLite index 
 Install brewx with a single command:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/anthropics/brewx/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | bash
 ```
 
 This will:
@@ -39,18 +39,18 @@ This will:
 
 ```bash
 # Install to a custom directory
-BREWX_INSTALL_DIR=/opt/bin curl -fsSL https://raw.githubusercontent.com/anthropics/brewx/main/install.sh | bash
+BREWX_INSTALL_DIR=/opt/bin curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | bash
 
 # Install a specific version
-BREWX_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/anthropics/brewx/main/install.sh | bash
+BREWX_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | bash
 
 # Skip PATH modification
-BREWX_NO_MODIFY_PATH=1 curl -fsSL https://raw.githubusercontent.com/anthropics/brewx/main/install.sh | bash
+BREWX_NO_MODIFY_PATH=1 curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | bash
 ```
 
 ### Manual Download
 
-Download pre-built binaries from the [releases page](https://github.com/anthropics/brewx/releases):
+Download pre-built binaries from the [releases page](https://github.com/neul-labs/brewx/releases):
 
 | Platform | Architecture | Download |
 |----------|-------------|----------|
@@ -61,7 +61,7 @@ Download pre-built binaries from the [releases page](https://github.com/anthropi
 
 ```bash
 # Example for macOS ARM
-curl -LO https://github.com/anthropics/brewx/releases/latest/download/brewx-aarch64-apple-darwin.tar.gz
+curl -LO https://github.com/neul-labs/brewx/releases/latest/download/brewx-aarch64-apple-darwin.tar.gz
 tar -xzf brewx-aarch64-apple-darwin.tar.gz
 sudo mv brewx /usr/local/bin/
 ```
@@ -70,7 +70,7 @@ sudo mv brewx /usr/local/bin/
 
 ```bash
 # Clone the repository
-git clone https://github.com/anthropics/brewx.git
+git clone https://github.com/neul-labs/brewx.git
 cd brewx
 
 # Build release binary
@@ -326,7 +326,7 @@ Configuration is stored in `~/.brewx/config.toml`:
 
 ```toml
 [index]
-base_url = "https://raw.githubusercontent.com/anthropics/brewx-index/main"
+base_url = "https://raw.githubusercontent.com/neul-labs/brewx-index/main"
 auto_update = true
 update_interval = 1800  # 30 minutes
 
@@ -371,10 +371,60 @@ brewx/
 └── docs/                  # Documentation
 ```
 
+## Security
+
+brewx implements a defense-in-depth security model:
+
+- **Ed25519 Signatures**: All index updates are cryptographically signed
+- **HTTPS Required**: TLS 1.2+ enforced for all connections
+- **SHA256 Verification**: Every download is checksum-verified
+- **Vulnerability Scanning**: Built-in `brewx audit` command
+
+```bash
+# Check security configuration
+brewx config
+
+# Scan for vulnerabilities
+brewx audit
+
+# Update vulnerability database
+brewx audit --update
+```
+
+See [Security Model](docs/SECURITY.md) for full details.
+
+## Enterprise Features
+
+brewx is designed for enterprise environments:
+
+- **Private Index Hosting**: Host your own curated package index
+- **Custom Signing Keys**: Use your own Ed25519 keys for trust chain control
+- **Air-Gapped Support**: Full offline operation with mirror support
+- **CI/CD Integration**: GitHub Actions, GitLab CI, Jenkins examples
+- **Multi-Prefix**: Isolated environments per project or team
+- **Audit Logging**: Track all package operations for compliance
+
+```bash
+# Create offline mirror
+brewx mirror create /path/to/mirror jq curl python@3.11
+
+# Project-specific prefix
+brewx prefix create ~/project/.brewx
+brewx --prefix=~/project/.brewx install node@20
+
+# Reproducible builds with lock files
+brewx lock generate
+brewx lock install
+```
+
+See [Enterprise Guide](docs/ENTERPRISE.md) for deployment options.
+
 ## Documentation
 
 - [Installation Guide](docs/INSTALL.md)
 - [Usage Guide](docs/USAGE.md)
+- [Security Model](docs/SECURITY.md)
+- [Enterprise Guide](docs/ENTERPRISE.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Technical Specification](docs/SPEC.md)
 - [Contributing](docs/CONTRIBUTING.md)

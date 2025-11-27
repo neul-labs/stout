@@ -24,7 +24,11 @@ pub async fn run(args: Args) -> Result<()> {
     let db = Database::open(paths.index_db())
         .context("Failed to open index. Run 'brewx update' first.")?;
 
-    let sync = IndexSync::new(Some(&config.index.base_url), &paths.brewx_dir)?;
+    let sync = IndexSync::with_security_policy(
+        Some(&config.index.base_url),
+        &paths.brewx_dir,
+        config.security.to_security_policy(),
+    )?;
 
     // Try formula first (unless --cask specified)
     if !args.cask {

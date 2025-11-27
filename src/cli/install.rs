@@ -154,7 +154,11 @@ pub async fn run(args: Args) -> Result<()> {
 
     // Fetch full formula data and categorize by installation method
     println!("\n{}...", style("Fetching formula data").cyan());
-    let sync = IndexSync::new(Some(&config.index.base_url), &paths.brewx_dir)?;
+    let sync = IndexSync::with_security_policy(
+        Some(&config.index.base_url),
+        &paths.brewx_dir,
+        config.security.to_security_policy(),
+    )?;
 
     let mut bottle_installs: Vec<(InstallStep, Formula)> = Vec::new();
     let mut source_installs: Vec<(InstallStep, Formula)> = Vec::new();

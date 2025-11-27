@@ -1654,7 +1654,7 @@ Commands to add to `src/cli/mod.rs`:
 
 ## Index Hosting
 
-All indexes hosted in single repo: `github.com/anthropics/brewx-index`
+All indexes hosted in single repo: `github.com/neul-labs/brewx-index`
 
 ```
 brewx-index/

@@ -12,7 +12,7 @@ rustPlatform.buildRustPackage rec {
   version = "0.1.0";
 
   src = fetchFromGitHub {
-    owner = "anthropics";
+    owner = "neul-labs";
     repo = "brewx";
     rev = "v${version}";
     hash = "sha256-PLACEHOLDER";
@@ -41,7 +41,7 @@ rustPlatform.buildRustPackage rec {
 
   meta = with lib; {
     description = "Fast, Rust-based Homebrew-compatible package manager";
-    homepage = "https://github.com/anthropics/brewx";
+    homepage = "https://github.com/neul-labs/brewx";
     license = licenses.mit;
     maintainers = with maintainers; [ ];
     mainProgram = "brewx";

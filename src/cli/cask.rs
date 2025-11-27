@@ -168,7 +168,11 @@ async fn run_install(args: InstallArgs) -> Result<()> {
     let state_path = paths.brewx_dir.join("casks.json");
 
     // Fetch cask data and install
-    let sync = IndexSync::new(Some(&config.index.base_url), &paths.brewx_dir)?;
+    let sync = IndexSync::with_security_policy(
+        Some(&config.index.base_url),
+        &paths.brewx_dir,
+        config.security.to_security_policy(),
+    )?;
 
     let options = CaskInstallOptions {
         force: args.force,
@@ -299,7 +303,11 @@ async fn run_info(args: InfoArgs) -> Result<()> {
     })?;
 
     // Fetch full cask data for more details
-    let sync = IndexSync::new(Some(&config.index.base_url), &paths.brewx_dir)?;
+    let sync = IndexSync::with_security_policy(
+        Some(&config.index.base_url),
+        &paths.brewx_dir,
+        config.security.to_security_policy(),
+    )?;
     let full_cask = sync
         .fetch_cask_cached(&args.cask, None)
         .await
@@ -516,7 +524,11 @@ async fn run_upgrade(args: UpgradeArgs) -> Result<()> {
         return Ok(());
     }
 
-    let sync = IndexSync::new(Some(&config.index.base_url), &paths.brewx_dir)?;
+    let sync = IndexSync::with_security_policy(
+        Some(&config.index.base_url),
+        &paths.brewx_dir,
+        config.security.to_security_policy(),
+    )?;
 
     let options = CaskInstallOptions {
         force: true, // Force reinstall for upgrade

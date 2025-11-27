@@ -14,10 +14,11 @@ use sha2::{Digest, Sha256};
 use std::path::Path;
 use tracing::{debug, info, warn};
 
-/// Default public key for Homebrew core index (placeholder - would be real key in production)
-/// This would be embedded in the binary or loaded from a trusted source
+/// Default public key for brewx-index (neul-labs/brewx-index)
+/// This key is used to verify the integrity and authenticity of index updates.
+/// The corresponding private key is kept secure in GitHub Secrets.
 pub const DEFAULT_PUBLIC_KEY_HEX: &str =
-    "0000000000000000000000000000000000000000000000000000000000000000";
+    "e58d628836f72ecc7f6964ba2b70523d7c1c46512441ef8eccf2fa55ad0258f2";
 
 /// Signed manifest containing index metadata and signature
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,6 +73,11 @@ impl SignatureVerifier {
         let key = parse_public_key(public_key_hex)?;
         self.public_keys.push(key);
         Ok(())
+    }
+
+    /// Get reference to the public keys for direct verification
+    pub fn public_keys(&self) -> &[VerifyingKey] {
+        &self.public_keys
     }
 
     /// Verify a signed manifest

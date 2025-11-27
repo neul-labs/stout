@@ -13,6 +13,7 @@ thiserror.workspace = true
 tracing.workspace = true
 dirs.workspace = true
 humantime.workspace = true
+brewx-index = { path = "../brewx-index" }
 
 [dev-dependencies]
 tempfile = "3"

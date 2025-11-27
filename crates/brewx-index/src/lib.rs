@@ -31,7 +31,7 @@ pub use signature::{
     compute_file_sha256, compute_sha256, SignatureVerifier, SignedManifest, TrustedKeys,
     VerificationResult, DEFAULT_PUBLIC_KEY_HEX,
 };
-pub use sync::{IndexSync, Manifest};
+pub use sync::{IndexSync, Manifest, SecurityPolicy};
 
 /// Base URL for the brewx-index repository
-pub const DEFAULT_INDEX_URL: &str = "https://raw.githubusercontent.com/anthropics/brewx-index/main";
+pub const DEFAULT_INDEX_URL: &str = "https://raw.githubusercontent.com/neul-labs/brewx-index/main";

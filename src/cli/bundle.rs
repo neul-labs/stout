@@ -268,7 +268,11 @@ async fn run_install(brewfile_path: &PathBuf, args: InstallArgs) -> Result<()> {
     if !casks_to_install.is_empty() {
         println!("\n{}...", style("Installing casks").cyan());
 
-        let sync = IndexSync::new(Some(&config.index.base_url), &paths.brewx_dir)?;
+        let sync = IndexSync::with_security_policy(
+            Some(&config.index.base_url),
+            &paths.brewx_dir,
+            config.security.to_security_policy(),
+        )?;
         let cache_dir = paths.brewx_dir.join("cache").join("casks");
         std::fs::create_dir_all(&cache_dir)?;
 

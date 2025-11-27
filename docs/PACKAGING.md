@@ -56,7 +56,7 @@ git push origin main --tags
 The `install.sh` script provides one-command installation:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/anthropics/brewx/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | bash
 ```
 
 ### How It Works
@@ -80,16 +80,16 @@ curl -fsSL https://raw.githubusercontent.com/anthropics/brewx/main/install.sh | 
 
 ### Tap Setup
 
-1. Create `anthropics/homebrew-tap` repository
+1. Create `neul-labs/homebrew-tap` repository
 2. Add `Formula/brewx.rb`
-3. Users install via `brew install anthropics/tap/brewx`
+3. Users install via `brew install neul-labs/tap/brewx`
 
 ### Formula Structure
 
 ```ruby
 class Brewx < Formula
   desc "Fast, Rust-based Homebrew-compatible package manager"
-  homepage "https://github.com/anthropics/brewx"
+  homepage "https://github.com/neul-labs/brewx"
   version "0.1.0"
   license "MIT"
 
@@ -173,13 +173,13 @@ namcap brewx-0.2.0-1-x86_64.pkg.tar.zst
 
 ```bash
 # Run without installing
-nix run github:anthropics/brewx
+nix run github:neul-labs/brewx
 
 # Install to profile
-nix profile install github:anthropics/brewx
+nix profile install github:neul-labs/brewx
 
 # Development shell
-nix develop github:anthropics/brewx
+nix develop github:neul-labs/brewx
 ```
 
 ### Adding to nixpkgs

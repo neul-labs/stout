@@ -12,6 +12,10 @@ pub struct Args {
     /// Force update even if index is fresh
     #[arg(short, long)]
     pub force: bool,
+
+    /// Skip signature verification (development only)
+    #[arg(long, hide = true)]
+    pub insecure: bool,
 }
 
 pub async fn run(args: Args) -> Result<()> {
@@ -20,7 +24,17 @@ pub async fn run(args: Args) -> Result<()> {
 
     let config = Config::load(&paths)?;
 
-    let sync = IndexSync::new(Some(&config.index.base_url), &paths.brewx_dir)?;
+    // Use permissive security if --insecure flag is set (hidden, for dev only)
+    let sync = if args.insecure {
+        eprintln!("{}", style("WARNING: Running without signature verification").yellow().bold());
+        IndexSync::permissive(Some(&config.index.base_url), &paths.brewx_dir)?
+    } else {
+        IndexSync::with_security_policy(
+            Some(&config.index.base_url),
+            &paths.brewx_dir,
+            config.security.to_security_policy(),
+        )?
+    };
 
     // Show progress spinner
     let spinner = ProgressBar::new_spinner();
@@ -48,6 +62,22 @@ pub async fn run(args: Args) -> Result<()> {
         style(&manifest.version).cyan(),
         manifest.formula_count
     );
+
+    // Show signature info
+    if let Some(signed_at) = manifest.signed_at {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let age_hours = (now.saturating_sub(signed_at)) / 3600;
+        if manifest.signature.is_some() {
+            println!(
+                "{} {}",
+                style("✓ Signature verified").green(),
+                style(format!("(signed {}h ago)", age_hours)).dim()
+            );
+        }
+    }
 
     // Save manifest locally
     let manifest_json = serde_json::to_string_pretty(&manifest)?;

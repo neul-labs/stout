@@ -29,7 +29,7 @@ impl Default for VulnDatabaseConfig {
             .join("vuln");
 
         Self {
-            base_url: "https://raw.githubusercontent.com/anthropics/brewx-index/main/vulnerabilities".to_string(),
+            base_url: "https://raw.githubusercontent.com/neul-labs/brewx-index/main/vulnerabilities".to_string(),
             cache_dir,
             auto_update: true,
         }

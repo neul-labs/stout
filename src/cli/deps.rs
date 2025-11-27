@@ -99,7 +99,11 @@ pub async fn run(args: Args) -> Result<()> {
     }
 
     // Fetch full formula data
-    let sync = IndexSync::new(Some(&config.index.base_url), &paths.brewx_dir)?;
+    let sync = IndexSync::with_security_policy(
+        Some(&config.index.base_url),
+        &paths.brewx_dir,
+        config.security.to_security_policy(),
+    )?;
     let formula = sync
         .fetch_formula_cached(&args.formula, None)
         .await

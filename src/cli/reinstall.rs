@@ -43,7 +43,11 @@ pub async fn run(args: Args) -> Result<()> {
     }
 
     let mut installed = InstalledPackages::load(&paths)?;
-    let sync = IndexSync::new(Some(&config.index.base_url), &paths.brewx_dir)?;
+    let sync = IndexSync::with_security_policy(
+        Some(&config.index.base_url),
+        &paths.brewx_dir,
+        config.security.to_security_policy(),
+    )?;
 
     // Detect platform
     let platform = detect_platform();

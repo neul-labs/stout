@@ -14,7 +14,7 @@ Thank you for your interest in contributing to brewx! This document provides gui
 
 ```bash
 # Clone the repository
-git clone https://github.com/anthropics/brewx.git
+git clone https://github.com/neul-labs/brewx.git
 cd brewx
 
 # Build the project

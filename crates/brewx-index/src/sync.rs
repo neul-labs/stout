@@ -4,23 +4,83 @@ use crate::cask::Cask;
 use crate::db::Database;
 use crate::error::{Error, Result};
 use crate::formula::Formula;
+use crate::signature::SignatureVerifier;
 use crate::DEFAULT_INDEX_URL;
 use reqwest::Client;
 use sha2::{Digest, Sha256};
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{debug, info, warn};
 
-/// Manifest file structure
+/// Manifest file structure (with optional signature for backwards compatibility)
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Manifest {
     pub version: String,
+    #[serde(default)]
     pub index_version: String,
     pub index_sha256: String,
     pub index_size: u64,
     pub formula_count: u32,
     pub created_at: String,
+    #[serde(default)]
     pub homebrew_commit: Option<String>,
+    /// Ed25519 signature (hex-encoded) - required for verified sync
+    #[serde(default)]
+    pub signature: Option<String>,
+    /// Unix timestamp when signed
+    #[serde(default)]
+    pub signed_at: Option<u64>,
+    /// Cask count (optional)
+    #[serde(default)]
+    pub cask_count: Option<u32>,
+}
+
+/// Security policy for index synchronization
+#[derive(Debug, Clone)]
+pub struct SecurityPolicy {
+    /// Require valid signatures (default: true in release, false in debug)
+    pub require_signature: bool,
+    /// Maximum age of signature in seconds (default: 7 days)
+    pub max_signature_age: u64,
+    /// Additional trusted public keys (beyond the default)
+    pub additional_keys: Vec<String>,
+    /// Allow unsigned indexes (for development/testing)
+    pub allow_unsigned: bool,
+}
+
+impl Default for SecurityPolicy {
+    fn default() -> Self {
+        Self {
+            // Require signatures in release builds
+            require_signature: cfg!(not(debug_assertions)),
+            max_signature_age: 7 * 24 * 60 * 60, // 7 days
+            additional_keys: vec![],
+            allow_unsigned: cfg!(debug_assertions), // Only allow in debug
+        }
+    }
+}
+
+impl SecurityPolicy {
+    /// Create a strict policy (always require signatures)
+    pub fn strict() -> Self {
+        Self {
+            require_signature: true,
+            max_signature_age: 24 * 60 * 60, // 1 day
+            additional_keys: vec![],
+            allow_unsigned: false,
+        }
+    }
+
+    /// Create a permissive policy (for development)
+    pub fn permissive() -> Self {
+        Self {
+            require_signature: false,
+            max_signature_age: u64::MAX,
+            additional_keys: vec![],
+            allow_unsigned: true,
+        }
+    }
 }
 
 /// Index synchronization handler
@@ -28,20 +88,96 @@ pub struct IndexSync {
     client: Client,
     base_url: String,
     cache_dir: PathBuf,
+    security_policy: SecurityPolicy,
+    verifier: SignatureVerifier,
 }
 
 impl IndexSync {
+    /// Create a new IndexSync with default security policy
     pub fn new(base_url: Option<&str>, cache_dir: impl AsRef<Path>) -> Result<Self> {
+        Self::with_security_policy(base_url, cache_dir, SecurityPolicy::default())
+    }
+
+    /// Create a new IndexSync with a specific security policy
+    pub fn with_security_policy(
+        base_url: Option<&str>,
+        cache_dir: impl AsRef<Path>,
+        security_policy: SecurityPolicy,
+    ) -> Result<Self> {
+        let base_url = base_url.unwrap_or(DEFAULT_INDEX_URL);
+
+        // Security: Validate URL
+        Self::validate_base_url(base_url, &security_policy)?;
+
         let client = Client::builder()
             .user_agent(concat!("brewx/", env!("CARGO_PKG_VERSION")))
+            // Enforce TLS 1.2+ (reqwest default, but explicit for security)
+            .min_tls_version(reqwest::tls::Version::TLS_1_2)
             .build()
             .map_err(Error::Http)?;
 
+        // Build verifier with default key + any additional trusted keys
+        let mut verifier = SignatureVerifier::new()?;
+        for key in &security_policy.additional_keys {
+            verifier.add_public_key(key)?;
+        }
+
         Ok(Self {
             client,
-            base_url: base_url.unwrap_or(DEFAULT_INDEX_URL).to_string(),
+            base_url: base_url.to_string(),
             cache_dir: cache_dir.as_ref().to_path_buf(),
+            security_policy,
+            verifier,
         })
+    }
+
+    /// Validate the base URL for security
+    ///
+    /// Note: Domain validation is intentionally permissive because signature
+    /// verification is the primary security mechanism. Mirrors can be hosted
+    /// anywhere as long as they serve properly signed manifests.
+    fn validate_base_url(url: &str, policy: &SecurityPolicy) -> Result<()> {
+        // In permissive mode, allow any URL (for development)
+        if policy.allow_unsigned {
+            return Ok(());
+        }
+
+        // Allow file:// URLs for local mirrors
+        if url.starts_with("file://") {
+            debug!("Using local file mirror: {}", url);
+            return Ok(());
+        }
+
+        // Require HTTPS for remote URLs (not file://)
+        if !url.starts_with("https://") {
+            warn!("Index URL does not use HTTPS: {}", url);
+            // Only error if signatures are required - the signature check is
+            // the real security, HTTPS is defense in depth
+            if policy.require_signature {
+                return Err(Error::InvalidIndex(
+                    "Remote index URL must use HTTPS. Use file:// for local mirrors.".to_string(),
+                ));
+            }
+        }
+
+        // No domain restrictions - signature verification protects against
+        // untrusted sources. This allows:
+        // - Enterprise mirrors on internal domains
+        // - CDN-hosted mirrors
+        // - Local development servers
+        // The Ed25519 signature is what actually validates authenticity.
+
+        Ok(())
+    }
+
+    /// Create with permissive security (for development/testing)
+    pub fn permissive(base_url: Option<&str>, cache_dir: impl AsRef<Path>) -> Result<Self> {
+        Self::with_security_policy(base_url, cache_dir, SecurityPolicy::permissive())
+    }
+
+    /// Create with strict security (production recommended)
+    pub fn strict(base_url: Option<&str>, cache_dir: impl AsRef<Path>) -> Result<Self> {
+        Self::with_security_policy(base_url, cache_dir, SecurityPolicy::strict())
     }
 
     /// Fetch the manifest
@@ -76,9 +212,74 @@ impl IndexSync {
         }
     }
 
+    /// Verify manifest signature according to security policy
+    fn verify_manifest_signature(&self, manifest: &Manifest) -> Result<()> {
+        // Check if signature is present
+        let signature = match &manifest.signature {
+            Some(sig) => sig,
+            None => {
+                if self.security_policy.allow_unsigned {
+                    warn!("Manifest is unsigned, but policy allows unsigned indexes");
+                    return Ok(());
+                }
+                return Err(Error::SignatureMissing);
+            }
+        };
+
+        let signed_at = manifest.signed_at.unwrap_or(0);
+
+        // Check signature age
+        if self.security_policy.require_signature {
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+
+            let age = now.saturating_sub(signed_at);
+            if age > self.security_policy.max_signature_age {
+                return Err(Error::SignatureExpired(age, self.security_policy.max_signature_age));
+            }
+        }
+
+        // Build signed data string (must match sign_index.py format)
+        let signed_data = format!(
+            "brewx-index:v1:{}:{}:{}:{}:{}",
+            manifest.index_sha256,
+            signed_at,
+            manifest.index_version,
+            manifest.formula_count,
+            manifest.cask_count.unwrap_or(0)
+        );
+
+        // Parse and verify signature
+        let signature_bytes = hex::decode(signature).map_err(|e| {
+            Error::SignatureInvalid(format!("Invalid signature hex: {}", e))
+        })?;
+
+        let sig = ed25519_dalek::Signature::from_slice(&signature_bytes).map_err(|e| {
+            Error::SignatureInvalid(format!("Invalid signature format: {}", e))
+        })?;
+
+        // Try verification with the verifier (which has all trusted keys)
+        use ed25519_dalek::Verifier;
+        let verified = self.verifier.public_keys().iter().any(|key| {
+            key.verify(signed_data.as_bytes(), &sig).is_ok()
+        });
+
+        if !verified {
+            return Err(Error::SignatureInvalid("Signature verification failed".to_string()));
+        }
+
+        info!("Manifest signature verified successfully");
+        Ok(())
+    }
+
     /// Download and install the index
     pub async fn sync_index(&self, db_path: impl AsRef<Path>) -> Result<Manifest> {
         let manifest = self.fetch_manifest().await?;
+
+        // Verify signature according to security policy
+        self.verify_manifest_signature(&manifest)?;
 
         // Download compressed index
         let url = format!("{}/index.db.zst", self.base_url);
@@ -110,7 +311,7 @@ impl IndexSync {
         std::fs::rename(&temp_path, db_path)?;
 
         info!(
-            "Index updated to {} ({} formulas)",
+            "Index updated to {} ({} formulas, signature verified)",
             manifest.version, manifest.formula_count
         );
 
