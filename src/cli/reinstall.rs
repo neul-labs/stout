@@ -1,13 +1,13 @@
 //! Reinstall command - uninstall and reinstall a package
 
 use anyhow::{bail, Context, Result};
-use brewx_fetch::{BottleSpec, DownloadCache, DownloadClient, ProgressReporter};
-use brewx_index::{Database, IndexSync};
-use brewx_install::{
+use stout_fetch::{BottleSpec, DownloadCache, DownloadClient, ProgressReporter};
+use stout_index::{Database, IndexSync};
+use stout_install::{
     extract_bottle, link_package, unlink_package, write_receipt, BuildConfig, InstallReceipt,
     RuntimeDependency, SourceBuilder,
 };
-use brewx_state::{Config, InstalledPackages, Paths};
+use stout_state::{Config, InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 use std::sync::Arc;
@@ -36,16 +36,16 @@ pub async fn run(args: Args) -> Result<()> {
     let config = Config::load(&paths)?;
 
     let db = Database::open(paths.index_db())
-        .context("Failed to open index. Run 'brewx update' first.")?;
+        .context("Failed to open index. Run 'stout update' first.")?;
 
     if !db.is_initialized()? {
-        bail!("Index not initialized. Run 'brewx update' first.");
+        bail!("Index not initialized. Run 'stout update' first.");
     }
 
     let mut installed = InstalledPackages::load(&paths)?;
     let sync = IndexSync::with_security_policy(
         Some(&config.index.base_url),
-        &paths.brewx_dir,
+        &paths.stout_dir,
         config.security.to_security_policy(),
     )?;
 
@@ -57,7 +57,7 @@ pub async fn run(args: Args) -> Result<()> {
         let old_pkg = installed.get(name).cloned();
         if old_pkg.is_none() {
             eprintln!(
-                "{} {} is not installed, use 'brewx install' instead",
+                "{} {} is not installed, use 'stout install' instead",
                 style("Warning:").yellow(),
                 name
             );
@@ -110,7 +110,7 @@ pub async fn run(args: Args) -> Result<()> {
                 cxx: None,
             };
 
-            let work_dir = paths.brewx_dir.join("build").join(name);
+            let work_dir = paths.stout_dir.join("build").join(name);
             let builder = SourceBuilder::new(build_config, &work_dir);
 
             let result = builder.build().await.context(format!(
@@ -128,7 +128,7 @@ pub async fn run(args: Args) -> Result<()> {
 
             println!("  {} Downloading bottle...", style("•").dim());
 
-            let cache = DownloadCache::new(&paths.brewx_dir);
+            let cache = DownloadCache::new(&paths.stout_dir);
             let client = DownloadClient::new(cache, 1)?;
             let progress = Arc::new(ProgressReporter::new());
 

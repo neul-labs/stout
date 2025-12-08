@@ -4,7 +4,7 @@
 //! launchd plists (macOS) or systemd units (Linux).
 
 use anyhow::{bail, Result};
-use brewx_state::{InstalledPackages, Paths};
+use stout_state::{InstalledPackages, Paths};
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
 use std::path::PathBuf;

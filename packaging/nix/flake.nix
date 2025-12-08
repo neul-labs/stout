@@ -1,5 +1,5 @@
 {
-  description = "brewx - Fast, Rust-based Homebrew-compatible package manager";
+  description = "stout - Fast, Rust-based Homebrew-compatible package manager";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -22,8 +22,8 @@
           extensions = [ "rust-src" "rust-analyzer" ];
         };
 
-        brewx = pkgs.rustPlatform.buildRustPackage {
-          pname = "brewx";
+        stout = pkgs.rustPlatform.buildRustPackage {
+          pname = "stout";
           version = "0.1.0";
 
           src = ../..;
@@ -45,16 +45,16 @@
             darwin.apple_sdk.frameworks.SystemConfiguration
           ];
 
-          BREWX_GEN_MAN = "1";
+          STOUT_GEN_MAN = "1";
 
           postInstall = ''
-            installShellCompletion --cmd brewx \
-              --bash <($out/bin/brewx completions bash) \
-              --zsh <($out/bin/brewx completions zsh) \
-              --fish <($out/bin/brewx completions fish)
+            installShellCompletion --cmd stout \
+              --bash <($out/bin/stout completions bash) \
+              --zsh <($out/bin/stout completions zsh) \
+              --fish <($out/bin/stout completions fish)
 
             # Install man pages
-            manDir=$(find target -name "brewx-*" -type d -path "*/out" | head -1)/man
+            manDir=$(find target -name "stout-*" -type d -path "*/out" | head -1)/man
             if [ -d "$manDir" ]; then
               installManPage $manDir/*.1
             fi
@@ -62,20 +62,20 @@
 
           meta = with pkgs.lib; {
             description = "Fast, Rust-based Homebrew-compatible package manager";
-            homepage = "https://github.com/neul-labs/brewx";
+            homepage = "https://github.com/neul-labs/stout";
             license = licenses.mit;
-            mainProgram = "brewx";
+            mainProgram = "stout";
           };
         };
       in
       {
         packages = {
-          default = brewx;
-          brewx = brewx;
+          default = stout;
+          stout = stout;
         };
 
         apps.default = flake-utils.lib.mkApp {
-          drv = brewx;
+          drv = stout;
         };
 
         devShells.default = pkgs.mkShell {

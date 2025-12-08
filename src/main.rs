@@ -1,4 +1,4 @@
-//! brewx - A fast, Rust-based Homebrew-compatible package manager
+//! stout - A fast, Rust-based Homebrew-compatible package manager
 
 mod cli;
 mod output;
@@ -14,16 +14,16 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::from_default_env()
-                .add_directive("brewx=info".parse().unwrap()),
+                .add_directive("stout=info".parse().unwrap()),
         )
         .without_time()
         .init();
 
     let cli = Cli::parse();
 
-    // Set BREWX_PREFIX environment variable if custom prefix is specified
+    // Set STOUT_PREFIX environment variable if custom prefix is specified
     if let Some(ref prefix) = cli.prefix {
-        std::env::set_var("BREWX_PREFIX", prefix);
+        std::env::set_var("STOUT_PREFIX", prefix);
     }
 
     match cli.command {

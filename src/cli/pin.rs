@@ -1,7 +1,7 @@
 //! Pin command - prevent packages from being upgraded
 
 use anyhow::{bail, Result};
-use brewx_state::{InstalledPackages, Paths};
+use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 

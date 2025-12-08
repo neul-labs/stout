@@ -1,20 +1,20 @@
 # Architecture
 
-This document describes the internal architecture of brewx.
+This document describes the internal architecture of stout.
 
 ## Overview
 
-brewx is structured as a Rust workspace with multiple crates, each handling a specific concern:
+stout is structured as a Rust workspace with multiple crates, each handling a specific concern:
 
 ```
-brewx/
+stout/
 ├── src/                    # Main CLI binary
 ├── crates/
-│   ├── brewx-index/       # SQLite index management
-│   ├── brewx-resolve/     # Dependency resolution
-│   ├── brewx-fetch/       # Download management
-│   ├── brewx-install/     # Package installation
-│   └── brewx-state/       # Local state management
+│   ├── stout-index/       # SQLite index management
+│   ├── stout-resolve/     # Dependency resolution
+│   ├── stout-fetch/       # Download management
+│   ├── stout-install/     # Package installation
+│   └── stout-state/       # Local state management
 └── scripts/
     └── sync.py            # Index sync script
 ```
@@ -28,7 +28,7 @@ brewx/
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                           brewx CLI (src/)                               │
+│                           stout CLI (src/)                               │
 │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐           │
 │  │ install │ │ search  │ │  info   │ │  list   │ │ doctor  │  ...      │
 │  └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘           │
@@ -38,20 +38,20 @@ brewx/
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                         Crate Layer                                      │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                   │
-│  │ brewx-index  │  │brewx-resolve │  │ brewx-fetch  │                   │
+│  │ stout-index  │  │stout-resolve │  │ stout-fetch  │                   │
 │  │  (SQLite)    │  │  (Dep Graph) │  │ (Downloads)  │                   │
 │  └──────────────┘  └──────────────┘  └──────────────┘                   │
 │  ┌──────────────┐  ┌──────────────┐                                     │
-│  │brewx-install │  │ brewx-state  │                                     │
+│  │stout-install │  │ stout-state  │                                     │
 │  │  (Extraction)│  │  (Config)    │                                     │
 │  └──────────────┘  └──────────────┘                                     │
 └─────────────────────────────────────────────────────────────────────────┘
         │                    │                    │
         ▼                    ▼                    ▼
 ┌───────────────┐  ┌───────────────┐  ┌───────────────────────────────────┐
-│  ~/.brewx/    │  │  Homebrew     │  │        Network                    │
+│  ~/.stout/    │  │  Homebrew     │  │        Network                    │
 │  index.db     │  │  Cellar       │  │  ┌─────────────────────────────┐  │
-│  config.toml  │  │  /opt/homebrew│  │  │ brewx-index (GitHub raw)    │  │
+│  config.toml  │  │  /opt/homebrew│  │  │ stout-index (GitHub raw)    │  │
 │  state/       │  │               │  │  │ Homebrew bottles (ghcr.io)  │  │
 └───────────────┘  └───────────────┘  │  └─────────────────────────────┘  │
                                       └───────────────────────────────────┘
@@ -59,7 +59,7 @@ brewx/
 
 ## Crate Details
 
-### brewx-index
+### stout-index
 
 **Purpose**: SQLite database management and formula queries.
 
@@ -103,7 +103,7 @@ CREATE TABLE bottles (
 );
 ```
 
-### brewx-resolve
+### stout-resolve
 
 **Purpose**: Dependency graph construction and resolution.
 
@@ -122,7 +122,7 @@ CREATE TABLE bottles (
 6. Return install order (deps first)
 ```
 
-### brewx-fetch
+### stout-fetch
 
 **Purpose**: Download management with caching and verification.
 
@@ -138,7 +138,7 @@ CREATE TABLE bottles (
 - Cache-first fetching
 - Progress reporting for each download
 
-### brewx-install
+### stout-install
 
 **Purpose**: Package installation and symlink management.
 
@@ -164,7 +164,7 @@ CREATE TABLE bottles (
     └── jq -> ../Cellar/jq/1.7.1
 ```
 
-### brewx-state
+### stout-state
 
 **Purpose**: Configuration and local state management.
 
@@ -175,7 +175,7 @@ CREATE TABLE bottles (
 
 **Files**:
 ```
-~/.brewx/
+~/.stout/
 ├── config.toml         # User configuration
 ├── index.db            # Formula index (SQLite)
 ├── manifest.json       # Index metadata
@@ -191,7 +191,7 @@ CREATE TABLE bottles (
 ### Search Operation
 
 ```
-User: brewx search json
+User: stout search json
          │
          ▼
     ┌─────────┐
@@ -200,7 +200,7 @@ User: brewx search json
          │
          ▼
     ┌─────────┐
-    │ Index   │ Open ~/.brewx/index.db
+    │ Index   │ Open ~/.stout/index.db
     └────┬────┘
          │
          ▼
@@ -217,7 +217,7 @@ User: brewx search json
 ### Install Operation
 
 ```
-User: brewx install jq
+User: stout install jq
          │
          ▼
     ┌─────────────┐
@@ -271,18 +271,18 @@ The index is maintained separately and synced to clients:
 └───────────────────────────────────────────────────────────────┘
 
 ┌───────────────────────────────────────────────────────────────┐
-│                    Index Consumption (brewx)                   │
+│                    Index Consumption (stout)                   │
 ├───────────────────────────────────────────────────────────────┤
 │                                                                │
 │  GitHub raw ──▶ Download ──▶ Decompress ──▶ Local SQLite      │
-│  (index.db.zst)  (HTTP GET)   (zstd)        (~/.brewx/)       │
+│  (index.db.zst)  (HTTP GET)   (zstd)        (~/.stout/)       │
 │                                                                │
 └───────────────────────────────────────────────────────────────┘
 ```
 
 ## Concurrency Model
 
-brewx uses Tokio for async operations:
+stout uses Tokio for async operations:
 
 ```rust
 // Parallel bottle downloads with semaphore

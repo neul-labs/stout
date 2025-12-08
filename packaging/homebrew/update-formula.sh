@@ -17,8 +17,8 @@ fi
 VERSION="${VERSION#v}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FORMULA_FILE="${SCRIPT_DIR}/brewx.rb"
-BASE_URL="https://github.com/neul-labs/brewx/releases/download/v${VERSION}"
+FORMULA_FILE="${SCRIPT_DIR}/stout.rb"
+BASE_URL="https://github.com/neul-labs/stout/releases/download/v${VERSION}"
 
 echo "Updating formula for version ${VERSION}..."
 
@@ -31,10 +31,10 @@ get_sha256() {
 
 # Get SHA256 hashes for all platforms
 echo "Fetching SHA256 hashes..."
-SHA_MACOS_ARM64=$(get_sha256 "brewx-aarch64-apple-darwin.tar.gz")
-SHA_MACOS_X86_64=$(get_sha256 "brewx-x86_64-apple-darwin.tar.gz")
-SHA_LINUX_ARM64=$(get_sha256 "brewx-aarch64-unknown-linux-gnu.tar.gz")
-SHA_LINUX_X86_64=$(get_sha256 "brewx-x86_64-unknown-linux-gnu.tar.gz")
+SHA_MACOS_ARM64=$(get_sha256 "stout-aarch64-apple-darwin.tar.gz")
+SHA_MACOS_X86_64=$(get_sha256 "stout-x86_64-apple-darwin.tar.gz")
+SHA_LINUX_ARM64=$(get_sha256 "stout-aarch64-unknown-linux-gnu.tar.gz")
+SHA_LINUX_X86_64=$(get_sha256 "stout-x86_64-unknown-linux-gnu.tar.gz")
 
 echo "  macOS ARM64:  ${SHA_MACOS_ARM64}"
 echo "  macOS x86_64: ${SHA_MACOS_X86_64}"

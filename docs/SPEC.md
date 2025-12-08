@@ -1,10 +1,10 @@
-# brewx Specification
+# stout Specification
 
 A fast, Rust-based Homebrew-compatible package manager client.
 
 ## Overview
 
-brewx is a metadata-only package manager that provides a high-performance alternative to the Homebrew CLI. It consumes pre-computed package metadata from a GitHub repository and uses Homebrew's existing bottle infrastructure for actual package artifacts.
+stout is a metadata-only package manager that provides a high-performance alternative to the Homebrew CLI. It consumes pre-computed package metadata from a GitHub repository and uses Homebrew's existing bottle infrastructure for actual package artifacts.
 
 **Core Principles:**
 - SQLite as the local index for fast queries
@@ -15,7 +15,7 @@ brewx is a metadata-only package manager that provides a high-performance altern
 
 ---
 
-## Why brewx is Faster
+## Why stout is Faster
 
 ### Current brew Bottlenecks
 
@@ -35,15 +35,15 @@ Homebrew 4.2.0
 real    0m0.502s   ← 500ms just to print version
 ```
 
-### How brewx Eliminates These
+### How stout Eliminates These
 
-| Operation | What brewx does | Time |
+| Operation | What stout does | Time |
 |-----------|-----------------|------|
 | **Any command** | Start Rust binary | ~5ms |
-| **`brewx update`** | Download index.db.zst (~1-2MB) | 1-3s |
-| **`brewx search`** | SQLite FTS5 query | <50ms |
-| **`brewx info`** | SQLite lookup + fetch 500-byte JSON | <100ms |
-| **`brewx install`** | Parallel bottle downloads | faster |
+| **`stout update`** | Download index.db.zst (~1-2MB) | 1-3s |
+| **`stout search`** | SQLite FTS5 query | <50ms |
+| **`stout info`** | SQLite lookup + fetch 500-byte JSON | <100ms |
+| **`stout install`** | Parallel bottle downloads | faster |
 
 ### Speedup Sources
 
@@ -60,14 +60,14 @@ real    0m0.502s   ← 500ms just to print version
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
-│                     BREWX (proposed)                            │
+│                     STOUT (proposed)                            │
 │                                                                 │
 │  User ──▶ Rust ──▶ SQLite Query ──▶ Result                     │
 │           5ms        <50ms                                      │
 │                                                                 │
-│  brewx update: download index.db.zst (1-2MB)                    │
-│  brewx search: SELECT with FTS5 (instant)                       │
-│  brewx install: parallel async downloads, cached metadata       │
+│  stout update: download index.db.zst (1-2MB)                    │
+│  stout search: SELECT with FTS5 (instant)                       │
+│  stout install: parallel async downloads, cached metadata       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -75,37 +75,37 @@ real    0m0.502s   ← 500ms just to print version
 
 **1. No Ruby Interpreter**
 - brew: Ruby VM startup on every command (~500ms)
-- brewx: Native Rust binary (~5ms startup)
+- stout: Native Rust binary (~5ms startup)
 - **Savings: ~500ms per command**
 
 **2. No Git Operations**
 - brew: `git fetch` on 700MB+ homebrew-core repo
-- brewx: HTTP GET for 1-2MB index file
+- stout: HTTP GET for 1-2MB index file
 - **Savings: 10-60s on update**
 
 **3. Pre-computed Metadata**
 - brew: Parses Ruby DSL at runtime to get version, deps, etc.
-- brewx: Already computed, stored as JSON, indexed in SQLite
+- stout: Already computed, stored as JSON, indexed in SQLite
 - **Savings: eliminates Ruby evaluation entirely**
 
 **4. SQLite vs In-Memory Ruby**
 - brew: Loads formulas into Ruby objects for search
-- brewx: FTS5 full-text search on indexed database
+- stout: FTS5 full-text search on indexed database
 - **Savings: 2-5s → <50ms for search**
 
 **5. Parallel Downloads**
 - brew: Often sequential operations
-- brewx: Tokio async runtime, concurrent bottle fetches
+- stout: Tokio async runtime, concurrent bottle fetches
 - **Savings: N bottles in parallel vs sequential**
 
 **6. Local Caching with Invalidation**
 - brew: Re-evaluates formulas each time
-- brewx: Caches formula JSON, only re-fetches if `json_hash` changed
+- stout: Caches formula JSON, only re-fetches if `json_hash` changed
 - **Savings: skip network for unchanged formulas**
 
 ### Expected Performance
 
-| Command | brew | brewx | Speedup |
+| Command | brew | stout | Speedup |
 |---------|------|-------|---------|
 | `--version` | 500ms | 5ms | **100x** |
 | `search <query>` | 2-5s | <50ms | **40-100x** |
@@ -115,7 +115,7 @@ real    0m0.502s   ← 500ms just to print version
 
 ### What Stays the Same
 
-brewx uses the **exact same bottles** as brew:
+stout uses the **exact same bottles** as brew:
 - Same download URLs (ghcr.io/homebrew/core/...)
 - Same checksums
 - Same Cellar layout
@@ -147,7 +147,7 @@ The speedup comes from **how we get there**, not **what we install**.
 │  └──────────┘     └──────────┘     └──────────┘     └────────┘ │
 │       │                                                   │     │
 │       ▼                                                   ▼     │
-│  ~/.brewx/                                    /opt/homebrew/    │
+│  ~/.stout/                                    /opt/homebrew/    │
 │  index.db                                     Cellar/           │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -197,10 +197,10 @@ dist/
 
 #### GitHub Repository Structure
 
-Repository: `github.com/<org>/brewx-index`
+Repository: `github.com/<org>/stout-index`
 
 ```
-brewx-index/
+stout-index/
 ├── index.db.zst          # ~1-2MB (queryable metadata only)
 ├── manifest.json         # Version info + list of changed formulas
 ├── formulas/
@@ -218,8 +218,8 @@ brewx-index/
 ```
 
 Files served via GitHub raw URLs or GitHub Pages:
-- `https://raw.githubusercontent.com/<org>/brewx-index/main/index.db.zst`
-- `https://raw.githubusercontent.com/<org>/brewx-index/main/formulas/w/wget.json.zst`
+- `https://raw.githubusercontent.com/<org>/stout-index/main/index.db.zst`
+- `https://raw.githubusercontent.com/<org>/stout-index/main/formulas/w/wget.json.zst`
 
 #### Automation
 
@@ -444,7 +444,7 @@ Homebrew API JSON
 │  1. Fetch formula.json (all formulas)       │
 │  2. For each formula:                       │
 │     a. Extract index fields → SQLite        │
-│     b. Normalize full data → brewx JSON     │
+│     b. Normalize full data → stout JSON     │
 │     c. Compress with zstd                   │
 │  3. Build SQLite index                      │
 │  4. Write individual .json.zst files        │
@@ -482,7 +482,7 @@ Homebrew API JSON
 | `service` | ✗ | ✓ |
 | `post_install_defined` | ✗ | ✓ |
 
-### brewx JSON Schema (Output)
+### stout JSON Schema (Output)
 
 Normalized, flattened structure optimized for the CLI:
 
@@ -579,11 +579,11 @@ def sync():
             for platform in bottles.keys():
                 db.insert_bottle(formula["name"], platform)
 
-        # 6. Transform to brewx JSON format
-        brewx_json = transform_formula(formula)
+        # 6. Transform to stout JSON format
+        stout_json = transform_formula(formula)
 
         # 7. Compress and write individual file
-        compressed = zstd.compress(json.dumps(brewx_json))
+        compressed = zstd.compress(json.dumps(stout_json))
         write_file(f"formulas/{formula['name'][0]}/{formula['name']}.json.zst", compressed)
 
         # 8. Store hash in index for cache invalidation
@@ -611,10 +611,10 @@ def sync():
 ### Crate Structure
 
 ```
-brewx/
+stout/
 ├── Cargo.toml
 ├── crates/
-│   ├── brewx-index/       # SQLite index management
+│   ├── stout-index/       # SQLite index management
 │   │   ├── src/
 │   │   │   ├── lib.rs
 │   │   │   ├── db.rs      # Database operations
@@ -623,7 +623,7 @@ brewx/
 │   │   │   └── query.rs   # Search, lookup
 │   │   └── Cargo.toml
 │   │
-│   ├── brewx-resolve/     # Dependency resolution
+│   ├── stout-resolve/     # Dependency resolution
 │   │   ├── src/
 │   │   │   ├── lib.rs
 │   │   │   ├── graph.rs   # Dependency graph
@@ -631,7 +631,7 @@ brewx/
 │   │   │   └── plan.rs    # Installation plan
 │   │   └── Cargo.toml
 │   │
-│   ├── brewx-fetch/       # Download management
+│   ├── stout-fetch/       # Download management
 │   │   ├── src/
 │   │   │   ├── lib.rs
 │   │   │   ├── client.rs  # HTTP client (reqwest)
@@ -640,7 +640,7 @@ brewx/
 │   │   │   └── cache.rs   # Download cache
 │   │   └── Cargo.toml
 │   │
-│   ├── brewx-install/     # Package installation
+│   ├── stout-install/     # Package installation
 │   │   ├── src/
 │   │   │   ├── lib.rs
 │   │   │   ├── extract.rs # Tar/bottle extraction
@@ -649,7 +649,7 @@ brewx/
 │   │   │   └── hooks.rs   # Post-install scripts
 │   │   └── Cargo.toml
 │   │
-│   └── brewx-state/       # Local state management
+│   └── stout-state/       # Local state management
 │       ├── src/
 │       │   ├── lib.rs
 │       │   ├── config.rs  # User configuration
@@ -691,7 +691,7 @@ dirs = "5"                  # XDG paths
 ### CLI Commands
 
 ```
-brewx <command> [options]
+stout <command> [options]
 
 Commands:
   install <formula>...    Install packages
@@ -730,7 +730,7 @@ Accent:     Blue    (#3b82f6)  - Links, versions
 
 **Install:**
 ```
-$ brewx install wget ripgrep fd
+$ stout install wget ripgrep fd
 
 Resolving dependencies...
   ✓ wget 1.24.5
@@ -754,7 +754,7 @@ Installed 5 packages in 3.2s
 
 **Search:**
 ```
-$ brewx search json
+$ stout search json
 
 Found 47 formulas:
 
@@ -765,12 +765,12 @@ Found 47 formulas:
   jsonlint 1.6.3          JSON parser and validator
   ...
 
-Use 'brewx info <formula>' for details
+Use 'stout info <formula>' for details
 ```
 
 **Update:**
 ```
-$ brewx update
+$ stout update
 
 Fetching index...
   ████████████████████████████████████████ 1.8 MB
@@ -784,7 +784,7 @@ Last sync: 2 minutes ago
 
 **Info:**
 ```
-$ brewx info wget
+$ stout info wget
 
 wget 1.24.5
 Internet file retriever
@@ -807,7 +807,7 @@ Installed: No
 
 **Upgrade:**
 ```
-$ brewx upgrade
+$ stout upgrade
 
 Checking for updates...
 
@@ -832,7 +832,7 @@ Upgraded 2 packages in 2.1s
 
 **List:**
 ```
-$ brewx list
+$ stout list
 
 Installed packages (23):
 
@@ -849,7 +849,7 @@ Total: 23 packages, 142 MB
 
 **Errors:**
 ```
-$ brewx install nonexistent
+$ stout install nonexistent
 
 error: formula 'nonexistent' not found
 
@@ -858,7 +858,7 @@ Did you mean?
   • neotest
   • nextest
 
-Run 'brewx search <query>' to find packages
+Run 'stout search <query>' to find packages
 ```
 
 #### Progress Indicators
@@ -906,7 +906,7 @@ humantime = "2"         # "2 days ago" formatting
 ### Directory Structure
 
 ```
-~/.brewx/
+~/.stout/
 ├── config.toml           # User configuration
 ├── index.db              # SQLite index (decompressed, ~2-5MB)
 ├── manifest.json         # Current index version info
@@ -924,8 +924,8 @@ humantime = "2"         # "2 days ago" formatting
 
 ```toml
 [index]
-# Base URL for brewx-index repository (raw GitHub content)
-base_url = "https://raw.githubusercontent.com/<org>/brewx-index/main"
+# Base URL for stout-index repository (raw GitHub content)
+base_url = "https://raw.githubusercontent.com/<org>/stout-index/main"
 auto_update = true
 update_interval = 1800  # seconds (30 min for index)
 
@@ -943,21 +943,21 @@ download_ttl = 604800   # 7 days - bottle downloads
 ### installed.toml
 
 ```toml
-# Tracks brewx-managed installations
+# Tracks stout-managed installations
 # Coexists with Homebrew's INSTALL_RECEIPT.json
 
 [wget]
 version = "1.24.5"
 revision = 0
 installed_at = 2024-01-15T10:30:00Z
-installed_by = "brewx"
+installed_by = "stout"
 requested = true  # Explicitly installed vs dependency
 
 [openssl@3]
 version = "3.2.1"
 revision = 0
 installed_at = 2024-01-15T10:29:55Z
-installed_by = "brewx"
+installed_by = "stout"
 requested = false  # Installed as dependency of wget
 ```
 
@@ -967,7 +967,7 @@ requested = false  # Installed as dependency of wget
 
 ### Cellar Layout
 
-brewx uses the same Cellar structure as Homebrew:
+stout uses the same Cellar structure as Homebrew:
 
 ```
 /opt/homebrew/
@@ -988,7 +988,7 @@ brewx uses the same Cellar structure as Homebrew:
 
 ### INSTALL_RECEIPT.json
 
-brewx writes compatible receipts so `brew` can see brewx-installed packages:
+stout writes compatible receipts so `brew` can see stout-installed packages:
 
 ```json
 {
@@ -1007,16 +1007,16 @@ brewx writes compatible receipts so `brew` can see brewx-installed packages:
 
 ### Side-by-Side Operation
 
-- brewx reads existing Homebrew installations
-- `brew` can see brewx-installed packages
-- Users can mix `brew` and `brewx` commands
+- stout reads existing Homebrew installations
+- `brew` can see stout-installed packages
+- Users can mix `brew` and `stout` commands
 - No conflicts: same paths, same receipts
 
 ---
 
 ## Sync Protocol
 
-### Index Update (`brewx update`)
+### Index Update (`stout update`)
 
 ```
 1. GET manifest.json (ETag/If-Modified-Since for caching)
@@ -1024,14 +1024,14 @@ brewx writes compatible receipts so `brew` can see brewx-installed packages:
 3. If different:
    a. GET index.db.zst
    b. Verify sha256
-   c. Decompress to ~/.brewx/index.db
+   c. Decompress to ~/.stout/index.db
 4. Note: Individual formula JSONs are NOT fetched here
 ```
 
-### On-Demand Formula Fetch (`brewx install/info`)
+### On-Demand Formula Fetch (`stout install/info`)
 
 ```
-1. Check local cache: ~/.brewx/cache/formulas/<name>.json
+1. Check local cache: ~/.stout/cache/formulas/<name>.json
 2. Compare cached json_hash vs index.formulas.json_hash
 3. If missing or stale:
    a. GET formulas/<first-letter>/<name>.json.zst
@@ -1043,7 +1043,7 @@ brewx writes compatible receipts so `brew` can see brewx-installed packages:
 ### Local Formula Cache
 
 ```
-~/.brewx/cache/formulas/
+~/.stout/cache/formulas/
 ├── wget.json              # Decompressed, ready to use
 ├── openssl@3.json
 └── ...
@@ -1095,10 +1095,10 @@ When `--offline` or network unavailable:
 
 | Operation | Target |
 |-----------|--------|
-| `brewx search <query>` | <50ms |
-| `brewx info <formula>` | <100ms |
-| `brewx update` (incremental) | <5s |
-| `brewx install` (cached bottle) | <10s |
+| `stout search <query>` | <50ms |
+| `stout info <formula>` | <100ms |
+| `stout update` (incremental) | <5s |
+| `stout install` (cached bottle) | <10s |
 | Index size (compressed) | <10MB |
 
 ---

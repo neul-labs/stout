@@ -8,12 +8,12 @@
 }:
 
 rustPlatform.buildRustPackage rec {
-  pname = "brewx";
+  pname = "stout";
   version = "0.1.0";
 
   src = fetchFromGitHub {
     owner = "neul-labs";
-    repo = "brewx";
+    repo = "stout";
     rev = "v${version}";
     hash = "sha256-PLACEHOLDER";
   };
@@ -33,18 +33,18 @@ rustPlatform.buildRustPackage rec {
   ];
 
   postInstall = ''
-    installShellCompletion --cmd brewx \
-      --bash <($out/bin/brewx completions bash) \
-      --zsh <($out/bin/brewx completions zsh) \
-      --fish <($out/bin/brewx completions fish)
+    installShellCompletion --cmd stout \
+      --bash <($out/bin/stout completions bash) \
+      --zsh <($out/bin/stout completions zsh) \
+      --fish <($out/bin/stout completions fish)
   '';
 
   meta = with lib; {
     description = "Fast, Rust-based Homebrew-compatible package manager";
-    homepage = "https://github.com/neul-labs/brewx";
+    homepage = "https://github.com/neul-labs/stout";
     license = licenses.mit;
     maintainers = with maintainers; [ ];
-    mainProgram = "brewx";
+    mainProgram = "stout";
     platforms = platforms.unix;
   };
 }

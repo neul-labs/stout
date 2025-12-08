@@ -1,8 +1,8 @@
 //! Update command
 
 use anyhow::{Context, Result};
-use brewx_index::IndexSync;
-use brewx_state::{Config, Paths};
+use stout_index::IndexSync;
+use stout_state::{Config, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -27,11 +27,11 @@ pub async fn run(args: Args) -> Result<()> {
     // Use permissive security if --insecure flag is set (hidden, for dev only)
     let sync = if args.insecure {
         eprintln!("{}", style("WARNING: Running without signature verification").yellow().bold());
-        IndexSync::permissive(Some(&config.index.base_url), &paths.brewx_dir)?
+        IndexSync::permissive(Some(&config.index.base_url), &paths.stout_dir)?
     } else {
         IndexSync::with_security_policy(
             Some(&config.index.base_url),
-            &paths.brewx_dir,
+            &paths.stout_dir,
             config.security.to_security_policy(),
         )?
     };
@@ -85,7 +85,7 @@ pub async fn run(args: Args) -> Result<()> {
 
     println!(
         "\n{}",
-        style("Run 'brewx search <query>' to find packages").dim()
+        style("Run 'stout search <query>' to find packages").dim()
     );
 
     Ok(())

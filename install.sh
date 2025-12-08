@@ -1,11 +1,11 @@
 #!/bin/bash
-# brewx installer script
-# Usage: curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | bash
+# stout installer script
+# Usage: curl -fsSL https://raw.githubusercontent.com/neul-labs/stout/main/install.sh | bash
 #
 # Environment variables:
-#   BREWX_INSTALL_DIR - Installation directory (default: ~/.local/bin or /usr/local/bin)
-#   BREWX_VERSION     - Specific version to install (default: latest)
-#   BREWX_NO_MODIFY_PATH - Set to 1 to skip PATH modification
+#   STOUT_INSTALL_DIR - Installation directory (default: ~/.local/bin or /usr/local/bin)
+#   STOUT_VERSION     - Specific version to install (default: latest)
+#   STOUT_NO_MODIFY_PATH - Set to 1 to skip PATH modification
 
 set -euo pipefail
 
@@ -19,8 +19,8 @@ NC='\033[0m' # No Color
 BOLD='\033[1m'
 
 # GitHub repository
-REPO="neul-labs/brewx"
-BINARY_NAME="brewx"
+REPO="neul-labs/stout"
+BINARY_NAME="stout"
 
 # Print functions
 info() {
@@ -146,8 +146,8 @@ verify_checksum() {
 
 # Determine installation directory
 get_install_dir() {
-    if [ -n "${BREWX_INSTALL_DIR:-}" ]; then
-        echo "$BREWX_INSTALL_DIR"
+    if [ -n "${STOUT_INSTALL_DIR:-}" ]; then
+        echo "$STOUT_INSTALL_DIR"
     elif [ -w "/usr/local/bin" ]; then
         echo "/usr/local/bin"
     else
@@ -160,7 +160,7 @@ add_to_path() {
     local dir="$1"
     local shell_config
 
-    if [ "${BREWX_NO_MODIFY_PATH:-0}" = "1" ]; then
+    if [ "${STOUT_NO_MODIFY_PATH:-0}" = "1" ]; then
         return
     fi
 
@@ -197,7 +197,7 @@ add_to_path() {
             ;;
         *)
             echo "" >> "$shell_config"
-            echo "# Added by brewx installer" >> "$shell_config"
+            echo "# Added by stout installer" >> "$shell_config"
             echo "export PATH=\"$dir:\$PATH\"" >> "$shell_config"
             ;;
     esac
@@ -208,7 +208,7 @@ add_to_path() {
 # Main installation function
 main() {
     echo ""
-    printf "${BOLD}${CYAN}brewx${NC} installer\n"
+    printf "${BOLD}${CYAN}stout${NC} installer\n"
     echo ""
 
     # Detect platform
@@ -220,17 +220,17 @@ main() {
     info "Detected platform: $os-$arch ($target)"
 
     # Get version
-    local version="${BREWX_VERSION:-}"
+    local version="${STOUT_VERSION:-}"
     if [ -z "$version" ]; then
         info "Fetching latest version..."
         version=$(get_latest_version)
     fi
 
-    info "Installing brewx $version"
+    info "Installing stout $version"
 
     # Set up URLs
     local base_url="https://github.com/${REPO}/releases/download/${version}"
-    local archive_name="brewx-${target}.tar.gz"
+    local archive_name="stout-${target}.tar.gz"
     local archive_url="${base_url}/${archive_name}"
     local checksum_url="${base_url}/${archive_name}.sha256"
 
@@ -282,15 +282,15 @@ main() {
     # Verify installation
     echo ""
     if "$binary_path" --version >/dev/null 2>&1; then
-        success "brewx $version installed successfully!"
+        success "stout $version installed successfully!"
         echo ""
         printf "  ${BOLD}Location${NC}: $binary_path\n"
         printf "  ${BOLD}Version${NC}:  $("$binary_path" --version)\n"
         echo ""
-        printf "  Run ${CYAN}brewx update${NC} to download the formula index.\n"
-        printf "  Run ${CYAN}brewx --help${NC} to get started.\n"
+        printf "  Run ${CYAN}stout update${NC} to download the formula index.\n"
+        printf "  Run ${CYAN}stout --help${NC} to get started.\n"
     else
-        error "Installation completed but brewx failed to run"
+        error "Installation completed but stout failed to run"
         exit 1
     fi
 

@@ -1,12 +1,12 @@
-# Maintainer: Neul Labs <brewx@neul-labs.com>
-# Contributor: Neul Labs <brewx@neul-labs.com>
+# Maintainer: Neul Labs <stout@neul-labs.com>
+# Contributor: Neul Labs <stout@neul-labs.com>
 
-pkgname=brewx
+pkgname=stout
 pkgver=0.1.0
 pkgrel=1
 pkgdesc="Fast, Rust-based Homebrew-compatible package manager"
 arch=('x86_64' 'aarch64')
-url="https://github.com/neul-labs/brewx"
+url="https://github.com/neul-labs/stout"
 license=('MIT')
 depends=('gcc-libs')
 makedepends=('cargo')
@@ -15,8 +15,8 @@ optdepends=(
     'zsh-completions: for zsh shell completions'
     'fish: for fish shell completions'
 )
-provides=('brewx')
-conflicts=('brewx-bin' 'brewx-git')
+provides=('stout')
+conflicts=('stout-bin' 'stout-git')
 source=("$pkgname-$pkgver.tar.gz::https://github.com/neul-labs/$pkgname/archive/v$pkgver.tar.gz")
 sha256sums=('PLACEHOLDER_SHA256')
 
@@ -24,7 +24,7 @@ build() {
     cd "$pkgname-$pkgver"
     export RUSTUP_TOOLCHAIN=stable
     export CARGO_TARGET_DIR=target
-    export BREWX_GEN_MAN=1
+    export STOUT_GEN_MAN=1
     cargo build --release --locked
 }
 
@@ -57,7 +57,7 @@ package() {
 
     # Install man pages
     install -dm755 "$pkgdir/usr/share/man/man1"
-    local man_dir=$(find target/release/build -name "brewx-*" -type d -path "*/out" | head -1)/man
+    local man_dir=$(find target/release/build -name "stout-*" -type d -path "*/out" | head -1)/man
     if [ -d "$man_dir" ]; then
         install -m644 "$man_dir"/*.1 "$pkgdir/usr/share/man/man1/"
     fi

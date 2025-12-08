@@ -1,8 +1,8 @@
 //! Info command
 
 use anyhow::{Context, Result};
-use brewx_index::{Database, IndexSync};
-use brewx_state::{Config, Paths};
+use stout_index::{Database, IndexSync};
+use stout_state::{Config, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 
@@ -22,11 +22,11 @@ pub async fn run(args: Args) -> Result<()> {
 
     // Open the database
     let db = Database::open(paths.index_db())
-        .context("Failed to open index. Run 'brewx update' first.")?;
+        .context("Failed to open index. Run 'stout update' first.")?;
 
     let sync = IndexSync::with_security_policy(
         Some(&config.index.base_url),
-        &paths.brewx_dir,
+        &paths.stout_dir,
         config.security.to_security_policy(),
     )?;
 
@@ -68,14 +68,14 @@ pub async fn run(args: Args) -> Result<()> {
 
     eprintln!(
         "\n{}",
-        style("Run 'brewx search <query>' to find packages").dim()
+        style("Run 'stout search <query>' to find packages").dim()
     );
     std::process::exit(1);
 }
 
 async fn show_formula_info(
     name: &str,
-    info: &brewx_index::FormulaInfo,
+    info: &stout_index::FormulaInfo,
     sync: &IndexSync,
     paths: &Paths,
     db: &Database,
@@ -170,7 +170,7 @@ async fn show_formula_info(
 
 async fn show_cask_info(
     token: &str,
-    info: &brewx_index::CaskInfo,
+    info: &stout_index::CaskInfo,
     sync: &IndexSync,
     paths: &Paths,
 ) -> Result<()> {

@@ -1,8 +1,8 @@
 //! Outdated command - list packages with available updates
 
 use anyhow::{Context, Result};
-use brewx_index::Database;
-use brewx_state::{InstalledPackages, Paths};
+use stout_index::Database;
+use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 
@@ -27,7 +27,7 @@ pub struct Args {
     #[arg(long)]
     pub cask: bool,
 
-    /// List packages that would be upgraded with `brewx upgrade`
+    /// List packages that would be upgraded with `stout upgrade`
     #[arg(long)]
     pub greedy: bool,
 }
@@ -46,11 +46,11 @@ pub async fn run(args: Args) -> Result<()> {
     let installed = InstalledPackages::load(&paths)?;
 
     let db = Database::open(paths.index_db())
-        .context("Failed to open index. Run 'brewx update' first.")?;
+        .context("Failed to open index. Run 'stout update' first.")?;
 
     if !db.is_initialized()? {
         eprintln!(
-            "{} Index not initialized. Run 'brewx update' first.",
+            "{} Index not initialized. Run 'stout update' first.",
             style("error:").red().bold()
         );
         std::process::exit(1);

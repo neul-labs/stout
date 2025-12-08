@@ -1,7 +1,7 @@
 //! Unpin command - allow packages to be upgraded again
 
 use anyhow::{bail, Result};
-use brewx_state::{InstalledPackages, Paths};
+use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 
@@ -13,7 +13,7 @@ pub struct Args {
 
 pub async fn run(args: Args) -> Result<()> {
     if args.formulas.is_empty() {
-        bail!("No formulas specified. Use 'brewx pin' to see pinned packages.");
+        bail!("No formulas specified. Use 'stout pin' to see pinned packages.");
     }
 
     let paths = Paths::default();

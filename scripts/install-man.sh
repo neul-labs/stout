@@ -1,5 +1,5 @@
 #!/bin/bash
-# Install brewx man pages
+# Install stout man pages
 # Usage: ./install-man.sh [--prefix /usr/local]
 
 set -euo pipefail
@@ -7,17 +7,17 @@ set -euo pipefail
 PREFIX="${1:-/usr/local}"
 MAN_DIR="${PREFIX}/share/man/man1"
 
-# Check if we're in the brewx repo
+# Check if we're in the stout repo
 if [ ! -f "Cargo.toml" ]; then
-    echo "Error: Run this script from the brewx repository root"
+    echo "Error: Run this script from the stout repository root"
     exit 1
 fi
 
-echo "Building brewx with man page generation..."
-BREWX_GEN_MAN=1 cargo build --release
+echo "Building stout with man page generation..."
+STOUT_GEN_MAN=1 cargo build --release
 
 # Find the man pages in the build output
-OUT_DIR=$(find target/release/build -name "brewx-*" -type d -path "*/out" 2>/dev/null | head -1)
+OUT_DIR=$(find target/release/build -name "stout-*" -type d -path "*/out" 2>/dev/null | head -1)
 MAN_SRC="${OUT_DIR}/man"
 
 if [ ! -d "$MAN_SRC" ]; then
@@ -38,6 +38,6 @@ done
 
 echo ""
 echo "Man pages installed successfully!"
-echo "Try: man brewx"
-echo "     man brewx-install"
-echo "     man brewx-search"
+echo "Try: man stout"
+echo "     man stout-install"
+echo "     man stout-search"

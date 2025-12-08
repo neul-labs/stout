@@ -1,9 +1,9 @@
 //! Snapshot command - Save and restore system state
 
 use anyhow::{bail, Result};
-use brewx_bundle::{Snapshot, SnapshotManager};
-use brewx_cask::InstalledCasks;
-use brewx_state::{InstalledPackages, Paths};
+use stout_bundle::{Snapshot, SnapshotManager};
+use stout_cask::InstalledCasks;
+use stout_state::{InstalledPackages, Paths};
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
 use std::io::{self, Read, Write};
@@ -124,7 +124,7 @@ pub async fn run(args: Args) -> Result<()> {
 
 async fn run_create(args: CreateArgs) -> Result<()> {
     let paths = Paths::default();
-    let manager = SnapshotManager::new(&paths.brewx_dir);
+    let manager = SnapshotManager::new(&paths.stout_dir);
 
     // Check if exists
     if manager.exists(&args.name) && !args.force {
@@ -144,7 +144,7 @@ async fn run_create(args: CreateArgs) -> Result<()> {
     }
 
     // Add installed casks
-    let state_path = paths.brewx_dir.join("casks.json");
+    let state_path = paths.stout_dir.join("casks.json");
     let installed_casks = InstalledCasks::load(&state_path)?;
     for (token, cask) in installed_casks.iter() {
         snapshot.add_cask(token, &cask.version);
@@ -174,7 +174,7 @@ async fn run_create(args: CreateArgs) -> Result<()> {
 
 async fn run_list(args: ListArgs) -> Result<()> {
     let paths = Paths::default();
-    let manager = SnapshotManager::new(&paths.brewx_dir);
+    let manager = SnapshotManager::new(&paths.stout_dir);
 
     let snapshots = manager.list()?;
 
@@ -182,7 +182,7 @@ async fn run_list(args: ListArgs) -> Result<()> {
         println!("No snapshots found.");
         println!(
             "{}",
-            style("Use 'brewx snapshot create <name>' to create one.").dim()
+            style("Use 'stout snapshot create <name>' to create one.").dim()
         );
         return Ok(());
     }
@@ -216,7 +216,7 @@ async fn run_list(args: ListArgs) -> Result<()> {
 
 async fn run_show(args: ShowArgs) -> Result<()> {
     let paths = Paths::default();
-    let manager = SnapshotManager::new(&paths.brewx_dir);
+    let manager = SnapshotManager::new(&paths.stout_dir);
 
     let snapshot = manager.load(&args.name)?;
 
@@ -229,8 +229,8 @@ async fn run_show(args: ShowArgs) -> Result<()> {
     println!("{}: {}", style("Created").bold(), snapshot.created_at);
     println!(
         "{}: {}",
-        style("brewx version").bold(),
-        snapshot.brewx_version
+        style("stout version").bold(),
+        snapshot.stout_version
     );
 
     if let Some(desc) = &snapshot.description {
@@ -288,7 +288,7 @@ async fn run_show(args: ShowArgs) -> Result<()> {
 
 async fn run_restore(args: RestoreArgs) -> Result<()> {
     let paths = Paths::default();
-    let manager = SnapshotManager::new(&paths.brewx_dir);
+    let manager = SnapshotManager::new(&paths.stout_dir);
 
     let snapshot = manager.load(&args.name)?;
 
@@ -299,7 +299,7 @@ async fn run_restore(args: RestoreArgs) -> Result<()> {
     );
 
     let installed = InstalledPackages::load(&paths)?;
-    let state_path = paths.brewx_dir.join("casks.json");
+    let state_path = paths.stout_dir.join("casks.json");
     let installed_casks = InstalledCasks::load(&state_path)?;
 
     // Find missing formulas
@@ -361,7 +361,7 @@ async fn run_restore(args: RestoreArgs) -> Result<()> {
 
 async fn run_delete(args: DeleteArgs) -> Result<()> {
     let paths = Paths::default();
-    let manager = SnapshotManager::new(&paths.brewx_dir);
+    let manager = SnapshotManager::new(&paths.stout_dir);
 
     if !manager.exists(&args.name) {
         bail!("Snapshot '{}' not found.", args.name);
@@ -395,7 +395,7 @@ async fn run_delete(args: DeleteArgs) -> Result<()> {
 
 async fn run_export(args: ExportArgs) -> Result<()> {
     let paths = Paths::default();
-    let manager = SnapshotManager::new(&paths.brewx_dir);
+    let manager = SnapshotManager::new(&paths.stout_dir);
 
     let json = manager.export(&args.name)?;
     println!("{}", json);
@@ -405,7 +405,7 @@ async fn run_export(args: ExportArgs) -> Result<()> {
 
 async fn run_import(args: ImportArgs) -> Result<()> {
     let paths = Paths::default();
-    let manager = SnapshotManager::new(&paths.brewx_dir);
+    let manager = SnapshotManager::new(&paths.stout_dir);
 
     // Read from stdin
     let mut json = String::new();

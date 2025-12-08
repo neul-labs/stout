@@ -1,31 +1,31 @@
-# brewx
+# stout
 
 A fast, Rust-based Homebrew-compatible package manager.
 
-[![Build](https://github.com/neul-labs/brewx/actions/workflows/ci.yml/badge.svg)](https://github.com/neul-labs/brewx/actions/workflows/ci.yml)
+[![Build](https://github.com/neul-labs/stout/actions/workflows/ci.yml/badge.svg)](https://github.com/neul-labs/stout/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## Why brewx?
+## Why stout?
 
-brewx is a drop-in replacement for the Homebrew CLI that's **10-100x faster** for common operations:
+stout is a drop-in replacement for the Homebrew CLI that's **10-100x faster** for common operations:
 
-| Operation | brew | brewx | Speedup |
+| Operation | brew | stout | Speedup |
 |-----------|------|-------|---------|
 | `--version` | 500ms | 5ms | **100x** |
 | `search json` | 2-5s | <50ms | **40-100x** |
 | `info wget` | 1-2s | <100ms | **10-20x** |
 | `update` | 10-60s | 1-3s | **10-20x** |
 
-The secret? brewx eliminates Ruby entirely. It uses a pre-computed SQLite index with FTS5 full-text search, fetches only what it needs, and downloads bottles in parallel.
+The secret? stout eliminates Ruby entirely. It uses a pre-computed SQLite index with FTS5 full-text search, fetches only what it needs, and downloads bottles in parallel.
 
 ## Installation
 
 ### Quick Install (Recommended)
 
-Install brewx with a single command:
+Install stout with a single command:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/neul-labs/stout/main/install.sh | bash
 ```
 
 This will:
@@ -39,242 +39,242 @@ This will:
 
 ```bash
 # Install to a custom directory
-BREWX_INSTALL_DIR=/opt/bin curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | bash
+STOUT_INSTALL_DIR=/opt/bin curl -fsSL https://raw.githubusercontent.com/neul-labs/stout/main/install.sh | bash
 
 # Install a specific version
-BREWX_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | bash
+STOUT_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/neul-labs/stout/main/install.sh | bash
 
 # Skip PATH modification
-BREWX_NO_MODIFY_PATH=1 curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | bash
+STOUT_NO_MODIFY_PATH=1 curl -fsSL https://raw.githubusercontent.com/neul-labs/stout/main/install.sh | bash
 ```
 
 ### Manual Download
 
-Download pre-built binaries from the [releases page](https://github.com/neul-labs/brewx/releases):
+Download pre-built binaries from the [releases page](https://github.com/neul-labs/stout/releases):
 
 | Platform | Architecture | Download |
 |----------|-------------|----------|
-| macOS | Apple Silicon (M1/M2/M3) | `brewx-aarch64-apple-darwin.tar.gz` |
-| macOS | Intel | `brewx-x86_64-apple-darwin.tar.gz` |
-| Linux | x86_64 | `brewx-x86_64-unknown-linux-gnu.tar.gz` |
-| Linux | ARM64 | `brewx-aarch64-unknown-linux-gnu.tar.gz` |
+| macOS | Apple Silicon (M1/M2/M3) | `stout-aarch64-apple-darwin.tar.gz` |
+| macOS | Intel | `stout-x86_64-apple-darwin.tar.gz` |
+| Linux | x86_64 | `stout-x86_64-unknown-linux-gnu.tar.gz` |
+| Linux | ARM64 | `stout-aarch64-unknown-linux-gnu.tar.gz` |
 
 ```bash
 # Example for macOS ARM
-curl -LO https://github.com/neul-labs/brewx/releases/latest/download/brewx-aarch64-apple-darwin.tar.gz
-tar -xzf brewx-aarch64-apple-darwin.tar.gz
-sudo mv brewx /usr/local/bin/
+curl -LO https://github.com/neul-labs/stout/releases/latest/download/stout-aarch64-apple-darwin.tar.gz
+tar -xzf stout-aarch64-apple-darwin.tar.gz
+sudo mv stout /usr/local/bin/
 ```
 
 ### From Source
 
 ```bash
 # Clone the repository
-git clone https://github.com/neul-labs/brewx.git
-cd brewx
+git clone https://github.com/neul-labs/stout.git
+cd stout
 
 # Build release binary
 cargo build --release
 
 # Install to PATH
-cp target/release/brewx ~/.local/bin/
+cp target/release/stout ~/.local/bin/
 # or
-sudo cp target/release/brewx /usr/local/bin/
+sudo cp target/release/stout /usr/local/bin/
 ```
 
 ### Shell Completions
 
 ```bash
 # Bash (add to ~/.bashrc)
-eval "$(brewx completions bash)"
+eval "$(stout completions bash)"
 
 # Zsh (add to ~/.zshrc)
-eval "$(brewx completions zsh)"
+eval "$(stout completions zsh)"
 
 # Fish
-brewx completions fish > ~/.config/fish/completions/brewx.fish
+stout completions fish > ~/.config/fish/completions/stout.fish
 ```
 
 ## Quick Start
 
 ```bash
 # Update the formula index
-brewx update
+stout update
 
 # Search for packages
-brewx search json
+stout search json
 
 # Get package info
-brewx info jq
+stout info jq
 
 # Install a package
-brewx install jq
+stout install jq
 
 # List installed packages
-brewx list
+stout list
 
 # Check system health
-brewx doctor
+stout doctor
 ```
 
 ### Cask Support (Applications)
 
-brewx can also install macOS applications (casks) and Linux apps (AppImage, Flatpak):
+stout can also install macOS applications (casks) and Linux apps (AppImage, Flatpak):
 
 ```bash
 # Search for applications
-brewx cask search firefox
+stout cask search firefox
 
 # Install an application
-brewx cask install firefox
+stout cask install firefox
 
 # List installed applications
-brewx cask list
+stout cask list
 
 # Get application info
-brewx cask info visual-studio-code
+stout cask info visual-studio-code
 
 # Uninstall an application
-brewx cask uninstall firefox
+stout cask uninstall firefox
 
 # Upgrade applications
-brewx cask upgrade
+stout cask upgrade
 ```
 
 ## Commands
 
-brewx implements 35+ commands with full Homebrew CLI compatibility:
+stout implements 35+ commands with full Homebrew CLI compatibility:
 
 ### Package Management
 
 | Command | brew Equivalent | Description |
 |---------|-----------------|-------------|
-| `brewx install <pkg>` | `brew install` | Install packages |
-| `brewx uninstall <pkg>` | `brew uninstall` | Uninstall packages |
-| `brewx reinstall <pkg>` | `brew reinstall` | Reinstall packages |
-| `brewx upgrade [pkg]` | `brew upgrade` | Upgrade installed packages |
-| `brewx update` | `brew update` | Update the formula index |
-| `brewx outdated` | `brew outdated` | Show packages with available updates |
-| `brewx autoremove` | `brew autoremove` | Remove unused dependencies |
+| `stout install <pkg>` | `brew install` | Install packages |
+| `stout uninstall <pkg>` | `brew uninstall` | Uninstall packages |
+| `stout reinstall <pkg>` | `brew reinstall` | Reinstall packages |
+| `stout upgrade [pkg]` | `brew upgrade` | Upgrade installed packages |
+| `stout update` | `brew update` | Update the formula index |
+| `stout outdated` | `brew outdated` | Show packages with available updates |
+| `stout autoremove` | `brew autoremove` | Remove unused dependencies |
 
 ### Discovery & Information
 
 | Command | brew Equivalent | Description |
 |---------|-----------------|-------------|
-| `brewx search <query>` | `brew search` | Search for packages |
-| `brewx info <pkg>` | `brew info` | Show package information |
-| `brewx list` | `brew list` | List installed packages |
-| `brewx deps <pkg>` | `brew deps` | Show package dependencies |
-| `brewx uses <pkg>` | `brew uses` | Show packages that depend on a package |
-| `brewx why <pkg>` | `brew why` | Show why a package is installed |
-| `brewx home <pkg>` | `brew home` | Open package homepage in browser |
+| `stout search <query>` | `brew search` | Search for packages |
+| `stout info <pkg>` | `brew info` | Show package information |
+| `stout list` | `brew list` | List installed packages |
+| `stout deps <pkg>` | `brew deps` | Show package dependencies |
+| `stout uses <pkg>` | `brew uses` | Show packages that depend on a package |
+| `stout why <pkg>` | `brew why` | Show why a package is installed |
+| `stout home <pkg>` | `brew home` | Open package homepage in browser |
 
 ### Package Control
 
 | Command | brew Equivalent | Description |
 |---------|-----------------|-------------|
-| `brewx pin <pkg>` | `brew pin` | Pin packages to prevent upgrades |
-| `brewx unpin <pkg>` | `brew unpin` | Unpin packages to allow upgrades |
-| `brewx link <pkg>` | `brew link` | Create symlinks for a package |
-| `brewx unlink <pkg>` | `brew unlink` | Remove symlinks (keep package) |
-| `brewx switch <pkg> <ver>` | `brew switch` | Switch between installed versions |
-| `brewx rollback <pkg>` | - | Rollback to previous version |
+| `stout pin <pkg>` | `brew pin` | Pin packages to prevent upgrades |
+| `stout unpin <pkg>` | `brew unpin` | Unpin packages to allow upgrades |
+| `stout link <pkg>` | `brew link` | Create symlinks for a package |
+| `stout unlink <pkg>` | `brew unlink` | Remove symlinks (keep package) |
+| `stout switch <pkg> <ver>` | `brew switch` | Switch between installed versions |
+| `stout rollback <pkg>` | - | Rollback to previous version |
 
 ### System & Maintenance
 
 | Command | brew Equivalent | Description |
 |---------|-----------------|-------------|
-| `brewx cleanup` | `brew cleanup` | Remove old downloads and cache files |
-| `brewx doctor` | `brew doctor` | Check system health |
-| `brewx config` | `brew config` | Show brewx configuration |
-| `brewx services` | `brew services` | Manage background services |
-| `brewx tap` | `brew tap` | Manage custom formula repositories |
-| `brewx lock` | - | Manage lockfiles for reproducible environments |
-| `brewx history [pkg]` | - | Show package version history |
-| `brewx completions <shell>` | - | Generate shell completions |
+| `stout cleanup` | `brew cleanup` | Remove old downloads and cache files |
+| `stout doctor` | `brew doctor` | Check system health |
+| `stout config` | `brew config` | Show stout configuration |
+| `stout services` | `brew services` | Manage background services |
+| `stout tap` | `brew tap` | Manage custom formula repositories |
+| `stout lock` | - | Manage lockfiles for reproducible environments |
+| `stout history [pkg]` | - | Show package version history |
+| `stout completions <shell>` | - | Generate shell completions |
 
 ### Cask (Application) Management
 
 | Command | brew Equivalent | Description |
 |---------|-----------------|-------------|
-| `brewx cask install <app>` | `brew install --cask` | Install applications |
-| `brewx cask uninstall <app>` | `brew uninstall --cask` | Uninstall applications |
-| `brewx cask search <query>` | `brew search --cask` | Search for applications |
-| `brewx cask info <app>` | `brew info --cask` | Show application information |
-| `brewx cask list` | `brew list --cask` | List installed applications |
-| `brewx cask outdated` | `brew outdated --cask` | Show outdated applications |
-| `brewx cask upgrade [app]` | `brew upgrade --cask` | Upgrade applications |
+| `stout cask install <app>` | `brew install --cask` | Install applications |
+| `stout cask uninstall <app>` | `brew uninstall --cask` | Uninstall applications |
+| `stout cask search <query>` | `brew search --cask` | Search for applications |
+| `stout cask info <app>` | `brew info --cask` | Show application information |
+| `stout cask list` | `brew list --cask` | List installed applications |
+| `stout cask outdated` | `brew outdated --cask` | Show outdated applications |
+| `stout cask upgrade [app]` | `brew upgrade --cask` | Upgrade applications |
 
 ### Bundle & Snapshot
 
 | Command | brew Equivalent | Description |
 |---------|-----------------|-------------|
-| `brewx bundle` | `brew bundle` | Install from Brewfile |
-| `brewx bundle dump` | `brew bundle dump` | Generate Brewfile from installed |
-| `brewx bundle check` | `brew bundle check` | Check if Brewfile satisfied |
-| `brewx bundle list` | `brew bundle list` | List Brewfile entries |
-| `brewx bundle cleanup` | `brew bundle cleanup` | Remove packages not in Brewfile |
-| `brewx snapshot create <name>` | - | Create named snapshot |
-| `brewx snapshot list` | - | List all snapshots |
-| `brewx snapshot restore <name>` | - | Restore snapshot |
+| `stout bundle` | `brew bundle` | Install from Brewfile |
+| `stout bundle dump` | `brew bundle dump` | Generate Brewfile from installed |
+| `stout bundle check` | `brew bundle check` | Check if Brewfile satisfied |
+| `stout bundle list` | `brew bundle list` | List Brewfile entries |
+| `stout bundle cleanup` | `brew bundle cleanup` | Remove packages not in Brewfile |
+| `stout snapshot create <name>` | - | Create named snapshot |
+| `stout snapshot list` | - | List all snapshots |
+| `stout snapshot restore <name>` | - | Restore snapshot |
 
 ### Security & Audit
 
 | Command | brew Equivalent | Description |
 |---------|-----------------|-------------|
-| `brewx audit` | `brew audit` | Scan packages for known vulnerabilities |
-| `brewx audit <pkg>` | - | Audit specific package |
-| `brewx audit --update` | - | Update vulnerability database |
+| `stout audit` | `brew audit` | Scan packages for known vulnerabilities |
+| `stout audit <pkg>` | - | Audit specific package |
+| `stout audit --update` | - | Update vulnerability database |
 
 ### Offline & Mirroring
 
 | Command | brew Equivalent | Description |
 |---------|-----------------|-------------|
-| `brewx mirror create <dir> <pkgs>` | - | Create offline mirror |
-| `brewx mirror serve <dir>` | - | Serve mirror via HTTP |
-| `brewx mirror info <dir>` | - | Show mirror information |
-| `brewx mirror verify <dir>` | - | Verify mirror integrity |
+| `stout mirror create <dir> <pkgs>` | - | Create offline mirror |
+| `stout mirror serve <dir>` | - | Serve mirror via HTTP |
+| `stout mirror info <dir>` | - | Show mirror information |
+| `stout mirror verify <dir>` | - | Verify mirror integrity |
 
 ### Developer Tools
 
 | Command | brew Equivalent | Description |
 |---------|-----------------|-------------|
-| `brewx install -s --jobs=8` | `brew install -s` | Build from source with parallel jobs |
-| `brewx install -s --cc=clang` | `brew install --cc` | Build with custom compiler |
-| `brewx bottle create <pkg>` | `brew bottle` | Create bottle from installed package |
-| `brewx create <url>` | `brew create` | Create formula from URL |
-| `brewx create --cask <url>` | `brew create --cask` | Create cask from URL |
-| `brewx test <pkg>` | `brew test` | Test installed packages |
-| `brewx analytics on\|off\|status` | `brew analytics` | Manage opt-in analytics |
+| `stout install -s --jobs=8` | `brew install -s` | Build from source with parallel jobs |
+| `stout install -s --cc=clang` | `brew install --cc` | Build with custom compiler |
+| `stout bottle create <pkg>` | `brew bottle` | Create bottle from installed package |
+| `stout create <url>` | `brew create` | Create formula from URL |
+| `stout create --cask <url>` | `brew create --cask` | Create cask from URL |
+| `stout test <pkg>` | `brew test` | Test installed packages |
+| `stout analytics on\|off\|status` | `brew analytics` | Manage opt-in analytics |
 
 ### Multi-prefix Support
 
-brewx supports multiple installation prefixes for isolated environments:
+stout supports multiple installation prefixes for isolated environments:
 
 | Command | Description |
 |---------|-------------|
-| `brewx prefix create <path>` | Create a new prefix directory structure |
-| `brewx prefix list` | List all known prefixes |
-| `brewx prefix info [path]` | Show prefix information and disk usage |
-| `brewx prefix default <path>` | Set the default prefix |
-| `brewx prefix remove <path>` | Remove a prefix |
-| `brewx --prefix=<path> install <pkg>` | Install to a specific prefix |
-| `brewx --prefix=<path> list` | List packages in a specific prefix |
+| `stout prefix create <path>` | Create a new prefix directory structure |
+| `stout prefix list` | List all known prefixes |
+| `stout prefix info [path]` | Show prefix information and disk usage |
+| `stout prefix default <path>` | Set the default prefix |
+| `stout prefix remove <path>` | Remove a prefix |
+| `stout --prefix=<path> install <pkg>` | Install to a specific prefix |
+| `stout --prefix=<path> list` | List packages in a specific prefix |
 
 #### Example: Project-specific Dependencies
 
 ```bash
 # Create an isolated prefix for a project
-brewx prefix create ~/projects/myapp/.brewx
+stout prefix create ~/projects/myapp/.stout
 
 # Install packages to that prefix
-brewx --prefix=~/projects/myapp/.brewx install python@3.11 node@20
+stout --prefix=~/projects/myapp/.stout install python@3.11 node@20
 
 # Add to project-specific PATH
-export PATH="$HOME/projects/myapp/.brewx/bin:$PATH"
+export PATH="$HOME/projects/myapp/.stout/bin:$PATH"
 
 # List packages in the prefix
-brewx --prefix=~/projects/myapp/.brewx list
+stout --prefix=~/projects/myapp/.stout list
 ```
 
 #### Environment Variable
@@ -282,13 +282,13 @@ brewx --prefix=~/projects/myapp/.brewx list
 You can also set the default prefix via environment variable:
 
 ```bash
-export BREWX_PREFIX=~/projects/myapp/.brewx
-brewx install jq  # Installs to custom prefix
+export STOUT_PREFIX=~/projects/myapp/.stout
+stout install jq  # Installs to custom prefix
 ```
 
 ## How It Works
 
-brewx uses a hybrid architecture:
+stout uses a hybrid architecture:
 
 1. **SQLite Index** (~3MB): Contains formula metadata for fast queries
 2. **Compressed JSON**: Individual formula details fetched on-demand
@@ -296,16 +296,16 @@ brewx uses a hybrid architecture:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         brewx Architecture                       │
+│                         stout Architecture                       │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│   User ──▶ brewx CLI ──▶ SQLite Index ──▶ Homebrew Bottles      │
+│   User ──▶ stout CLI ──▶ SQLite Index ──▶ Homebrew Bottles      │
 │                │              │                   │              │
 │                │         FTS5 Search         ghcr.io CDN        │
 │                │              │                   │              │
 │                └──────────────┴───────────────────┘              │
 │                                                                  │
-│   Index sync: GitHub raw (brewx-index repo)                      │
+│   Index sync: GitHub raw (stout-index repo)                      │
 │   Bottle download: Homebrew's existing infrastructure            │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -313,7 +313,7 @@ brewx uses a hybrid architecture:
 
 ## Compatibility
 
-brewx is designed to work alongside existing Homebrew installations:
+stout is designed to work alongside existing Homebrew installations:
 
 - Uses the same Cellar structure (`/opt/homebrew/Cellar`)
 - Creates compatible `INSTALL_RECEIPT.json` files
@@ -322,11 +322,11 @@ brewx is designed to work alongside existing Homebrew installations:
 
 ## Configuration
 
-Configuration is stored in `~/.brewx/config.toml`:
+Configuration is stored in `~/.stout/config.toml`:
 
 ```toml
 [index]
-base_url = "https://raw.githubusercontent.com/neul-labs/brewx-index/main"
+base_url = "https://raw.githubusercontent.com/neul-labs/stout-index/main"
 auto_update = true
 update_interval = 1800  # 30 minutes
 
@@ -344,20 +344,20 @@ download_ttl = 604800    # 7 days
 ## Project Structure
 
 ```
-brewx/
+stout/
 ├── src/                    # CLI application
 │   ├── main.rs
 │   └── cli/               # Command implementations
 ├── crates/
-│   ├── brewx-index/       # SQLite index management
-│   ├── brewx-resolve/     # Dependency resolution
-│   ├── brewx-fetch/       # Download management
-│   ├── brewx-install/     # Package installation
-│   ├── brewx-state/       # Local state management
-│   ├── brewx-cask/        # Cask (application) management
-│   ├── brewx-bundle/      # Brewfile parsing and snapshots
-│   ├── brewx-audit/       # Vulnerability auditing
-│   └── brewx-mirror/      # Offline mirror support
+│   ├── stout-index/       # SQLite index management
+│   ├── stout-resolve/     # Dependency resolution
+│   ├── stout-fetch/       # Download management
+│   ├── stout-install/     # Package installation
+│   ├── stout-state/       # Local state management
+│   ├── stout-cask/        # Cask (application) management
+│   ├── stout-bundle/      # Brewfile parsing and snapshots
+│   ├── stout-audit/       # Vulnerability auditing
+│   └── stout-mirror/      # Offline mirror support
 ├── scripts/
 │   ├── sync.py            # Formula index sync script
 │   ├── sync_casks.py      # Cask index sync script
@@ -373,29 +373,29 @@ brewx/
 
 ## Security
 
-brewx implements a defense-in-depth security model:
+stout implements a defense-in-depth security model:
 
 - **Ed25519 Signatures**: All index updates are cryptographically signed
 - **HTTPS Required**: TLS 1.2+ enforced for all connections
 - **SHA256 Verification**: Every download is checksum-verified
-- **Vulnerability Scanning**: Built-in `brewx audit` command
+- **Vulnerability Scanning**: Built-in `stout audit` command
 
 ```bash
 # Check security configuration
-brewx config
+stout config
 
 # Scan for vulnerabilities
-brewx audit
+stout audit
 
 # Update vulnerability database
-brewx audit --update
+stout audit --update
 ```
 
 See [Security Model](docs/SECURITY.md) for full details.
 
 ## Enterprise Features
 
-brewx is designed for enterprise environments:
+stout is designed for enterprise environments:
 
 - **Private Index Hosting**: Host your own curated package index
 - **Custom Signing Keys**: Use your own Ed25519 keys for trust chain control
@@ -406,15 +406,15 @@ brewx is designed for enterprise environments:
 
 ```bash
 # Create offline mirror
-brewx mirror create /path/to/mirror jq curl python@3.11
+stout mirror create /path/to/mirror jq curl python@3.11
 
 # Project-specific prefix
-brewx prefix create ~/project/.brewx
-brewx --prefix=~/project/.brewx install node@20
+stout prefix create ~/project/.stout
+stout --prefix=~/project/.stout install node@20
 
 # Reproducible builds with lock files
-brewx lock generate
-brewx lock install
+stout lock generate
+stout lock install
 ```
 
 See [Enterprise Guide](docs/ENTERPRISE.md) for deployment options.
@@ -449,7 +449,7 @@ cd scripts && uv run python sync.py --output ../dist
 
 ## Performance
 
-brewx achieves its speed through several optimizations:
+stout achieves its speed through several optimizations:
 
 1. **Native binary**: No interpreter startup overhead
 2. **SQLite + FTS5**: Instant full-text search
@@ -463,5 +463,5 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-- [Homebrew](https://brew.sh) - The package manager brewx is compatible with
+- [Homebrew](https://brew.sh) - The package manager stout is compatible with
 - [uv](https://github.com/astral-sh/uv) - Inspiration for CLI UX design

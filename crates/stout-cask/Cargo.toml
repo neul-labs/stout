@@ -1,0 +1,42 @@
+[package]
+name = "stout-cask"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Cask installation and management for stout"
+
+[dependencies]
+stout-index.workspace = true
+stout-fetch.workspace = true
+stout-state.workspace = true
+
+tokio.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+futures-util.workspace = true
+
+# Compression
+zstd.workspace = true
+flate2.workspace = true
+
+# Archive
+tar.workspace = true
+
+# Crypto
+sha2.workspace = true
+hex.workspace = true
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Logging
+tracing.workspace = true
+
+# Terminal
+console.workspace = true
+indicatif.workspace = true
+
+# Paths
+dirs.workspace = true

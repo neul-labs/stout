@@ -1,8 +1,8 @@
 //! Link command - create symlinks for a package
 
 use anyhow::{bail, Result};
-use brewx_install::link_package;
-use brewx_state::{InstalledPackages, Paths};
+use stout_install::link_package;
+use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 

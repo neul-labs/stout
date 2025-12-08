@@ -1,17 +1,17 @@
 # Packaging Guide
 
-This guide covers how to package and distribute brewx through various package managers.
+This guide covers how to package and distribute stout through various package managers.
 
 ## Overview
 
-brewx is distributed through multiple channels:
+stout is distributed through multiple channels:
 
 | Channel | Method | Target Users |
 |---------|--------|--------------|
 | GitHub Releases | Binary downloads | All users |
 | curl installer | Automated install | Quick setup |
 | Homebrew | `brew install` | macOS/Linux users |
-| AUR | `yay -S brewx` | Arch Linux users |
+| AUR | `yay -S stout` | Arch Linux users |
 | Nix | `nix run` | NixOS users |
 | crates.io | `cargo install` | Rust developers |
 
@@ -29,8 +29,8 @@ When a tag is pushed (e.g., `v0.1.0`), the release workflow:
    - `aarch64-apple-darwin` (macOS Apple Silicon)
 
 2. **Creates archives** and checksums:
-   - `brewx-<target>.tar.gz`
-   - `brewx-<target>.tar.gz.sha256`
+   - `stout-<target>.tar.gz`
+   - `stout-<target>.tar.gz.sha256`
 
 3. **Publishes release** with all artifacts
 
@@ -56,7 +56,7 @@ git push origin main --tags
 The `install.sh` script provides one-command installation:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/neul-labs/stout/main/install.sh | bash
 ```
 
 ### How It Works
@@ -72,34 +72,34 @@ curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | b
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `BREWX_INSTALL_DIR` | Installation directory | `~/.local/bin` |
-| `BREWX_VERSION` | Specific version | Latest |
-| `BREWX_NO_MODIFY_PATH` | Skip PATH modification | 0 |
+| `STOUT_INSTALL_DIR` | Installation directory | `~/.local/bin` |
+| `STOUT_VERSION` | Specific version | Latest |
+| `STOUT_NO_MODIFY_PATH` | Skip PATH modification | 0 |
 
 ## Homebrew
 
 ### Tap Setup
 
 1. Create `neul-labs/homebrew-tap` repository
-2. Add `Formula/brewx.rb`
-3. Users install via `brew install neul-labs/tap/brewx`
+2. Add `Formula/stout.rb`
+3. Users install via `brew install neul-labs/tap/stout`
 
 ### Formula Structure
 
 ```ruby
-class Brewx < Formula
+class Stout < Formula
   desc "Fast, Rust-based Homebrew-compatible package manager"
-  homepage "https://github.com/neul-labs/brewx"
+  homepage "https://github.com/neul-labs/stout"
   version "0.1.0"
   license "MIT"
 
   on_macos do
     on_arm do
-      url "https://github.com/.../brewx-aarch64-apple-darwin.tar.gz"
+      url "https://github.com/.../stout-aarch64-apple-darwin.tar.gz"
       sha256 "..."
     end
     on_intel do
-      url "https://github.com/.../brewx-x86_64-apple-darwin.tar.gz"
+      url "https://github.com/.../stout-x86_64-apple-darwin.tar.gz"
       sha256 "..."
     end
   end
@@ -109,12 +109,12 @@ class Brewx < Formula
   end
 
   def install
-    bin.install "brewx"
-    generate_completions_from_executable(bin/"brewx", "completions")
+    bin.install "stout"
+    generate_completions_from_executable(bin/"stout", "completions")
   end
 
   test do
-    assert_match "brewx #{version}", shell_output("#{bin}/brewx --version")
+    assert_match "stout #{version}", shell_output("#{bin}/stout --version")
   end
 end
 ```
@@ -131,17 +131,17 @@ cd packaging/homebrew
 
 ### Packages
 
-- `brewx` - Build from source
-- `brewx-bin` - Pre-built binary
+- `stout` - Build from source
+- `stout-bin` - Pre-built binary
 
 ### Publishing to AUR
 
 ```bash
 # Clone AUR repo
-git clone ssh://aur@aur.archlinux.org/brewx.git
+git clone ssh://aur@aur.archlinux.org/stout.git
 
 # Update PKGBUILD
-cd brewx
+cd stout
 vim PKGBUILD  # Update version, checksums
 
 # Generate .SRCINFO
@@ -164,7 +164,7 @@ makepkg -si
 
 # Check with namcap
 namcap PKGBUILD
-namcap brewx-0.2.0-1-x86_64.pkg.tar.zst
+namcap stout-0.2.0-1-x86_64.pkg.tar.zst
 ```
 
 ## Nix
@@ -173,18 +173,18 @@ namcap brewx-0.2.0-1-x86_64.pkg.tar.zst
 
 ```bash
 # Run without installing
-nix run github:neul-labs/brewx
+nix run github:neul-labs/stout
 
 # Install to profile
-nix profile install github:neul-labs/brewx
+nix profile install github:neul-labs/stout
 
 # Development shell
-nix develop github:neul-labs/brewx
+nix develop github:neul-labs/stout
 ```
 
 ### Adding to nixpkgs
 
-Submit PR to nixpkgs with package in `pkgs/by-name/br/brewx/package.nix`.
+Submit PR to nixpkgs with package in `pkgs/by-name/br/stout/package.nix`.
 
 ## crates.io
 
@@ -193,12 +193,12 @@ Submit PR to nixpkgs with package in `pkgs/by-name/br/brewx/package.nix`.
 The release workflow automatically publishes to crates.io after creating the GitHub release.
 
 Crates are published in dependency order:
-1. `brewx-index`
-2. `brewx-state`
-3. `brewx-resolve`
-4. `brewx-fetch`
-5. `brewx-install`
-6. `brewx`
+1. `stout-index`
+2. `stout-state`
+3. `stout-resolve`
+4. `stout-fetch`
+5. `stout-install`
+6. `stout`
 
 ### Manual Publishing
 
@@ -207,11 +207,11 @@ Crates are published in dependency order:
 cargo login
 
 # Publish in order
-cargo publish -p brewx-index
-cargo publish -p brewx-state
-cargo publish -p brewx-resolve
-cargo publish -p brewx-fetch
-cargo publish -p brewx-install
+cargo publish -p stout-index
+cargo publish -p stout-state
+cargo publish -p stout-resolve
+cargo publish -p stout-fetch
+cargo publish -p stout-install
 cargo publish
 ```
 
@@ -246,11 +246,11 @@ cargo set-version 0.2.0
 
 Or manually update each:
 - `Cargo.toml` (root)
-- `crates/brewx-index/Cargo.toml`
-- `crates/brewx-state/Cargo.toml`
-- `crates/brewx-resolve/Cargo.toml`
-- `crates/brewx-fetch/Cargo.toml`
-- `crates/brewx-install/Cargo.toml`
+- `crates/stout-index/Cargo.toml`
+- `crates/stout-state/Cargo.toml`
+- `crates/stout-resolve/Cargo.toml`
+- `crates/stout-fetch/Cargo.toml`
+- `crates/stout-install/Cargo.toml`
 
 ## Secrets Required
 
@@ -285,11 +285,11 @@ GitHub repository secrets needed for automated releases:
 
 ```bash
 # Audit formula
-brew audit --strict brewx
+brew audit --strict stout
 
 # Test installation
-brew install --build-from-source ./brewx.rb
-brew test brewx
+brew install --build-from-source ./stout.rb
+brew test stout
 ```
 
 ### AUR Build Fails

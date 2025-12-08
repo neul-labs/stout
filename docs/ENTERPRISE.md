@@ -1,6 +1,6 @@
 # Enterprise Deployment Guide
 
-brewx is designed for enterprise environments with features for private hosting, CI/CD integration, air-gapped installations, and compliance requirements.
+stout is designed for enterprise environments with features for private hosting, CI/CD integration, air-gapped installations, and compliance requirements.
 
 ## Table of Contents
 
@@ -32,7 +32,7 @@ brewx is designed for enterprise environments with features for private hosting,
 
 - **Audit trails**: Track every package installation
 - **Approved packages**: Curate allowed packages via private index
-- **Vulnerability management**: Automated scanning with `brewx audit`
+- **Vulnerability management**: Automated scanning with `stout audit`
 
 ### Air-Gapped Environments
 
@@ -42,27 +42,27 @@ brewx is designed for enterprise environments with features for private hosting,
 
 ## Private Index Hosting
 
-Host your own brewx index for complete control over available packages.
+Host your own stout index for complete control over available packages.
 
 ### Option 1: GitHub (Private Repository)
 
 The simplest approach for teams already using GitHub:
 
 ```bash
-# Fork the brewx-index repository to your organization
+# Fork the stout-index repository to your organization
 # Make it private
-# Update brewx configuration
+# Update stout configuration
 ```
 
-**~/.brewx/config.toml:**
+**~/.stout/config.toml:**
 ```toml
 [index]
-base_url = "https://raw.githubusercontent.com/YOUR_ORG/brewx-index/main"
+base_url = "https://raw.githubusercontent.com/YOUR_ORG/stout-index/main"
 ```
 
 For authentication, set a GitHub token:
 ```bash
-export BREWX_GITHUB_TOKEN="ghp_xxxxx"
+export STOUT_GITHUB_TOKEN="ghp_xxxxx"
 ```
 
 ### Option 2: Static File Server
@@ -93,12 +93,12 @@ cd /path/to/index
 ```nginx
 server {
     listen 443 ssl;
-    server_name brewx.internal.company.com;
+    server_name stout.internal.company.com;
 
-    ssl_certificate /etc/ssl/brewx.crt;
-    ssl_certificate_key /etc/ssl/brewx.key;
+    ssl_certificate /etc/ssl/stout.crt;
+    ssl_certificate_key /etc/ssl/stout.key;
 
-    root /var/www/brewx-index;
+    root /var/www/stout-index;
 
     location / {
         autoindex off;
@@ -116,17 +116,17 @@ server {
 For AWS S3:
 ```bash
 # Sync index to S3
-aws s3 sync /path/to/index s3://company-brewx-index/ \
+aws s3 sync /path/to/index s3://company-stout-index/ \
     --content-encoding zstd \
     --cache-control "max-age=300"
 
 # Configure CloudFront for HTTPS
 ```
 
-**~/.brewx/config.toml:**
+**~/.stout/config.toml:**
 ```toml
 [index]
-base_url = "https://brewx.company.cloudfront.net"
+base_url = "https://stout.company.cloudfront.net"
 ```
 
 ### Curating Packages
@@ -167,7 +167,7 @@ Generate and use your own signing keys for complete trust chain control.
 ### Generate a Keypair
 
 ```bash
-cd /path/to/brewx-index/scripts
+cd /path/to/stout-index/scripts
 
 # Install dependencies
 uv sync
@@ -177,24 +177,24 @@ uv run python sign_index.py generate --output ../keys
 
 # Output:
 # Generated keypair:
-#   Private key: ../keys/brewx-index.key
-#   Public key:  ../keys/brewx-index.pub
+#   Private key: ../keys/stout-index.key
+#   Public key:  ../keys/stout-index.pub
 #
 # Public key (hex): abc123...
 ```
 
-### Configure brewx to Trust Your Key
+### Configure stout to Trust Your Key
 
 **Option 1: Replace the default key** (requires building from source)
 
-Edit `crates/brewx-index/src/signature.rs`:
+Edit `crates/stout-index/src/signature.rs`:
 ```rust
 pub const DEFAULT_PUBLIC_KEY_HEX: &str = "YOUR_PUBLIC_KEY_HEX";
 ```
 
 **Option 2: Add as additional trusted key** (runtime configuration)
 
-**~/.brewx/config.toml:**
+**~/.stout/config.toml:**
 ```toml
 [security]
 additional_trusted_keys = [
@@ -207,13 +207,13 @@ additional_trusted_keys = [
 ```bash
 # Using key file
 uv run python sign_index.py sign \
-    --key ./keys/brewx-index.key \
+    --key ./keys/stout-index.key \
     --index-dir /path/to/index
 
 # Using environment variable (for CI)
-export BREWX_SIGNING_KEY="private_key_hex"
+export STOUT_SIGNING_KEY="private_key_hex"
 uv run python sign_index.py sign \
-    --key '$BREWX_SIGNING_KEY' \
+    --key '$STOUT_SIGNING_KEY' \
     --index-dir /path/to/index
 ```
 
@@ -229,7 +229,7 @@ uv run python sign_index.py sign \
 ### GitHub Actions
 
 ```yaml
-name: Build with brewx
+name: Build with stout
 
 on: [push, pull_request]
 
@@ -240,25 +240,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install brewx
+      - name: Install stout
         run: |
-          curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | bash
+          curl -fsSL https://raw.githubusercontent.com/neul-labs/stout/main/install.sh | bash
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Cache brewx packages
+      - name: Cache stout packages
         uses: actions/cache@v4
         with:
           path: |
-            ~/.brewx/downloads
-            ~/.brewx/cache
-          key: brewx-${{ runner.os }}-${{ hashFiles('Brewfile.lock') }}
+            ~/.stout/downloads
+            ~/.stout/cache
+          key: stout-${{ runner.os }}-${{ hashFiles('Brewfile.lock') }}
           restore-keys: |
-            brewx-${{ runner.os }}-
+            stout-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
-          brewx update
-          brewx bundle install
+          stout update
+          stout bundle install
 
       - name: Build
         run: make build
@@ -272,20 +272,20 @@ stages:
   - build
 
 variables:
-  BREWX_CACHE_DIR: ${CI_PROJECT_DIR}/.brewx-cache
+  STOUT_CACHE_DIR: ${CI_PROJECT_DIR}/.stout-cache
 
 install-deps:
   stage: setup
   image: ubuntu:22.04
   cache:
-    key: brewx-${CI_COMMIT_REF_SLUG}
+    key: stout-${CI_COMMIT_REF_SLUG}
     paths:
-      - .brewx-cache/
+      - .stout-cache/
   script:
-    - curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | bash
+    - curl -fsSL https://raw.githubusercontent.com/neul-labs/stout/main/install.sh | bash
     - export PATH="$HOME/.local/bin:$PATH"
-    - brewx update
-    - brewx bundle install
+    - stout update
+    - stout bundle install
   artifacts:
     paths:
       - /opt/homebrew/Cellar/
@@ -304,17 +304,17 @@ pipeline {
     agent any
 
     environment {
-        BREWX_CACHE = "${WORKSPACE}/.brewx-cache"
+        STOUT_CACHE = "${WORKSPACE}/.stout-cache"
     }
 
     stages {
         stage('Setup') {
             steps {
                 sh '''
-                    curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | bash
+                    curl -fsSL https://raw.githubusercontent.com/neul-labs/stout/main/install.sh | bash
                     export PATH="$HOME/.local/bin:$PATH"
-                    brewx update
-                    brewx bundle install
+                    stout update
+                    stout bundle install
                 '''
             }
         }
@@ -329,7 +329,7 @@ pipeline {
     post {
         always {
             // Cache cleanup
-            sh 'brewx cleanup --prune=7'
+            sh 'stout cleanup --prune=7'
         }
     }
 }
@@ -369,20 +369,20 @@ Generate and commit lock files for reproducibility:
 
 ```bash
 # Generate lock file from installed packages
-brewx lock generate
+stout lock generate
 
 # Install exact versions from lock file
-brewx lock install
+stout lock install
 
 # Verify lock file matches installed
-brewx lock verify
+stout lock verify
 ```
 
 **Brewfile.lock format:**
 ```json
 {
   "generated_at": "2024-11-27T12:00:00Z",
-  "brewx_version": "0.1.0",
+  "stout_version": "0.1.0",
   "packages": {
     "jq": {
       "version": "1.7.1",
@@ -401,36 +401,36 @@ For environments without internet access.
 
 ```bash
 # Create mirror with specific packages
-brewx mirror create /path/to/mirror jq curl git python@3.11
+stout mirror create /path/to/mirror jq curl git python@3.11
 
 # Include all dependencies
-brewx mirror create /path/to/mirror --with-deps jq curl
+stout mirror create /path/to/mirror --with-deps jq curl
 
 # Mirror everything in a Brewfile
-brewx mirror create /path/to/mirror --from-brewfile ./Brewfile
+stout mirror create /path/to/mirror --from-brewfile ./Brewfile
 
 # Include casks
-brewx mirror create /path/to/mirror --casks firefox visual-studio-code
+stout mirror create /path/to/mirror --casks firefox visual-studio-code
 ```
 
 ### Transfer to Air-Gapped System
 
 ```bash
 # Create archive
-tar -czvf brewx-mirror.tar.gz /path/to/mirror
+tar -czvf stout-mirror.tar.gz /path/to/mirror
 
 # Transfer via approved method (USB, secure file transfer, etc.)
 # On air-gapped system:
-tar -xzvf brewx-mirror.tar.gz -C /opt/
+tar -xzvf stout-mirror.tar.gz -C /opt/
 ```
 
 ### Configure for Offline Use
 
-**~/.brewx/config.toml:**
+**~/.stout/config.toml:**
 ```toml
 [index]
 # Point to local mirror
-base_url = "file:///opt/brewx-mirror"
+base_url = "file:///opt/stout-mirror"
 
 [security]
 # May need to adjust for offline use
@@ -441,7 +441,7 @@ allow_unsigned = true  # Or use your own signing key
 
 ```bash
 # Start HTTP server
-brewx mirror serve /opt/brewx-mirror --port 8080 --bind 0.0.0.0
+stout mirror serve /opt/stout-mirror --port 8080 --bind 0.0.0.0
 
 # Or use nginx/Apache for production
 ```
@@ -450,13 +450,13 @@ brewx mirror serve /opt/brewx-mirror --port 8080 --bind 0.0.0.0
 
 ```bash
 # On internet-connected system
-brewx mirror update /path/to/mirror
+stout mirror update /path/to/mirror
 
 # Verify integrity
-brewx mirror verify /path/to/mirror
+stout mirror verify /path/to/mirror
 
 # Transfer updated files
-rsync -av /path/to/mirror/ user@airgapped:/opt/brewx-mirror/
+rsync -av /path/to/mirror/ user@airgapped:/opt/stout-mirror/
 ```
 
 ### Mirror Security Options
@@ -469,7 +469,7 @@ The mirror preserves the original official signature:
 
 ```bash
 # Create mirror - upstream signature is automatically preserved
-brewx mirror create /path/to/mirror jq curl git
+stout mirror create /path/to/mirror jq curl git
 
 # The manifest.json will include:
 # {
@@ -481,7 +481,7 @@ brewx mirror create /path/to/mirror jq curl git
 # }
 ```
 
-Clients verify against the official brewx public key.
+Clients verify against the official stout public key.
 
 **Option 2: Enterprise Re-signing**
 
@@ -491,16 +491,16 @@ Sign the mirror with your own key for full control:
 # Generate enterprise keypair (one-time)
 cd /path/to/signing-tools
 uv run python sign_index.py generate --output ./keys
-# Save keys/brewx-index.key securely (e.g., HashiCorp Vault)
-# Distribute keys/brewx-index.pub to clients
+# Save keys/stout-index.key securely (e.g., HashiCorp Vault)
+# Distribute keys/stout-index.pub to clients
 
 # Sign the mirror
 uv run python sign_index.py sign \
-    --key ./keys/brewx-index.key \
+    --key ./keys/stout-index.key \
     --index-dir /path/to/mirror
 
 # Configure clients
-# ~/.brewx/config.toml
+# ~/.stout/config.toml
 [security]
 additional_trusted_keys = ["YOUR_ENTERPRISE_PUBLIC_KEY"]
 ```
@@ -511,7 +511,7 @@ additional_trusted_keys = ["YOUR_ENTERPRISE_PUBLIC_KEY"]
 |--------|-------------------|-------------------|
 | Setup complexity | None | Requires key management |
 | Trust chain | Official → Mirror → Client | Enterprise → Client |
-| Key rotation | Handled by brewx team | Self-managed |
+| Key rotation | Handled by stout team | Self-managed |
 | Custom packages | Not supported | Fully supported |
 | Audit trail | Traceable to official | Internal only |
 
@@ -523,28 +523,28 @@ Isolate dependencies for different projects or teams.
 
 ```bash
 # Create isolated environment for project
-brewx prefix create ~/projects/api-service/.brewx
+stout prefix create ~/projects/api-service/.stout
 
 # Install project dependencies
-brewx --prefix=~/projects/api-service/.brewx bundle install
+stout --prefix=~/projects/api-service/.stout bundle install
 
 # Activate in shell
-export PATH="$HOME/projects/api-service/.brewx/bin:$PATH"
-export BREWX_PREFIX="$HOME/projects/api-service/.brewx"
+export PATH="$HOME/projects/api-service/.stout/bin:$PATH"
+export STOUT_PREFIX="$HOME/projects/api-service/.stout"
 ```
 
 ### Team-Shared Prefixes
 
 ```bash
 # Create shared prefix
-sudo brewx prefix create /opt/team-data-science
+sudo stout prefix create /opt/team-data-science
 
 # Set permissions
 sudo chown -R :data-science /opt/team-data-science
 sudo chmod -R g+w /opt/team-data-science
 
 # Team members use
-brewx --prefix=/opt/team-data-science install pandas numpy scipy
+stout --prefix=/opt/team-data-science install pandas numpy scipy
 ```
 
 ### Container Integration
@@ -553,19 +553,19 @@ brewx --prefix=/opt/team-data-science install pandas numpy scipy
 ```dockerfile
 FROM ubuntu:22.04
 
-# Install brewx
-RUN curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | bash
+# Install stout
+RUN curl -fsSL https://raw.githubusercontent.com/neul-labs/stout/main/install.sh | bash
 
 # Create app-specific prefix
-RUN brewx prefix create /app/.brewx
+RUN stout prefix create /app/.stout
 
 # Install dependencies
 COPY Brewfile /app/
-RUN brewx --prefix=/app/.brewx bundle install
+RUN stout --prefix=/app/.stout bundle install
 
 # Add to PATH
-ENV PATH="/app/.brewx/bin:$PATH"
-ENV BREWX_PREFIX="/app/.brewx"
+ENV PATH="/app/.stout/bin:$PATH"
+ENV STOUT_PREFIX="/app/.stout"
 
 COPY . /app
 WORKDIR /app
@@ -578,11 +578,11 @@ Track package operations for compliance and debugging.
 
 ### Enable Audit Logging
 
-**~/.brewx/config.toml:**
+**~/.stout/config.toml:**
 ```toml
 [audit]
 enabled = true
-log_file = "/var/log/brewx/audit.log"
+log_file = "/var/log/stout/audit.log"
 log_format = "json"  # or "text"
 include_user = true
 include_timestamp = true
@@ -609,10 +609,10 @@ Send logs to your SIEM or log aggregator:
 
 ```bash
 # Syslog
-logger -t brewx "$(cat /var/log/brewx/audit.log)"
+logger -t stout "$(cat /var/log/stout/audit.log)"
 
 # Fluent Bit / Fluentd
-# Configure to tail /var/log/brewx/audit.log
+# Configure to tail /var/log/stout/audit.log
 
 # Datadog
 # Use the Datadog agent with log collection
@@ -622,12 +622,12 @@ logger -t brewx "$(cat /var/log/brewx/audit.log)"
 
 ### SOC 2
 
-brewx supports SOC 2 compliance through:
+stout supports SOC 2 compliance through:
 
 1. **Access controls**: Package installation requires appropriate permissions
 2. **Audit trails**: All operations logged with timestamps and users
 3. **Change management**: Version control via lock files
-4. **Vulnerability management**: Built-in `brewx audit` command
+4. **Vulnerability management**: Built-in `stout audit` command
 
 ### HIPAA
 
@@ -652,10 +652,10 @@ Federal deployments can use:
 **Shared Cache for Build Agents:**
 ```bash
 # NFS mount
-mount -t nfs cache-server:/brewx-cache /opt/brewx-cache
+mount -t nfs cache-server:/stout-cache /opt/stout-cache
 
-# Configure brewx
-export BREWX_CACHE_DIR=/opt/brewx-cache
+# Configure stout
+export STOUT_CACHE_DIR=/opt/stout-cache
 ```
 
 **Redis Cache for Metadata:**
@@ -669,10 +669,10 @@ redis_url = "redis://cache-server:6379/0"
 
 ```bash
 # Increase parallel downloads
-brewx config set install.parallel_downloads 8
+stout config set install.parallel_downloads 8
 
 # Parallel builds (source installation)
-brewx install -s --jobs=16 large-package
+stout install -s --jobs=16 large-package
 ```
 
 ### Monitoring
@@ -681,13 +681,13 @@ Export metrics for monitoring:
 
 ```bash
 # Prometheus metrics endpoint
-brewx metrics serve --port 9090
+stout metrics serve --port 9090
 
 # Metrics available:
-# - brewx_packages_installed
-# - brewx_cache_hit_ratio
-# - brewx_download_duration_seconds
-# - brewx_install_duration_seconds
+# - stout_packages_installed
+# - stout_cache_hit_ratio
+# - stout_download_duration_seconds
+# - stout_install_duration_seconds
 ```
 
 ## Quick Reference
@@ -696,33 +696,33 @@ brewx metrics serve --port 9090
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `BREWX_PREFIX` | Installation prefix | `/opt/homebrew` |
-| `BREWX_CACHE_DIR` | Cache directory | `~/.brewx/cache` |
-| `BREWX_CONFIG` | Config file path | `~/.brewx/config.toml` |
-| `BREWX_INDEX_URL` | Index URL override | (from config) |
-| `BREWX_GITHUB_TOKEN` | GitHub auth token | (none) |
-| `BREWX_SIGNING_KEY` | Signing key (CI) | (none) |
-| `BREWX_LOG_LEVEL` | Log verbosity | `info` |
-| `BREWX_NO_COLOR` | Disable colors | `false` |
+| `STOUT_PREFIX` | Installation prefix | `/opt/homebrew` |
+| `STOUT_CACHE_DIR` | Cache directory | `~/.stout/cache` |
+| `STOUT_CONFIG` | Config file path | `~/.stout/config.toml` |
+| `STOUT_INDEX_URL` | Index URL override | (from config) |
+| `STOUT_GITHUB_TOKEN` | GitHub auth token | (none) |
+| `STOUT_SIGNING_KEY` | Signing key (CI) | (none) |
+| `STOUT_LOG_LEVEL` | Log verbosity | `info` |
+| `STOUT_NO_COLOR` | Disable colors | `false` |
 
 ### CLI Flags for Enterprise
 
 ```bash
 # Use specific prefix
-brewx --prefix=/custom/path install pkg
+stout --prefix=/custom/path install pkg
 
 # Verbose output for debugging
-brewx -v install pkg
-brewx -vv install pkg  # More verbose
+stout -v install pkg
+stout -vv install pkg  # More verbose
 
 # Skip signature verification (development only)
-brewx update --insecure
+stout update --insecure
 
 # Dry run (show what would happen)
-brewx install --dry-run pkg
+stout install --dry-run pkg
 
 # Force operations
-brewx install --force pkg
+stout install --force pkg
 ```
 
 ---

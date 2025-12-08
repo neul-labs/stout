@@ -1,8 +1,8 @@
 //! Doctor command - check system health
 
 use anyhow::Result;
-use brewx_index::Database;
-use brewx_state::{Config, InstalledPackages, Paths};
+use stout_index::Database;
+use stout_state::{Config, InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 
@@ -12,14 +12,14 @@ pub struct Args {}
 pub async fn run(_args: Args) -> Result<()> {
     let paths = Paths::default();
 
-    println!("\n{}", style("brewx doctor").cyan().bold());
+    println!("\n{}", style("stout doctor").cyan().bold());
     println!("{}\n", style("Checking system health...").dim());
 
     let mut issues = 0;
 
-    // Check brewx directory
-    print!("  Checking brewx directory... ");
-    if paths.brewx_dir.exists() {
+    // Check stout directory
+    print!("  Checking stout directory... ");
+    if paths.stout_dir.exists() {
         println!("{}", style("✓").green());
     } else {
         println!("{} (will be created on first use)", style("missing").yellow());
@@ -47,7 +47,7 @@ pub async fn run(_args: Args) -> Result<()> {
                 println!("{}", style("not initialized").yellow());
                 println!(
                     "    {}",
-                    style("Run 'brewx update' to initialize").dim()
+                    style("Run 'stout update' to initialize").dim()
                 );
             }
         }

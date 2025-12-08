@@ -1,7 +1,7 @@
-//! Config command - show brewx configuration
+//! Config command - show stout configuration
 
 use anyhow::Result;
-use brewx_state::{Config, Paths};
+use stout_state::{Config, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 
@@ -12,11 +12,11 @@ pub async fn run(_args: Args) -> Result<()> {
     let paths = Paths::default();
     let config = Config::load(&paths)?;
 
-    println!("{}", style("BREWX_VERSION").green().bold());
+    println!("{}", style("STOUT_VERSION").green().bold());
     println!("  {}", env!("CARGO_PKG_VERSION"));
 
     println!("\n{}", style("ORIGIN").green().bold());
-    println!("  {}", "https://github.com/neul-labs/brewx");
+    println!("  {}", "https://github.com/neul-labs/stout");
 
     println!("\n{}", style("HOMEBREW_PREFIX").green().bold());
     println!("  {}", paths.prefix.display());
@@ -24,11 +24,11 @@ pub async fn run(_args: Args) -> Result<()> {
     println!("\n{}", style("HOMEBREW_CELLAR").green().bold());
     println!("  {}", paths.cellar.display());
 
-    println!("\n{}", style("BREWX_DIR").green().bold());
-    println!("  {}", paths.brewx_dir.display());
+    println!("\n{}", style("STOUT_DIR").green().bold());
+    println!("  {}", paths.stout_dir.display());
 
-    println!("\n{}", style("BREWX_CACHE").green().bold());
-    println!("  {}", paths.brewx_dir.join("downloads").display());
+    println!("\n{}", style("STOUT_CACHE").green().bold());
+    println!("  {}", paths.stout_dir.join("downloads").display());
 
     println!("\n{}", style("INDEX_URL").green().bold());
     println!("  {}", config.index.base_url);

@@ -1,6 +1,6 @@
-# Contributing to brewx
+# Contributing to stout
 
-Thank you for your interest in contributing to brewx! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to stout! This document provides guidelines and instructions for contributing.
 
 ## Getting Started
 
@@ -14,8 +14,8 @@ Thank you for your interest in contributing to brewx! This document provides gui
 
 ```bash
 # Clone the repository
-git clone https://github.com/neul-labs/brewx.git
-cd brewx
+git clone https://github.com/neul-labs/stout.git
+cd stout
 
 # Build the project
 cargo build
@@ -30,7 +30,7 @@ RUST_LOG=debug cargo run -- search json
 ## Project Structure
 
 ```
-brewx/
+stout/
 ├── src/                    # Main CLI binary
 │   ├── main.rs            # Entry point
 │   ├── cli/               # Command implementations
@@ -40,11 +40,11 @@ brewx/
 │   │   └── ...
 │   └── output.rs          # Output formatting
 ├── crates/
-│   ├── brewx-index/       # SQLite index management
-│   ├── brewx-resolve/     # Dependency resolution
-│   ├── brewx-fetch/       # Download management
-│   ├── brewx-install/     # Package installation
-│   └── brewx-state/       # Local state management
+│   ├── stout-index/       # SQLite index management
+│   ├── stout-resolve/     # Dependency resolution
+│   ├── stout-fetch/       # Download management
+│   ├── stout-install/     # Package installation
+│   └── stout-state/       # Local state management
 ├── scripts/
 │   ├── sync.py            # Index sync script
 │   └── pyproject.toml     # Python dependencies
@@ -237,7 +237,7 @@ mod tests {
 
 1. Create the crate:
    ```bash
-   cargo new --lib crates/brewx-newcrate
+   cargo new --lib crates/stout-newcrate
    ```
 
 2. Add to workspace in root `Cargo.toml`:
@@ -245,17 +245,17 @@ mod tests {
    [workspace]
    members = [
        # ...
-       "crates/brewx-newcrate",
+       "crates/stout-newcrate",
    ]
 
    [workspace.dependencies]
-   brewx-newcrate = { path = "crates/brewx-newcrate" }
+   stout-newcrate = { path = "crates/stout-newcrate" }
    ```
 
 3. Set up the crate's `Cargo.toml`:
    ```toml
    [package]
-   name = "brewx-newcrate"
+   name = "stout-newcrate"
    version.workspace = true
    edition.workspace = true
    license.workspace = true
@@ -309,7 +309,7 @@ cargo build --release
 
 When reporting issues, please include:
 
-1. **brewx version**: `brewx --version`
+1. **stout version**: `stout --version`
 2. **Operating system**: macOS/Linux, version
 3. **Steps to reproduce**: Minimal commands to reproduce
 4. **Expected behavior**: What you expected

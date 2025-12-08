@@ -1,6 +1,6 @@
 # Installation Guide
 
-This guide covers all methods for installing brewx.
+This guide covers all methods for installing stout.
 
 ## Requirements
 
@@ -10,10 +10,10 @@ This guide covers all methods for installing brewx.
 
 ## Quick Install (Recommended)
 
-The easiest way to install brewx is using the automatic installer:
+The easiest way to install stout is using the automatic installer:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/neul-labs/stout/main/install.sh | bash
 ```
 
 This script will:
@@ -30,37 +30,37 @@ You can customize the installation using environment variables:
 
 ```bash
 # Install to a custom directory
-BREWX_INSTALL_DIR=/opt/bin curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | bash
+STOUT_INSTALL_DIR=/opt/bin curl -fsSL https://raw.githubusercontent.com/neul-labs/stout/main/install.sh | bash
 
 # Install a specific version
-BREWX_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | bash
+STOUT_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/neul-labs/stout/main/install.sh | bash
 
 # Skip automatic PATH modification
-BREWX_NO_MODIFY_PATH=1 curl -fsSL https://raw.githubusercontent.com/neul-labs/brewx/main/install.sh | bash
+STOUT_NO_MODIFY_PATH=1 curl -fsSL https://raw.githubusercontent.com/neul-labs/stout/main/install.sh | bash
 ```
 
 ## Manual Download
 
-If you prefer to download manually, get the appropriate binary from the [releases page](https://github.com/neul-labs/brewx/releases):
+If you prefer to download manually, get the appropriate binary from the [releases page](https://github.com/neul-labs/stout/releases):
 
 | Platform | Architecture | Binary |
 |----------|-------------|--------|
-| macOS | Apple Silicon (M1/M2/M3) | `brewx-aarch64-apple-darwin.tar.gz` |
-| macOS | Intel | `brewx-x86_64-apple-darwin.tar.gz` |
-| Linux | x86_64 (glibc) | `brewx-x86_64-unknown-linux-gnu.tar.gz` |
-| Linux | x86_64 (musl) | `brewx-x86_64-unknown-linux-musl.tar.gz` |
-| Linux | ARM64 | `brewx-aarch64-unknown-linux-gnu.tar.gz` |
+| macOS | Apple Silicon (M1/M2/M3) | `stout-aarch64-apple-darwin.tar.gz` |
+| macOS | Intel | `stout-x86_64-apple-darwin.tar.gz` |
+| Linux | x86_64 (glibc) | `stout-x86_64-unknown-linux-gnu.tar.gz` |
+| Linux | x86_64 (musl) | `stout-x86_64-unknown-linux-musl.tar.gz` |
+| Linux | ARM64 | `stout-aarch64-unknown-linux-gnu.tar.gz` |
 
 ```bash
 # Example: macOS Apple Silicon
-curl -LO https://github.com/neul-labs/brewx/releases/latest/download/brewx-aarch64-apple-darwin.tar.gz
-tar -xzf brewx-aarch64-apple-darwin.tar.gz
-sudo mv brewx /usr/local/bin/
+curl -LO https://github.com/neul-labs/stout/releases/latest/download/stout-aarch64-apple-darwin.tar.gz
+tar -xzf stout-aarch64-apple-darwin.tar.gz
+sudo mv stout /usr/local/bin/
 
 # Example: Linux x86_64
-curl -LO https://github.com/neul-labs/brewx/releases/latest/download/brewx-x86_64-unknown-linux-gnu.tar.gz
-tar -xzf brewx-x86_64-unknown-linux-gnu.tar.gz
-sudo mv brewx /usr/local/bin/
+curl -LO https://github.com/neul-labs/stout/releases/latest/download/stout-x86_64-unknown-linux-gnu.tar.gz
+tar -xzf stout-x86_64-unknown-linux-gnu.tar.gz
+sudo mv stout /usr/local/bin/
 ```
 
 ### Verifying the Download
@@ -69,54 +69,54 @@ Each release includes SHA256 checksums:
 
 ```bash
 # Download checksum file
-curl -LO https://github.com/neul-labs/brewx/releases/latest/download/brewx-aarch64-apple-darwin.tar.gz.sha256
+curl -LO https://github.com/neul-labs/stout/releases/latest/download/stout-aarch64-apple-darwin.tar.gz.sha256
 
 # Verify (macOS)
-shasum -a 256 -c brewx-aarch64-apple-darwin.tar.gz.sha256
+shasum -a 256 -c stout-aarch64-apple-darwin.tar.gz.sha256
 
 # Verify (Linux)
-sha256sum -c brewx-aarch64-apple-darwin.tar.gz.sha256
+sha256sum -c stout-aarch64-apple-darwin.tar.gz.sha256
 ```
 
 ## From Source
 
 ```bash
 # Clone the repository
-git clone https://github.com/neul-labs/brewx.git
-cd brewx
+git clone https://github.com/neul-labs/stout.git
+cd stout
 
 # Build release binary (optimized)
 cargo build --release
 
 # Install to ~/.local/bin (user-local)
 mkdir -p ~/.local/bin
-cp target/release/brewx ~/.local/bin/
+cp target/release/stout ~/.local/bin/
 
 # Or install system-wide
-sudo cp target/release/brewx /usr/local/bin/
+sudo cp target/release/stout /usr/local/bin/
 ```
 
 ### Using Cargo
 
 ```bash
-cargo install --git https://github.com/neul-labs/brewx.git
+cargo install --git https://github.com/neul-labs/stout.git
 ```
 
 ## Post-Installation Setup
 
-### 1. Initialize brewx
+### 1. Initialize stout
 
-After installation, initialize brewx and download the formula index:
+After installation, initialize stout and download the formula index:
 
 ```bash
 # Check installation
-brewx --version
+stout --version
 
 # Download the formula index (required for first use)
-brewx update
+stout update
 
 # Verify installation
-brewx doctor
+stout doctor
 ```
 
 ### 2. Shell Completions
@@ -128,13 +128,13 @@ Enable tab completion for your shell:
 Add to `~/.bashrc`:
 
 ```bash
-eval "$(brewx completions bash)"
+eval "$(stout completions bash)"
 ```
 
 Or install permanently:
 
 ```bash
-brewx completions bash > /etc/bash_completion.d/brewx
+stout completions bash > /etc/bash_completion.d/stout
 ```
 
 #### Zsh
@@ -142,30 +142,30 @@ brewx completions bash > /etc/bash_completion.d/brewx
 Add to `~/.zshrc`:
 
 ```bash
-eval "$(brewx completions zsh)"
+eval "$(stout completions zsh)"
 ```
 
 Or install to your fpath:
 
 ```bash
-brewx completions zsh > ~/.zsh/completions/_brewx
+stout completions zsh > ~/.zsh/completions/_stout
 # Ensure ~/.zsh/completions is in your fpath
 ```
 
 #### Fish
 
 ```bash
-brewx completions fish > ~/.config/fish/completions/brewx.fish
+stout completions fish > ~/.config/fish/completions/stout.fish
 ```
 
 ### 3. Configuration (Optional)
 
-Create a configuration file at `~/.brewx/config.toml`:
+Create a configuration file at `~/.stout/config.toml`:
 
 ```toml
 [index]
-# Use custom index URL (default: neul-labs/brewx-index)
-base_url = "https://raw.githubusercontent.com/neul-labs/brewx-index/main"
+# Use custom index URL (default: neul-labs/stout-index)
+base_url = "https://raw.githubusercontent.com/neul-labs/stout-index/main"
 
 # Auto-update index when stale
 auto_update = true
@@ -198,33 +198,33 @@ download_ttl = 604800
 
 ### macOS
 
-brewx auto-detects your Homebrew installation:
+stout auto-detects your Homebrew installation:
 - **Apple Silicon (M1/M2/M3)**: `/opt/homebrew`
 - **Intel**: `/usr/local`
 
 ### Linux
 
-brewx looks for Homebrew in:
+stout looks for Homebrew in:
 1. `/home/linuxbrew/.linuxbrew`
 2. `/usr/local`
 
-If you don't have Homebrew installed, brewx will still work for searching and viewing package info, but you won't be able to install packages.
+If you don't have Homebrew installed, stout will still work for searching and viewing package info, but you won't be able to install packages.
 
 ## Verifying Installation
 
 Run the doctor command to verify everything is set up correctly:
 
 ```bash
-brewx doctor
+stout doctor
 ```
 
 Expected output:
 
 ```
-brewx doctor
+stout doctor
 Checking system health...
 
-  Checking brewx directory... ✓
+  Checking stout directory... ✓
   Checking configuration... ✓
   Checking formula index... ✓ (8058 formulas)
   Checking Homebrew prefix... ✓
@@ -234,33 +234,33 @@ Checking system health...
 Your system is ready to brew!
 ```
 
-## Updating brewx
+## Updating stout
 
 ### From Source
 
 ```bash
-cd brewx
+cd stout
 git pull
 cargo build --release
-cp target/release/brewx ~/.local/bin/
+cp target/release/stout ~/.local/bin/
 ```
 
 ### Using Cargo
 
 ```bash
-cargo install --git https://github.com/neul-labs/brewx.git --force
+cargo install --git https://github.com/neul-labs/stout.git --force
 ```
 
 ## Uninstalling
 
 ```bash
 # Remove binary
-rm ~/.local/bin/brewx
+rm ~/.local/bin/stout
 # or
-sudo rm /usr/local/bin/brewx
+sudo rm /usr/local/bin/stout
 
 # Remove data directory (optional)
-rm -rf ~/.brewx
+rm -rf ~/.stout
 
 # Remove shell completions
 # (location depends on how you installed them)
@@ -270,11 +270,11 @@ rm -rf ~/.brewx
 
 ### "Index not initialized"
 
-Run `brewx update` to download the formula index.
+Run `stout update` to download the formula index.
 
 ### "Homebrew prefix not found"
 
-Install Homebrew first, or configure a custom prefix in `~/.brewx/config.toml`.
+Install Homebrew first, or configure a custom prefix in `~/.stout/config.toml`.
 
 ### "Permission denied"
 

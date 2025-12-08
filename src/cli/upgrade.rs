@@ -1,13 +1,13 @@
 //! Upgrade command
 
 use anyhow::{Context, Result};
-use brewx_fetch::{BottleSpec, DownloadCache, DownloadClient, ProgressReporter};
-use brewx_index::{Database, Formula, IndexSync};
-use brewx_install::{
+use stout_fetch::{BottleSpec, DownloadCache, DownloadClient, ProgressReporter};
+use stout_index::{Database, Formula, IndexSync};
+use stout_install::{
     extract_bottle, link_package, remove_package, unlink_package, write_receipt, InstallReceipt,
     RuntimeDependency,
 };
-use brewx_state::{Config, InstalledPackages, Paths};
+use stout_state::{Config, InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 use std::sync::Arc;
@@ -38,7 +38,7 @@ pub async fn run(args: Args) -> Result<()> {
     let config = Config::load(&paths)?;
 
     let db = Database::open(paths.index_db())
-        .context("Failed to open index. Run 'brewx update' first.")?;
+        .context("Failed to open index. Run 'stout update' first.")?;
 
     let mut installed = InstalledPackages::load(&paths)?;
 
@@ -126,7 +126,7 @@ pub async fn run(args: Args) -> Result<()> {
     println!("\n{}...", style("Fetching formula data").cyan());
     let sync = IndexSync::with_security_policy(
         Some(&config.index.base_url),
-        &paths.brewx_dir,
+        &paths.stout_dir,
         config.security.to_security_policy(),
     )?;
 
@@ -164,7 +164,7 @@ pub async fn run(args: Args) -> Result<()> {
         bottle_specs.len()
     );
 
-    let cache = DownloadCache::new(&paths.brewx_dir);
+    let cache = DownloadCache::new(&paths.stout_dir);
     let client = DownloadClient::new(cache, config.install.parallel_downloads as usize)?;
     let progress = Arc::new(ProgressReporter::new());
 

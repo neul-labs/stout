@@ -1,8 +1,8 @@
 //! Uninstall command
 
 use anyhow::{bail, Result};
-use brewx_install::{remove_package, unlink_package};
-use brewx_state::{InstalledPackages, Paths};
+use stout_install::{remove_package, unlink_package};
+use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 
@@ -61,7 +61,7 @@ pub async fn run(args: Args) -> Result<()> {
         unlink_package(&install_path, &paths.prefix)?;
 
         // Remove from Cellar
-        brewx_install::remove_package(&paths.cellar, name, &pkg.version)?;
+        stout_install::remove_package(&paths.cellar, name, &pkg.version)?;
 
         // Update state
         installed.remove(name);

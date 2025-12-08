@@ -1,12 +1,12 @@
 # Security Model
 
-brewx implements a defense-in-depth security model to protect against supply chain attacks, man-in-the-middle attacks, and compromised indexes.
+stout implements a defense-in-depth security model to protect against supply chain attacks, man-in-the-middle attacks, and compromised indexes.
 
 ## Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                        brewx Security Layers                             │
+│                        stout Security Layers                             │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
 │  Layer 1: Transport Security                                             │
@@ -31,9 +31,9 @@ brewx implements a defense-in-depth security model to protect against supply cha
 
 ## Ed25519 Index Signatures
 
-Every brewx index is cryptographically signed using Ed25519 signatures. This ensures:
+Every stout index is cryptographically signed using Ed25519 signatures. This ensures:
 
-1. **Authenticity**: The index was created by the official brewx-index maintainers
+1. **Authenticity**: The index was created by the official stout-index maintainers
 2. **Integrity**: The index has not been tampered with
 3. **Freshness**: The signature is recent (prevents replay attacks)
 
@@ -47,7 +47,7 @@ Every brewx index is cryptographically signed using Ed25519 signatures. This ens
                                                   │
                                                   ▼
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│   brewx      │◀────│   Verify     │◀────│  manifest    │
+│   stout      │◀────│   Verify     │◀────│  manifest    │
 │   client     │     │  Signature   │     │   .json      │
 └──────────────┘     └──────────────┘     └──────────────┘
 ```
@@ -55,7 +55,7 @@ Every brewx index is cryptographically signed using Ed25519 signatures. This ens
 1. The index database is hashed (SHA256)
 2. The hash + metadata is signed with an Ed25519 private key
 3. The signature is stored in `manifest.json`
-4. brewx verifies the signature using the embedded public key
+4. stout verifies the signature using the embedded public key
 
 ### Manifest Format
 
@@ -77,12 +77,12 @@ Every brewx index is cryptographically signed using Ed25519 signatures. This ens
 
 The signature covers a canonical string:
 ```
-brewx-index:v1:{index_sha256}:{signed_at}:{index_version}:{formula_count}:{cask_count}
+stout-index:v1:{index_sha256}:{signed_at}:{index_version}:{formula_count}:{cask_count}
 ```
 
 ## Security Configuration
 
-brewx security can be configured in `~/.brewx/config.toml`:
+stout security can be configured in `~/.stout/config.toml`:
 
 ```toml
 [security]
@@ -99,13 +99,13 @@ allow_unsigned = false
 max_signature_age = 604800
 
 # Additional trusted public keys (for key rotation)
-# The default brewx-index key is always trusted
+# The default stout-index key is always trusted
 additional_trusted_keys = []
 ```
 
 ### Security Policies
 
-brewx supports three security modes:
+stout supports three security modes:
 
 | Mode | `require_signature` | `allow_unsigned` | Use Case |
 |------|---------------------|------------------|----------|
@@ -115,7 +115,7 @@ brewx supports three security modes:
 
 ## Trusted Public Key
 
-The official brewx-index public key is embedded in the binary:
+The official stout-index public key is embedded in the binary:
 
 ```
 e58d628836f72ecc7f6964ba2b70523d7c1c46512441ef8eccf2fa55ad0258f2
@@ -130,7 +130,7 @@ This key is used to verify all index updates. The corresponding private key is:
 
 ### HTTPS Enforcement
 
-In strict mode, brewx:
+In strict mode, stout:
 - Requires HTTPS for remote index URLs
 - Enforces TLS 1.2 or higher
 - Validates server certificates
@@ -138,7 +138,7 @@ In strict mode, brewx:
 
 ### No Domain Restrictions
 
-brewx intentionally does **not** restrict which domains can host indexes. This is because:
+stout intentionally does **not** restrict which domains can host indexes. This is because:
 
 1. **Signature verification is the primary security mechanism** - a valid Ed25519 signature proves the data is authentic regardless of where it's hosted
 2. **Enterprises need flexibility** - mirrors can be hosted on internal domains, CDNs, or local file systems
@@ -147,10 +147,10 @@ brewx intentionally does **not** restrict which domains can host indexes. This i
 ```toml
 # All of these are valid with proper signatures:
 [index]
-base_url = "https://raw.githubusercontent.com/neul-labs/brewx-index/main"  # Official
-base_url = "https://brewx-mirror.internal.company.com"                      # Enterprise
-base_url = "https://cdn.example.com/brewx"                                  # CDN
-base_url = "file:///opt/brewx-mirror"                                       # Local
+base_url = "https://raw.githubusercontent.com/neul-labs/stout-index/main"  # Official
+base_url = "https://stout-mirror.internal.company.com"                      # Enterprise
+base_url = "https://cdn.example.com/stout"                                  # CDN
+base_url = "file:///opt/stout-mirror"                                       # Local
 ```
 
 ## Package Integrity
@@ -179,17 +179,17 @@ macOS applications (casks) are verified using:
 
 ## Vulnerability Scanning
 
-brewx includes built-in vulnerability auditing:
+stout includes built-in vulnerability auditing:
 
 ```bash
 # Scan all installed packages
-brewx audit
+stout audit
 
 # Scan specific packages
-brewx audit openssl curl
+stout audit openssl curl
 
 # Update vulnerability database
-brewx audit --update
+stout audit --update
 ```
 
 The vulnerability database is sourced from:
@@ -199,7 +199,7 @@ The vulnerability database is sourced from:
 
 ## Mirror Security
 
-Mirrors allow offline or internal hosting of brewx indexes. The security model extends to mirrors:
+Mirrors allow offline or internal hosting of stout indexes. The security model extends to mirrors:
 
 ### How Mirror Security Works
 
@@ -210,14 +210,14 @@ Mirrors allow offline or internal hosting of brewx indexes. The security model e
 │                                                                          │
 │  Option 1: Upstream Signature Preservation                               │
 │  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐             │
-│  │   Official   │────▶│    Mirror    │────▶│    brewx     │             │
+│  │   Official   │────▶│    Mirror    │────▶│    stout     │             │
 │  │    Index     │     │   (copies    │     │   (verifies  │             │
 │  │  (signed)    │     │  signature)  │     │  signature)  │             │
 │  └──────────────┘     └──────────────┘     └──────────────┘             │
 │                                                                          │
 │  Option 2: Enterprise Re-signing                                         │
 │  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐             │
-│  │   Official   │────▶│  Enterprise  │────▶│    brewx     │             │
+│  │   Official   │────▶│  Enterprise  │────▶│    stout     │             │
 │  │    Index     │     │   Mirror     │     │  (verifies   │             │
 │  │              │     │ (re-signed)  │     │ enterprise   │             │
 │  │              │     │              │     │    key)      │             │
@@ -232,7 +232,7 @@ When creating a mirror, the upstream signature is preserved:
 
 ```bash
 # Create mirror - signature is automatically copied
-brewx mirror create /path/to/mirror jq curl git
+stout mirror create /path/to/mirror jq curl git
 
 # Mirror manifest includes:
 # - upstream_signature.signature (original Ed25519 signature)
@@ -240,7 +240,7 @@ brewx mirror create /path/to/mirror jq curl git
 # - upstream_signature.signed_at (original timestamp)
 ```
 
-The brewx client verifies the upstream signature even when fetching from a mirror. This ensures:
+The stout client verifies the upstream signature even when fetching from a mirror. This ensures:
 - The data originally came from the official index
 - No tampering occurred during mirroring
 - The signature age is still validated
@@ -251,20 +251,20 @@ Enterprises can sign mirrors with their own keys:
 
 ```bash
 # Generate enterprise keypair
-cd /path/to/brewx-index/scripts
+cd /path/to/stout-index/scripts
 uv run python sign_index.py generate --output ./enterprise-keys
 
 # Create and sign mirror
-brewx mirror create /path/to/mirror jq curl git
+stout mirror create /path/to/mirror jq curl git
 uv run python sign_index.py sign \
-    --key ./enterprise-keys/brewx-index.key \
+    --key ./enterprise-keys/stout-index.key \
     --index-dir /path/to/mirror
 ```
 
 Configure clients to trust the enterprise key:
 
 ```toml
-# ~/.brewx/config.toml
+# ~/.stout/config.toml
 [security]
 additional_trusted_keys = [
     "YOUR_ENTERPRISE_PUBLIC_KEY_HEX"
@@ -286,12 +286,12 @@ For air-gapped environments:
 
 1. **Create mirror on connected system**: Signature is preserved
 2. **Transfer to air-gapped system**: Via approved media
-3. **brewx verifies signature**: Using embedded public key
+3. **stout verifies signature**: Using embedded public key
 4. **No network required**: Verification is fully offline
 
 ```bash
 # On air-gapped system
-brewx --prefix=/opt/airgap update  # Uses local mirror
+stout --prefix=/opt/airgap update  # Uses local mirror
 # ✓ Signature verified (signed 2h ago)
 ```
 
@@ -308,9 +308,9 @@ For enterprise deployments, see [ENTERPRISE.md](ENTERPRISE.md) for:
 
 ### For Users
 
-1. **Keep brewx updated**: Security fixes are released regularly
-2. **Run `brewx audit`**: Regularly scan for vulnerable packages
-3. **Verify the installer**: Check checksums when downloading brewx
+1. **Keep stout updated**: Security fixes are released regularly
+2. **Run `stout audit`**: Regularly scan for vulnerable packages
+3. **Verify the installer**: Check checksums when downloading stout
 4. **Don't disable security**: Avoid `--insecure` flags in production
 
 ### For Enterprises
@@ -318,11 +318,11 @@ For enterprise deployments, see [ENTERPRISE.md](ENTERPRISE.md) for:
 1. **Host your own index**: Full control over package sources
 2. **Use your own signing key**: Independent verification chain
 3. **Enable audit logging**: Track all package operations
-4. **Regular vulnerability scans**: Automate `brewx audit` in CI/CD
+4. **Regular vulnerability scans**: Automate `stout audit` in CI/CD
 
 ## Reporting Security Issues
 
-If you discover a security vulnerability in brewx:
+If you discover a security vulnerability in stout:
 
 1. **Do not** open a public GitHub issue
 2. Email security concerns to the maintainers privately
@@ -353,7 +353,7 @@ We aim to respond within 48 hours and will coordinate disclosure.
 
 ## Comparison with Homebrew
 
-| Feature | brewx | Homebrew |
+| Feature | stout | Homebrew |
 |---------|-------|----------|
 | Index signatures | Ed25519 | None (git commit hashes) |
 | Transport security | HTTPS required | HTTPS (via git) |
@@ -370,4 +370,4 @@ We aim to respond within 48 hours and will coordinate disclosure.
 
 ---
 
-For questions about brewx security, see the [FAQ](USAGE.md#security-faq) or open a discussion on GitHub.
+For questions about stout security, see the [FAQ](USAGE.md#security-faq) or open a discussion on GitHub.

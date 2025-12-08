@@ -1,12 +1,12 @@
 //! Mirror command - create and serve offline mirrors
 
 use anyhow::{bail, Result};
-use brewx_index::Database;
-use brewx_mirror::{
+use stout_index::Database;
+use stout_mirror::{
     create_mirror, detect_platform, serve_mirror, MirrorClient, MirrorClientConfig, MirrorConfig,
     MirrorManifest, ServeConfig,
 };
-use brewx_state::Paths;
+use stout_state::Paths;
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
 use humansize::{format_size, BINARY};
@@ -225,7 +225,7 @@ async fn run_create(
     let mut pkgs = packages;
 
     if all_installed {
-        let installed = brewx_state::InstalledPackages::load(&paths)?;
+        let installed = stout_state::InstalledPackages::load(&paths)?;
         for name in installed.names() {
             pkgs.push(name.clone());
         }
@@ -347,7 +347,7 @@ async fn run_info(path: PathBuf, json: bool) -> Result<()> {
         println!("\n{} Information\n", style("Mirror").cyan().bold());
         println!("  Version: {}", manifest.version);
         println!("  Created: {}", manifest.created_at);
-        println!("  brewx version: {}", manifest.brewx_version);
+        println!("  stout version: {}", manifest.stout_version);
         println!();
         println!("  Formulas: {}", manifest.formulas.count);
         println!("  Casks: {}", manifest.casks.count);
@@ -416,7 +416,7 @@ async fn run_outdated(path: PathBuf, json: bool) -> Result<()> {
         println!();
         println!(
             "Run '{}' to update",
-            style(format!("brewx mirror update {}", path.display())).cyan()
+            style(format!("stout mirror update {}", path.display())).cyan()
         );
     }
 

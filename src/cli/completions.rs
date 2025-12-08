@@ -14,6 +14,6 @@ pub struct Args {
 
 pub async fn run(args: Args) -> Result<()> {
     let mut cmd = super::Cli::command();
-    generate(args.shell, &mut cmd, "brewx", &mut io::stdout());
+    generate(args.shell, &mut cmd, "stout", &mut io::stdout());
     Ok(())
 }

@@ -4,7 +4,7 @@
 //! useful for project-specific dependencies or testing.
 
 use anyhow::{bail, Context, Result};
-use brewx_state::Paths;
+use stout_state::Paths;
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
 use std::path::PathBuf;
@@ -116,11 +116,11 @@ async fn run_create(path: PathBuf, force: bool) -> Result<()> {
     std::fs::create_dir_all(&var)?;
 
     // Create a prefix marker file
-    let marker_path = path.join(".brewx-prefix");
+    let marker_path = path.join(".stout-prefix");
     std::fs::write(
         &marker_path,
         format!(
-            "# brewx prefix created at {}\n# Use: brewx --prefix={} install <pkg>\n",
+            "# stout prefix created at {}\n# Use: stout --prefix={} install <pkg>\n",
             chrono_lite::now(),
             path.display()
         ),
@@ -140,11 +140,11 @@ async fn run_create(path: PathBuf, force: bool) -> Result<()> {
     println!();
     println!("{}:", style("Usage").bold());
     println!(
-        "  brewx --prefix={} install <package>",
+        "  stout --prefix={} install <package>",
         path.display()
     );
     println!(
-        "  brewx --prefix={} list",
+        "  stout --prefix={} list",
         path.display()
     );
     println!();
@@ -324,7 +324,7 @@ async fn run_default(path: PathBuf) -> Result<()> {
 
 fn prefixes_file() -> Result<PathBuf> {
     let paths = Paths::default();
-    Ok(paths.brewx_dir.join("prefixes.txt"))
+    Ok(paths.stout_dir.join("prefixes.txt"))
 }
 
 fn register_prefix(path: &std::path::Path) -> Result<()> {
@@ -383,13 +383,13 @@ fn list_prefixes() -> Result<Vec<PathBuf>> {
 
 fn default_prefix() -> Result<PathBuf> {
     // Check for environment variable first
-    if let Ok(prefix) = std::env::var("BREWX_PREFIX") {
+    if let Ok(prefix) = std::env::var("STOUT_PREFIX") {
         return Ok(PathBuf::from(prefix));
     }
 
     // Then check config file
     let paths = Paths::default();
-    let default_file = paths.brewx_dir.join("default_prefix");
+    let default_file = paths.stout_dir.join("default_prefix");
 
     if default_file.exists() {
         let content = std::fs::read_to_string(&default_file)?;
@@ -402,7 +402,7 @@ fn default_prefix() -> Result<PathBuf> {
 
 fn set_default_prefix(path: &std::path::Path) -> Result<()> {
     let paths = Paths::default();
-    let default_file = paths.brewx_dir.join("default_prefix");
+    let default_file = paths.stout_dir.join("default_prefix");
 
     std::fs::write(default_file, path.display().to_string())?;
     Ok(())

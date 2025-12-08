@@ -1,8 +1,8 @@
 //! Unlink command - remove symlinks for a package without uninstalling
 
 use anyhow::{bail, Result};
-use brewx_install::unlink_package;
-use brewx_state::{InstalledPackages, Paths};
+use stout_install::unlink_package;
+use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 

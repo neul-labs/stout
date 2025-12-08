@@ -4,7 +4,7 @@
 //! can execute with --version or --help flags.
 
 use anyhow::{bail, Result};
-use brewx_state::{InstalledPackages, Paths};
+use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 use std::process::Command;

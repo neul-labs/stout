@@ -1,0 +1,19 @@
+[package]
+name = "stout-fetch"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Download management for stout"
+
+[dependencies]
+reqwest.workspace = true
+tokio.workspace = true
+sha2.workspace = true
+indicatif.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+dirs.workspace = true
+futures = "0.3"
+
+[dev-dependencies]
+tempfile = "3"

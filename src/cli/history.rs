@@ -1,7 +1,7 @@
 //! History command - show package version history
 
 use anyhow::{bail, Result};
-use brewx_state::{HistoryAction, PackageHistory, Paths};
+use stout_state::{HistoryAction, PackageHistory, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 use serde::Serialize;
@@ -163,7 +163,7 @@ pub async fn run(args: Args) -> Result<()> {
     Ok(())
 }
 
-fn print_entry(name: &str, entry: &brewx_state::HistoryEntry) {
+fn print_entry(name: &str, entry: &stout_state::HistoryEntry) {
     let action_style = match entry.action {
         HistoryAction::Install => style("install").green(),
         HistoryAction::Upgrade => style("upgrade").blue(),

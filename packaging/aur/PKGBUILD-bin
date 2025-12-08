@@ -1,12 +1,12 @@
-# Maintainer: Neul Labs <brewx@neul-labs.com>
-# Contributor: Neul Labs <brewx@neul-labs.com>
+# Maintainer: Neul Labs <stout@neul-labs.com>
+# Contributor: Neul Labs <stout@neul-labs.com>
 
-pkgname=brewx-bin
+pkgname=stout-bin
 pkgver=0.1.0
 pkgrel=1
 pkgdesc="Fast, Rust-based Homebrew-compatible package manager (pre-built binary)"
 arch=('x86_64' 'aarch64')
-url="https://github.com/neul-labs/brewx"
+url="https://github.com/neul-labs/stout"
 license=('MIT')
 depends=('gcc-libs')
 optdepends=(
@@ -14,27 +14,27 @@ optdepends=(
     'zsh-completions: for zsh shell completions'
     'fish: for fish shell completions'
 )
-provides=('brewx')
-conflicts=('brewx' 'brewx-git')
+provides=('stout')
+conflicts=('stout' 'stout-git')
 
-_base_url="https://github.com/neul-labs/brewx/releases/download/v$pkgver"
+_base_url="https://github.com/neul-labs/stout/releases/download/v$pkgver"
 
-source_x86_64=("$pkgname-$pkgver-x86_64.tar.gz::${_base_url}/brewx-x86_64-unknown-linux-gnu.tar.gz")
-source_aarch64=("$pkgname-$pkgver-aarch64.tar.gz::${_base_url}/brewx-aarch64-unknown-linux-gnu.tar.gz")
+source_x86_64=("$pkgname-$pkgver-x86_64.tar.gz::${_base_url}/stout-x86_64-unknown-linux-gnu.tar.gz")
+source_aarch64=("$pkgname-$pkgver-aarch64.tar.gz::${_base_url}/stout-aarch64-unknown-linux-gnu.tar.gz")
 
 sha256sums_x86_64=('PLACEHOLDER_SHA256_X86_64')
 sha256sums_aarch64=('PLACEHOLDER_SHA256_AARCH64')
 
 package() {
     # Install binary
-    install -Dm755 "brewx" "$pkgdir/usr/bin/brewx"
+    install -Dm755 "stout" "$pkgdir/usr/bin/stout"
 
     # Generate and install shell completions
     install -dm755 "$pkgdir/usr/share/bash-completion/completions"
     install -dm755 "$pkgdir/usr/share/zsh/site-functions"
     install -dm755 "$pkgdir/usr/share/fish/vendor_completions.d"
 
-    "$pkgdir/usr/bin/brewx" completions bash > "$pkgdir/usr/share/bash-completion/completions/brewx"
-    "$pkgdir/usr/bin/brewx" completions zsh > "$pkgdir/usr/share/zsh/site-functions/_brewx"
-    "$pkgdir/usr/bin/brewx" completions fish > "$pkgdir/usr/share/fish/vendor_completions.d/brewx.fish"
+    "$pkgdir/usr/bin/stout" completions bash > "$pkgdir/usr/share/bash-completion/completions/stout"
+    "$pkgdir/usr/bin/stout" completions zsh > "$pkgdir/usr/share/zsh/site-functions/_stout"
+    "$pkgdir/usr/bin/stout" completions fish > "$pkgdir/usr/share/fish/vendor_completions.d/stout.fish"
 }

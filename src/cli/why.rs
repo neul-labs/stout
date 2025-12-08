@@ -1,8 +1,8 @@
 //! Why command - show why a package is installed (reverse dependency chain)
 
 use anyhow::{bail, Context, Result};
-use brewx_index::{Database, IndexSync};
-use brewx_state::{Config, InstalledPackages, Paths};
+use stout_index::{Database, IndexSync};
+use stout_state::{Config, InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 use serde::Serialize;
@@ -36,10 +36,10 @@ pub async fn run(args: Args) -> Result<()> {
     let config = Config::load(&paths)?;
 
     let db = Database::open(paths.index_db())
-        .context("Failed to open index. Run 'brewx update' first.")?;
+        .context("Failed to open index. Run 'stout update' first.")?;
 
     if !db.is_initialized()? {
-        bail!("Index not initialized. Run 'brewx update' first.");
+        bail!("Index not initialized. Run 'stout update' first.");
     }
 
     let installed = InstalledPackages::load(&paths)?;
@@ -101,7 +101,7 @@ pub async fn run(args: Args) -> Result<()> {
                 style(&args.formula).cyan()
             );
             println!(
-                "  {} Consider running 'brewx autoremove' to clean up",
+                "  {} Consider running 'stout autoremove' to clean up",
                 style("Hint:").yellow()
             );
         } else {

@@ -1,8 +1,8 @@
 //! Uses command - show packages that depend on a given package
 
 use anyhow::{bail, Context, Result};
-use brewx_index::Database;
-use brewx_state::{InstalledPackages, Paths};
+use stout_index::Database;
+use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 
@@ -36,10 +36,10 @@ pub async fn run(args: Args) -> Result<()> {
     let paths = Paths::default();
 
     let db = Database::open(paths.index_db())
-        .context("Failed to open index. Run 'brewx update' first.")?;
+        .context("Failed to open index. Run 'stout update' first.")?;
 
     if !db.is_initialized()? {
-        bail!("Index not initialized. Run 'brewx update' first.");
+        bail!("Index not initialized. Run 'stout update' first.");
     }
 
     // Verify the formula exists

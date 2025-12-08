@@ -110,8 +110,8 @@ async fn create_formula(args: Args) -> Result<()> {
 
     println!("{}", style("Next steps:").bold());
     println!("  1. Edit the formula to add build instructions");
-    println!("  2. Test with: brewx test {}", name);
-    println!("  3. Audit with: brewx audit --formula {}", output_path.display());
+    println!("  2. Test with: stout test {}", name);
+    println!("  3. Audit with: stout audit --formula {}", output_path.display());
 
     Ok(())
 }
@@ -175,7 +175,7 @@ async fn create_cask(args: Args) -> Result<()> {
 
     println!("{}", style("Next steps:").bold());
     println!("  1. Edit the cask to specify artifacts (app, pkg, binary, etc.)");
-    println!("  2. Audit with: brewx audit --cask {}", output_path.display());
+    println!("  2. Audit with: stout audit --cask {}", output_path.display());
 
     Ok(())
 }
@@ -279,7 +279,7 @@ fn extract_version_from_url(url: &str) -> Option<String> {
 
 async fn calculate_sha256(url: &str) -> Result<String> {
     let client = Client::builder()
-        .user_agent("brewx/0.1.0")
+        .user_agent("stout/0.1.0")
         .build()?;
 
     let response = client.get(url)

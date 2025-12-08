@@ -1,7 +1,7 @@
 //! Tap command for managing custom formula repositories
 
 use anyhow::{bail, Context, Result};
-use brewx_state::{Config, Paths, Tap, TapManager};
+use stout_state::{Config, Paths, Tap, TapManager};
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
 
@@ -119,7 +119,7 @@ async fn add_tap(
             println!("  {}: {}", style("URL").dim(), url);
             println!(
                 "\n{}",
-                style("Run 'brewx update' to sync the new tap").dim()
+                style("Run 'stout update' to sync the new tap").dim()
             );
         }
         Ok(resp) => {
@@ -144,7 +144,7 @@ fn remove_tap(manager: &mut TapManager, paths: &Paths, name: &str) -> Result<()>
     }
 
     // Don't allow removing the core tap
-    if name == "homebrew/core" || name == "neul-labs/brewx-index" {
+    if name == "homebrew/core" || name == "neul-labs/stout-index" {
         bail!("Cannot remove the core tap");
     }
 
@@ -161,7 +161,7 @@ fn list_taps(manager: &TapManager) -> Result<()> {
 
     if taps.is_empty() {
         println!("\n{}", style("No taps configured.").dim());
-        println!("{}", style("Run 'brewx tap add <name>' to add a tap").dim());
+        println!("{}", style("Run 'stout tap add <name>' to add a tap").dim());
         return Ok(());
     }
 

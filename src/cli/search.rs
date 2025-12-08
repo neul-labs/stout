@@ -1,8 +1,8 @@
 //! Search command
 
 use anyhow::{Context, Result};
-use brewx_index::Database;
-use brewx_state::Paths;
+use stout_index::Database;
+use stout_state::Paths;
 use clap::Args as ClapArgs;
 use console::style;
 
@@ -29,11 +29,11 @@ pub async fn run(args: Args) -> Result<()> {
 
     // Open the database
     let db = Database::open(paths.index_db())
-        .context("Failed to open index. Run 'brewx update' first.")?;
+        .context("Failed to open index. Run 'stout update' first.")?;
 
     if !db.is_initialized()? {
         eprintln!(
-            "{} Index not initialized. Run 'brewx update' first.",
+            "{} Index not initialized. Run 'stout update' first.",
             style("error:").red().bold()
         );
         std::process::exit(1);
@@ -123,7 +123,7 @@ pub async fn run(args: Args) -> Result<()> {
     } else {
         println!(
             "\n{}\n",
-            style("Use 'brewx info <name>' for details").dim()
+            style("Use 'stout info <name>' for details").dim()
         );
     }
 

@@ -1,4 +1,4 @@
-//! Build script for brewx - generates man pages from CLI definition
+//! Build script for stout - generates man pages from CLI definition
 
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_mangen::Man;
@@ -11,9 +11,9 @@ use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(
-    name = "brewx",
+    name = "stout",
     about = "A fast, Rust-based Homebrew-compatible package manager",
-    long_about = "brewx is a drop-in replacement for the Homebrew CLI that's 10-100x faster \
+    long_about = "stout is a drop-in replacement for the Homebrew CLI that's 10-100x faster \
                   for common operations. It uses a pre-computed SQLite index with FTS5 full-text \
                   search, fetches only what it needs, and downloads bottles in parallel.",
     version,
@@ -32,14 +32,14 @@ struct Cli {
     quiet: bool,
 
     /// Use a custom installation prefix
-    #[arg(long, global = true, env = "BREWX_PREFIX")]
+    #[arg(long, global = true, env = "STOUT_PREFIX")]
     prefix: Option<PathBuf>,
 }
 
 #[derive(Subcommand)]
 enum Command {
     /// Install packages from bottles or source
-    #[command(long_about = "Install one or more packages. By default, brewx installs pre-built \
+    #[command(long_about = "Install one or more packages. By default, stout installs pre-built \
                             bottles (binary packages) for fast installation. Use --build-from-source \
                             to compile from source instead.")]
     Install {
@@ -265,11 +265,11 @@ enum Command {
     },
 
     /// Check system health and diagnose issues
-    #[command(long_about = "Run diagnostic checks on your brewx installation. Reports issues \
+    #[command(long_about = "Run diagnostic checks on your stout installation. Reports issues \
                             with configuration, permissions, and installed packages.")]
     Doctor,
 
-    /// Show brewx and system configuration
+    /// Show stout and system configuration
     Config,
 
     /// Generate shell completions for bash, zsh, or fish
@@ -503,7 +503,7 @@ enum PrefixCommand {
 fn main() {
     // Only generate man pages when building for release or when explicitly requested
     if env::var("PROFILE").unwrap_or_default() != "release"
-        && env::var("BREWX_GEN_MAN").is_err()
+        && env::var("STOUT_GEN_MAN").is_err()
     {
         return;
     }
@@ -518,11 +518,11 @@ fn main() {
 
     let cmd = Cli::command();
 
-    // Generate main man page (brewx.1)
+    // Generate main man page (stout.1)
     let man = Man::new(cmd.clone());
     let mut buffer = Vec::new();
     man.render(&mut buffer).expect("Failed to render man page");
-    fs::write(man_dir.join("brewx.1"), buffer).expect("Failed to write brewx.1");
+    fs::write(man_dir.join("stout.1"), buffer).expect("Failed to write stout.1");
 
     // Generate man pages for subcommands
     for subcommand in cmd.get_subcommands() {
@@ -531,11 +531,11 @@ fn main() {
         let mut buffer = Vec::new();
         man.render(&mut buffer)
             .expect(&format!("Failed to render man page for {}", name));
-        fs::write(man_dir.join(format!("brewx-{}.1", name)), buffer)
-            .expect(&format!("Failed to write brewx-{}.1", name));
+        fs::write(man_dir.join(format!("stout-{}.1", name)), buffer)
+            .expect(&format!("Failed to write stout-{}.1", name));
     }
 
     // Tell cargo to rerun if CLI changes
     println!("cargo:rerun-if-changed=src/cli/mod.rs");
-    println!("cargo:rerun-if-env-changed=BREWX_GEN_MAN");
+    println!("cargo:rerun-if-env-changed=STOUT_GEN_MAN");
 }

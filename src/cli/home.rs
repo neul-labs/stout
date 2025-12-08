@@ -1,8 +1,8 @@
 //! Home command - open the homepage of a package in the browser
 
 use anyhow::{bail, Context, Result};
-use brewx_index::{Database, IndexSync};
-use brewx_state::{Config, Paths};
+use stout_index::{Database, IndexSync};
+use stout_state::{Config, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 
@@ -16,19 +16,19 @@ pub async fn run(args: Args) -> Result<()> {
     let paths = Paths::default();
     let config = Config::load(&paths)?;
 
-    // If no formula specified, open brewx/homebrew homepage
+    // If no formula specified, open stout/homebrew homepage
     let url = if let Some(ref name) = args.formula {
         let db = Database::open(paths.index_db())
-            .context("Failed to open index. Run 'brewx update' first.")?;
+            .context("Failed to open index. Run 'stout update' first.")?;
 
         if !db.is_initialized()? {
-            bail!("Index not initialized. Run 'brewx update' first.");
+            bail!("Index not initialized. Run 'stout update' first.");
         }
 
         // Try to get formula info
         let sync = IndexSync::with_security_policy(
             Some(&config.index.base_url),
-            &paths.brewx_dir,
+            &paths.stout_dir,
             config.security.to_security_policy(),
         )?;
 

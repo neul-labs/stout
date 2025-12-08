@@ -1,7 +1,7 @@
 //! Switch command - switch between installed versions of a package
 
 use anyhow::{bail, Result};
-use brewx_state::{InstalledPackages, PackageHistory, Paths};
+use stout_state::{InstalledPackages, PackageHistory, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 

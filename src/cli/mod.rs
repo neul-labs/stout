@@ -44,7 +44,7 @@ use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(
-    name = "brewx",
+    name = "stout",
     about = "A fast, Rust-based Homebrew-compatible package manager",
     version,
     author
@@ -62,7 +62,7 @@ pub struct Cli {
     pub quiet: bool,
 
     /// Use a custom installation prefix
-    #[arg(long, global = true, env = "BREWX_PREFIX")]
+    #[arg(long, global = true, env = "STOUT_PREFIX")]
     pub prefix: Option<PathBuf>,
 }
 
@@ -146,7 +146,7 @@ pub enum Command {
     /// Check system health
     Doctor(doctor::Args),
 
-    /// Show brewx configuration
+    /// Show stout configuration
     Config(config::Args),
 
     /// Generate shell completions

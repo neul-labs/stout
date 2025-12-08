@@ -1,35 +1,35 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/brewx-index",
-    "crates/brewx-resolve",
-    "crates/brewx-fetch",
-    "crates/brewx-install",
-    "crates/brewx-state",
-    "crates/brewx-cask",
-    "crates/brewx-bundle",
-    "crates/brewx-audit",
-    "crates/brewx-mirror",
+    "crates/stout-index",
+    "crates/stout-resolve",
+    "crates/stout-fetch",
+    "crates/stout-install",
+    "crates/stout-state",
+    "crates/stout-cask",
+    "crates/stout-bundle",
+    "crates/stout-audit",
+    "crates/stout-mirror",
 ]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/neul-labs/brewx"
+repository = "https://github.com/neul-labs/stout"
 rust-version = "1.75"
 
 [workspace.dependencies]
 # Internal crates
-brewx-index = { path = "crates/brewx-index" }
-brewx-resolve = { path = "crates/brewx-resolve" }
-brewx-fetch = { path = "crates/brewx-fetch" }
-brewx-install = { path = "crates/brewx-install" }
-brewx-state = { path = "crates/brewx-state" }
-brewx-cask = { path = "crates/brewx-cask" }
-brewx-bundle = { path = "crates/brewx-bundle" }
-brewx-audit = { path = "crates/brewx-audit" }
-brewx-mirror = { path = "crates/brewx-mirror" }
+stout-index = { path = "crates/stout-index" }
+stout-resolve = { path = "crates/stout-resolve" }
+stout-fetch = { path = "crates/stout-fetch" }
+stout-install = { path = "crates/stout-install" }
+stout-state = { path = "crates/stout-state" }
+stout-cask = { path = "crates/stout-cask" }
+stout-bundle = { path = "crates/stout-bundle" }
+stout-audit = { path = "crates/stout-audit" }
+stout-mirror = { path = "crates/stout-mirror" }
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }
@@ -89,7 +89,7 @@ strsim = "0.11"  # Fuzzy matching for "did you mean?"
 num_cpus = "1.16"
 
 [package]
-name = "brewx"
+name = "stout"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -98,19 +98,19 @@ rust-version.workspace = true
 description = "A fast, Rust-based Homebrew-compatible package manager"
 
 [[bin]]
-name = "brewx"
+name = "stout"
 path = "src/main.rs"
 
 [dependencies]
-brewx-index.workspace = true
-brewx-resolve.workspace = true
-brewx-fetch.workspace = true
-brewx-install.workspace = true
-brewx-state.workspace = true
-brewx-cask.workspace = true
-brewx-bundle.workspace = true
-brewx-audit.workspace = true
-brewx-mirror.workspace = true
+stout-index.workspace = true
+stout-resolve.workspace = true
+stout-fetch.workspace = true
+stout-install.workspace = true
+stout-state.workspace = true
+stout-cask.workspace = true
+stout-bundle.workspace = true
+stout-audit.workspace = true
+stout-mirror.workspace = true
 
 tokio.workspace = true
 clap.workspace = true

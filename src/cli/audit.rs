@@ -1,8 +1,8 @@
 //! Audit command - scan for vulnerabilities in installed packages
 
 use anyhow::{bail, Result};
-use brewx_audit::{AuditReport, Severity, VulnDatabase, VulnDatabaseConfig};
-use brewx_state::{InstalledPackages, Paths};
+use stout_audit::{AuditReport, Severity, VulnDatabase, VulnDatabaseConfig};
+use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 

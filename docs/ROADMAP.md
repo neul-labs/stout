@@ -1,10 +1,10 @@
-# brewx Roadmap
+# stout Roadmap
 
-This document outlines planned extensions for brewx, following the **preprocessed index architecture**.
+This document outlines planned extensions for stout, following the **preprocessed index architecture**.
 
 ## Architecture Principle
 
-brewx achieves its speed by preprocessing data at build time, not runtime:
+stout achieves its speed by preprocessing data at build time, not runtime:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -13,16 +13,16 @@ brewx achieves its speed by preprocessing data at build time, not runtime:
 │                                                                  │
 │   Source API ──▶ sync_*.py ──▶ SQLite Index + Compressed JSON   │
 │                      │                                           │
-│            - Transform to brewx format                           │
+│            - Transform to stout format                           │
 │            - Build FTS5 search index                             │
 │            - Compress with zstd                                  │
-│            - Upload to brewx-index repo                          │
+│            - Upload to stout-index repo                          │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                  CLIENT RUNTIME (brewx)                          │
+│                  CLIENT RUNTIME (stout)                          │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │   Download index ──▶ Query SQLite ──▶ Fetch artifact ──▶ Install│
@@ -41,10 +41,10 @@ brewx achieves its speed by preprocessing data at build time, not runtime:
 
 ## Index Structure
 
-### Current: brewx-index
+### Current: stout-index
 
 ```
-brewx-index/
+stout-index/
 ├── manifest.json           # Version, checksums, counts
 ├── index.db.zst            # SQLite with FTS5 (~1.5MB compressed)
 └── formulas/
@@ -55,10 +55,10 @@ brewx-index/
     └── ...
 ```
 
-### Proposed: Unified brewx-index
+### Proposed: Unified stout-index
 
 ```
-brewx-index/
+stout-index/
 ├── manifest.json           # Combined manifest
 │
 ├── formulas/
@@ -91,9 +91,9 @@ brewx-index/
 #### New Commands
 
 ```bash
-brewx deps --graph jq           # DOT output
-brewx deps --graph jq --json    # JSON adjacency list
-brewx why openssl               # Reverse dependency chain
+stout deps --graph jq           # DOT output
+stout deps --graph jq --json    # JSON adjacency list
+stout why openssl               # Reverse dependency chain
 ```
 
 #### Implementation
@@ -109,26 +109,26 @@ brewx why openssl               # Reverse dependency chain
 
 ### 1.2 Rollback/History Support ✅
 
-**Client-side only** - history stored locally in `~/.brewx/history.json`.
+**Client-side only** - history stored locally in `~/.stout/history.json`.
 
 #### New Commands
 
 ```bash
-brewx history jq                # Show version history
-brewx rollback jq               # Revert to previous
-brewx switch jq 1.6             # Switch installed version
+stout history jq                # Show version history
+stout rollback jq               # Revert to previous
+stout switch jq 1.6             # Switch installed version
 ```
 
 #### Implementation
 
 | Component | Changes |
 |-----------|---------|
-| `crates/brewx-state/src/history.rs` | New module |
+| `crates/stout-state/src/history.rs` | New module |
 | `src/cli/history.rs` | New command |
 | `src/cli/rollback.rs` | New command |
 | `src/cli/upgrade.rs` | Record history on upgrade |
 
-**Storage:** `~/.brewx/history.json`
+**Storage:** `~/.stout/history.json`
 ```json
 {
   "jq": [
@@ -152,11 +152,11 @@ brewx switch jq 1.6             # Switch installed version
 - Homebrew Cask API: `https://formulae.brew.sh/api/cask.json`
 - ~6000+ casks
 
-#### Transform: Homebrew Cask → brewx Cask
+#### Transform: Homebrew Cask → stout Cask
 
 ```python
 def transform_cask(hb_cask: dict) -> dict:
-    """Transform Homebrew cask JSON to brewx format."""
+    """Transform Homebrew cask JSON to stout format."""
     return {
         "token": hb_cask["token"],              # firefox
         "name": hb_cask.get("name", []),        # ["Firefox"]
@@ -254,24 +254,24 @@ casks/
 
 ### 2.2 Cask Client (macOS) ✅
 
-**New crate:** `crates/brewx-cask/`
+**New crate:** `crates/stout-cask/`
 
 #### Commands
 
 ```bash
-brewx install --cask firefox
-brewx search --cask browser
-brewx info --cask firefox
-brewx list --cask
-brewx uninstall --cask firefox
-brewx upgrade --cask
-brewx uninstall --cask --zap firefox   # Remove all traces
+stout install --cask firefox
+stout search --cask browser
+stout info --cask firefox
+stout list --cask
+stout uninstall --cask firefox
+stout upgrade --cask
+stout uninstall --cask --zap firefox   # Remove all traces
 ```
 
 #### Crate Structure
 
 ```
-crates/brewx-cask/
+crates/stout-cask/
 ├── Cargo.toml
 └── src/
     ├── lib.rs
@@ -317,7 +317,7 @@ pub async fn install_cask(token: &str, paths: &Paths) -> Result<()> {
 
 #### Cask State Storage
 
-Installed casks tracked in `~/.brewx/casks.json`:
+Installed casks tracked in `~/.stout/casks.json`:
 
 ```json
 {
@@ -517,7 +517,7 @@ pub async fn install_appimage(app: &LinuxApp, paths: &Paths) -> Result<()> {
     let appimage = app.appimage.as_ref()
         .ok_or_else(|| anyhow!("No AppImage available"))?;
 
-    // 1. Download to ~/.local/share/brewx/appimages/
+    // 1. Download to ~/.local/share/stout/appimages/
     let appimage_dir = paths.data_dir.join("appimages");
     let dest = appimage_dir.join(format!("{}.AppImage", app.token));
     download_file(&appimage.url, &dest).await?;
@@ -563,11 +563,11 @@ pub async fn install_flatpak(app: &LinuxApp, _paths: &Paths) -> Result<()> {
 
 ```bash
 # Auto-select best available
-brewx install --cask firefox
+stout install --cask firefox
 
 # Force specific format
-brewx install --cask firefox --appimage
-brewx install --cask firefox --flatpak
+stout install --cask firefox --appimage
+stout install --cask firefox --flatpak
 ```
 
 **Effort:** 4-5 days
@@ -576,12 +576,12 @@ brewx install --cask firefox --flatpak
 
 ### 2.5 Update Command Changes
 
-After cask support, `brewx update` updates all indexes:
+After cask support, `stout update` updates all indexes:
 
 ```bash
-brewx update                    # Update all indexes (formulas, casks, linux-apps)
-brewx update --formulas-only    # Only formula index
-brewx update --casks-only       # Only cask index
+stout update                    # Update all indexes (formulas, casks, linux-apps)
+stout update --formulas-only    # Only formula index
+stout update --casks-only       # Only cask index
 ```
 
 **Implementation:** Modify `src/cli/update.rs` to:
@@ -763,12 +763,12 @@ fn extract_string(s: &str) -> Result<String> {
 **Behavior:**
 
 ```bash
-$ brewx bundle
+$ stout bundle
 ==> Parsing Brewfile...
 ==> Installing 5 brews, 3 casks...
 
 # If Ruby not available:
-$ brewx bundle
+$ stout bundle
 Note: Ruby not found, using basic parser (some options may be ignored)
 ==> Installing 5 brews, 3 casks...
 ```
@@ -776,12 +776,12 @@ Note: Ruby not found, using basic parser (some options may be ignored)
 #### Commands
 
 ```bash
-brewx bundle                    # Install from ./Brewfile
-brewx bundle --file=Brewfile.dev
-brewx bundle dump               # Generate from installed
-brewx bundle check              # Verify satisfied
-brewx bundle cleanup            # Remove unlisted
-brewx bundle list               # List entries
+stout bundle                    # Install from ./Brewfile
+stout bundle --file=Brewfile.dev
+stout bundle dump               # Generate from installed
+stout bundle check              # Verify satisfied
+stout bundle cleanup            # Remove unlisted
+stout bundle list               # List entries
 ```
 
 **Effort:** 3-4 days
@@ -792,36 +792,36 @@ brewx bundle list               # List entries
 
 **Client-side only** - uses local storage.
 
-**Note:** brewx already has `brewx lock` for reproducible environments (Brewfile.lock.json).
+**Note:** stout already has `stout lock` for reproducible environments (Brewfile.lock.json).
 Snapshots are different - they capture a named point-in-time state for quick switching.
 
 | Feature | Lock | Snapshot |
 |---------|------|----------|
 | Purpose | Reproducible builds | Quick state switching |
-| Storage | `Brewfile.lock.json` (project) | `~/.brewx/snapshots/` (user) |
+| Storage | `Brewfile.lock.json` (project) | `~/.stout/snapshots/` (user) |
 | Includes | Exact versions + checksums | Package list + metadata |
 | Use case | CI/CD, team sharing | Personal backup, experiments |
 
 ```bash
-brewx snapshot create mysetup
-brewx snapshot create mysetup --description "Before upgrade"
-brewx snapshot list
-brewx snapshot show mysetup
-brewx snapshot restore mysetup
-brewx snapshot restore mysetup --dry-run
-brewx snapshot delete mysetup
-brewx snapshot export mysetup > backup.json
-brewx snapshot import < backup.json
+stout snapshot create mysetup
+stout snapshot create mysetup --description "Before upgrade"
+stout snapshot list
+stout snapshot show mysetup
+stout snapshot restore mysetup
+stout snapshot restore mysetup --dry-run
+stout snapshot delete mysetup
+stout snapshot export mysetup > backup.json
+stout snapshot import < backup.json
 ```
 
-**Storage:** `~/.brewx/snapshots/<name>.json`
+**Storage:** `~/.stout/snapshots/<name>.json`
 
 ```json
 {
   "name": "mysetup",
   "description": "Before upgrade",
   "created_at": "2024-01-15T10:00:00Z",
-  "brewx_version": "0.2.0",
+  "stout_version": "0.2.0",
   "formulas": [
     {"name": "jq", "version": "1.7.1", "revision": 0, "requested": true},
     {"name": "oniguruma", "version": "6.9.9", "revision": 0, "requested": false}
@@ -899,7 +899,7 @@ CREATE TABLE vulnerabilities (
 
 CREATE TABLE affected_packages (
     vuln_id TEXT NOT NULL,
-    formula TEXT NOT NULL,            -- brewx formula name
+    formula TEXT NOT NULL,            -- stout formula name
     affected_versions TEXT,           -- Version range expression
     fixed_version TEXT,
     PRIMARY KEY (vuln_id, formula),
@@ -928,11 +928,11 @@ CREATE INDEX idx_affected_formula ON affected_packages(formula);
 ### 4.2 Audit Client ✅
 
 ```bash
-brewx audit                     # Scan all installed
-brewx audit jq                  # Scan specific
-brewx audit --format json       # Machine output
-brewx audit --update            # Update database first
-brewx audit --fail-on high      # CI/CD integration
+stout audit                     # Scan all installed
+stout audit jq                  # Scan specific
+stout audit --format json       # Machine output
+stout audit --update            # Update database first
+stout audit --fail-on high      # CI/CD integration
 ```
 
 #### Implementation
@@ -969,7 +969,7 @@ Supports both **shared internal server** and **single air-gapped machine** deplo
 #### Config Schema
 
 ```toml
-# ~/.brewx/config.toml
+# ~/.stout/config.toml
 
 [mirror]
 # Mirror URL (file:// for local, http:// for server)
@@ -989,7 +989,7 @@ verify_checksums = false
 update_check_interval_days = 7
 
 [mirror.server]
-# Default port for 'brewx mirror serve'
+# Default port for 'stout mirror serve'
 port = 8080
 bind = "0.0.0.0"
 ```
@@ -1000,31 +1000,31 @@ bind = "0.0.0.0"
 
 ```bash
 # Create mirror with specific packages (includes all dependencies)
-brewx mirror create ./mirror jq wget curl
+stout mirror create ./mirror jq wget curl
 
 # From Brewfile (recommended for teams)
-brewx mirror create ./mirror --from-brewfile Brewfile
+stout mirror create ./mirror --from-brewfile Brewfile
 
 # All currently installed packages
-brewx mirror create ./mirror --all-installed
+stout mirror create ./mirror --all-installed
 
 # Include casks (macOS GUI apps)
-brewx mirror create ./mirror --cask firefox vscode
+stout mirror create ./mirror --cask firefox vscode
 
 # Include Linux apps (AppImage/Flatpak)
-brewx mirror create ./mirror --linux-app firefox vscode
+stout mirror create ./mirror --linux-app firefox vscode
 
 # Specify platforms (default: current platform only)
-brewx mirror create ./mirror jq --platforms=arm64_sonoma,x86_64_linux
+stout mirror create ./mirror jq --platforms=arm64_sonoma,x86_64_linux
 
 # All platforms (warning: large download)
-brewx mirror create ./mirror jq --all-platforms
+stout mirror create ./mirror jq --all-platforms
 
 # Dry run - show what would be downloaded
-brewx mirror create ./mirror jq --dry-run
+stout mirror create ./mirror jq --dry-run
 
 # Skip dependencies (advanced)
-brewx mirror create ./mirror jq --no-deps
+stout mirror create ./mirror jq --no-deps
 ```
 
 #### Mirror Structure
@@ -1066,7 +1066,7 @@ mirror/
 {
   "version": "2024.01.15.1200",
   "created_at": "2024-01-15T12:00:00Z",
-  "brewx_version": "0.2.0",
+  "stout_version": "0.2.0",
   "platforms": ["arm64_sonoma", "x86_64_linux"],
 
   "update_schedule": {
@@ -1219,22 +1219,22 @@ pub async fn create_mirror(config: MirrorConfig) -> Result<MirrorManifest> {
 
 ```bash
 # Check for outdated packages in mirror
-brewx mirror outdated ./mirror
+stout mirror outdated ./mirror
 
 # Update all packages to latest versions
-brewx mirror update ./mirror
+stout mirror update ./mirror
 
 # Update specific packages
-brewx mirror update ./mirror jq wget
+stout mirror update ./mirror jq wget
 
 # Update from Brewfile (add new, update existing)
-brewx mirror update ./mirror --from-brewfile Brewfile
+stout mirror update ./mirror --from-brewfile Brewfile
 
 # Prune old versions (keep only latest)
-brewx mirror prune ./mirror
+stout mirror prune ./mirror
 
 # Prune keeping N versions
-brewx mirror prune ./mirror --keep=2
+stout mirror prune ./mirror --keep=2
 ```
 
 #### Update Schedule Defaults
@@ -1244,7 +1244,7 @@ brewx mirror prune ./mirror --keep=2
 | `update_check_interval_days` | 7 | Check for updates weekly |
 | Formula updates | On check | Update to latest stable |
 | Cask updates | On check | Update to latest version |
-| Auto-prune | Disabled | Must run `brewx mirror prune` manually |
+| Auto-prune | Disabled | Must run `stout mirror prune` manually |
 
 **Effort:** 2-3 days
 
@@ -1256,16 +1256,16 @@ brewx mirror prune ./mirror --keep=2
 
 ```bash
 # Start server with defaults (port 8080, bind 0.0.0.0)
-brewx mirror serve ./mirror
+stout mirror serve ./mirror
 
 # Custom port and bind
-brewx mirror serve ./mirror --port 9000 --bind 127.0.0.1
+stout mirror serve ./mirror --port 9000 --bind 127.0.0.1
 
 # With access logging
-brewx mirror serve ./mirror --log-access
+stout mirror serve ./mirror --log-access
 
 # Background mode (daemon)
-brewx mirror serve ./mirror --daemon --pid-file=/var/run/brewx-mirror.pid
+stout mirror serve ./mirror --daemon --pid-file=/var/run/stout-mirror.pid
 ```
 
 #### External Server (nginx example)
@@ -1275,7 +1275,7 @@ server {
     listen 8080;
     server_name mirror.internal;
 
-    root /var/brewx-mirror;
+    root /var/stout-mirror;
 
     location / {
         autoindex on;
@@ -1293,15 +1293,15 @@ server {
 #### Systemd Service (for production)
 
 ```ini
-# /etc/systemd/system/brewx-mirror.service
+# /etc/systemd/system/stout-mirror.service
 [Unit]
-Description=brewx Mirror Server
+Description=stout Mirror Server
 After=network.target
 
 [Service]
 Type=simple
-User=brewx
-ExecStart=/usr/local/bin/brewx mirror serve /var/brewx-mirror --port 8080
+User=stout
+ExecStart=/usr/local/bin/stout mirror serve /var/stout-mirror --port 8080
 Restart=always
 
 [Install]
@@ -1318,18 +1318,18 @@ WantedBy=multi-user.target
 
 ```bash
 # One-time override
-brewx --mirror=http://mirror.internal:8080 install jq
+stout --mirror=http://mirror.internal:8080 install jq
 
 # File-based mirror (USB drive, local mount)
-brewx --mirror=file:///mnt/usb/brewx-mirror install jq
+stout --mirror=file:///mnt/usb/stout-mirror install jq
 
 # Configure as default
-brewx config set mirror.url "http://mirror.internal:8080"
+stout config set mirror.url "http://mirror.internal:8080"
 
 # Then normal commands use mirror automatically
-brewx install jq
-brewx upgrade
-brewx search json
+stout install jq
+stout upgrade
+stout search json
 ```
 
 #### Client Behavior
@@ -1374,8 +1374,8 @@ impl MirrorClient {
                     Fallback::Error => {
                         bail!(
                             "Package '{}' not found in mirror.\n\
-                             Available packages: brewx --mirror=... search\n\
-                             To add to mirror: brewx mirror update <path> {}",
+                             Available packages: stout --mirror=... search\n\
+                             To add to mirror: stout mirror update <path> {}",
                             package, package
                         )
                     }
@@ -1431,18 +1431,18 @@ impl MirrorClient {
 
 ```
 # Package not in mirror (hard error - default)
-$ brewx --mirror=file:///mnt/mirror install unknown-pkg
+$ stout --mirror=file:///mnt/mirror install unknown-pkg
 Error: Package 'unknown-pkg' not found in mirror.
 
-Available packages: brewx --mirror=file:///mnt/mirror search
-To add to mirror: brewx mirror update /mnt/mirror unknown-pkg
+Available packages: stout --mirror=file:///mnt/mirror search
+To add to mirror: stout mirror update /mnt/mirror unknown-pkg
 
 # Platform not available
-$ brewx --mirror=file:///mnt/mirror install jq
+$ stout --mirror=file:///mnt/mirror install jq
 Error: No bottle for platform 'arm64_ventura' in mirror.
 Available platforms: arm64_sonoma, x86_64_linux
 
-To add platform: brewx mirror update /mnt/mirror jq --platforms=arm64_ventura
+To add platform: stout mirror update /mnt/mirror jq --platforms=arm64_ventura
 ```
 
 **Effort:** 3-4 days
@@ -1453,7 +1453,7 @@ To add platform: brewx mirror update /mnt/mirror jq --platforms=arm64_ventura
 
 ```bash
 # Verify mirror integrity
-brewx mirror verify ./mirror
+stout mirror verify ./mirror
 
 # Output:
 # Verifying mirror at ./mirror
@@ -1465,10 +1465,10 @@ brewx mirror verify ./mirror
 # Mirror verified: 20 files, 5.2 GB total
 
 # Verify with detailed output
-brewx mirror verify ./mirror --verbose
+stout mirror verify ./mirror --verbose
 
 # Verify specific packages only
-brewx mirror verify ./mirror jq wget
+stout mirror verify ./mirror jq wget
 ```
 
 **Effort:** 1 day
@@ -1505,9 +1505,9 @@ brewx mirror verify ./mirror jq wget
 No index changes - client-side only.
 
 ```bash
-brewx install foo -s --jobs=8
-brewx install foo -s --cc=clang
-brewx bottle create foo           # Create local bottle
+stout install foo -s --jobs=8
+stout install foo -s --cc=clang
+stout bottle create foo           # Create local bottle
 ```
 
 **Effort:** 4-5 days
@@ -1517,10 +1517,10 @@ brewx bottle create foo           # Create local bottle
 ### 6.2 Formula/Cask Creation ✅
 
 ```bash
-brewx create https://github.com/user/project/archive/v1.0.tar.gz
-brewx create --cask https://example.com/app.dmg
-brewx audit --formula ./foo.rb
-brewx test foo
+stout create https://github.com/user/project/archive/v1.0.tar.gz
+stout create --cask https://example.com/app.dmg
+stout audit --formula ./foo.rb
+stout test foo
 ```
 
 **Effort:** 4-5 days
@@ -1532,7 +1532,7 @@ brewx test foo
 Simple HTTP POST - no index needed.
 
 ```bash
-brewx analytics on|off|status
+stout analytics on|off|status
 ```
 
 **Effort:** 1-2 days
@@ -1545,21 +1545,21 @@ brewx analytics on|off|status
 
 ```bash
 # Create isolated prefix
-brewx prefix create ~/project/.brewx
+stout prefix create ~/project/.stout
 
 # Manage prefixes
-brewx prefix list
-brewx prefix info ~/project/.brewx
-brewx prefix default ~/project/.brewx
-brewx prefix remove ~/project/.brewx
+stout prefix list
+stout prefix info ~/project/.stout
+stout prefix default ~/project/.stout
+stout prefix remove ~/project/.stout
 
 # Use custom prefix with any command
-brewx --prefix=~/project/.brewx install jq
-brewx --prefix=~/project/.brewx list
+stout --prefix=~/project/.stout install jq
+stout --prefix=~/project/.stout list
 
 # Or set via environment variable
-export BREWX_PREFIX=~/project/.brewx
-brewx install jq
+export STOUT_PREFIX=~/project/.stout
+stout install jq
 ```
 
 **Effort:** 3-4 days
@@ -1581,10 +1581,10 @@ brewx install jq
 
 | Crate | Purpose | Phase |
 |-------|---------|-------|
-| `brewx-cask` | Cask index queries + installation | 2 |
-| `brewx-bundle` | Brewfile parsing | 3 |
-| `brewx-audit` | Vulnerability scanning | 4 |
-| `brewx-mirror` | Offline mirror creation/serving | 5 |
+| `stout-cask` | Cask index queries + installation | 2 |
+| `stout-bundle` | Brewfile parsing | 3 |
+| `stout-audit` | Vulnerability scanning | 4 |
+| `stout-mirror` | Offline mirror creation/serving | 5 |
 
 ### Curated Mapping Files
 
@@ -1654,10 +1654,10 @@ Commands to add to `src/cli/mod.rs`:
 
 ## Index Hosting
 
-All indexes hosted in single repo: `github.com/neul-labs/brewx-index`
+All indexes hosted in single repo: `github.com/neul-labs/stout-index`
 
 ```
-brewx-index/
+stout-index/
 ├── manifest.json              # Combined version info
 ├── formulas/                  # ~3MB
 ├── casks/                     # ~2MB (estimated)
@@ -1688,16 +1688,16 @@ Resolved decisions for implementation:
 ### Compatibility
 3. **Brewfile parsing**: **Use Ruby for full compatibility**
    - Strategy: Shell out to Ruby to parse Brewfile and output structured YAML/JSON
-   - brewx reads the parsed output, not the Ruby DSL directly
+   - stout reads the parsed output, not the Ruby DSL directly
    - Rationale: 100% compatibility with brew bundle, handles all edge cases
 
    ```bash
    # Internal implementation
-   ruby -e "require 'yaml'; eval(File.read('Brewfile')); puts $entries.to_yaml" | brewx bundle --from-yaml
+   ruby -e "require 'yaml'; eval(File.read('Brewfile')); puts $entries.to_yaml" | stout bundle --from-yaml
    ```
 
    ```ruby
-   # Helper script: brewx-parse-brewfile.rb
+   # Helper script: stout-parse-brewfile.rb
    $entries = {taps: [], brews: [], casks: [], mas: []}
 
    def tap(name, **opts)
@@ -1752,20 +1752,20 @@ Resolved decisions for implementation:
 
 6. **Vulnerability severity threshold**: **Warn only (like brew)**
    - Default: Show warnings but don't block installs
-   - `brewx install --audit` - Warn about vulnerabilities
-   - `brewx install --audit --fail-on=critical` - Block on critical
-   - `brewx install --audit --fail-on=high` - Block on high+
+   - `stout install --audit` - Warn about vulnerabilities
+   - `stout install --audit --fail-on=critical` - Block on critical
+   - `stout install --audit --fail-on=high` - Block on high+
    - Rationale: Matches brew behavior, non-breaking default
 
 ### User Experience
 7. **Cask upgrade behavior**: **Like brew - skip auto-updating casks**
-   - `brewx upgrade --cask` - Skip casks with `auto_updates: true`
-   - `brewx upgrade --cask --greedy` - Include auto-updating casks
+   - `stout upgrade --cask` - Skip casks with `auto_updates: true`
+   - `stout upgrade --cask --greedy` - Include auto-updating casks
    - Rationale: Matches brew behavior, respects app self-update mechanisms
 
 8. **Error recovery**: **Atomic by default, best-effort optional**
    - Default: If any package fails, rollback all changes
-   - `brewx install --best-effort pkg1 pkg2 pkg3` - Continue on failures
+   - `stout install --best-effort pkg1 pkg2 pkg3` - Continue on failures
    - Rationale: Predictable default, power users can opt into partial installs
 
    ```rust

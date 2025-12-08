@@ -1,8 +1,8 @@
 //! Rollback command - revert a package to its previous version
 
 use anyhow::{bail, Context, Result};
-use brewx_index::{Database, IndexSync};
-use brewx_state::{Config, InstalledPackages, PackageHistory, Paths};
+use stout_index::{Database, IndexSync};
+use stout_state::{Config, InstalledPackages, PackageHistory, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 
@@ -112,7 +112,7 @@ pub async fn run(args: Args) -> Result<()> {
         );
 
         // For now, we inform the user they need to install the specific version
-        // A full implementation would integrate with brewx-install to download
+        // A full implementation would integrate with stout-install to download
         // the specific version bottle.
         println!();
         println!(
@@ -121,7 +121,7 @@ pub async fn run(args: Args) -> Result<()> {
             style(&target_version).green()
         );
         println!(
-            "  brewx uninstall {} && brewx install {}@{}",
+            "  stout uninstall {} && stout install {}@{}",
             args.formula, args.formula, target_version
         );
         println!();

@@ -1,7 +1,7 @@
 //! Lock command for managing lockfiles
 
 use anyhow::{Context, Result};
-use brewx_state::{InstalledPackages, LockedPackage, Lockfile, Paths};
+use stout_state::{InstalledPackages, LockedPackage, Lockfile, Paths};
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
 use std::path::PathBuf;
@@ -16,21 +16,21 @@ pub struct Args {
 pub enum LockCommand {
     /// Generate a lockfile from currently installed packages
     Generate {
-        /// Output file path (default: brewx.lock)
+        /// Output file path (default: stout.lock)
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
 
     /// Install packages from a lockfile
     Install {
-        /// Lockfile path (default: brewx.lock)
+        /// Lockfile path (default: stout.lock)
         #[arg(short, long)]
         file: Option<PathBuf>,
     },
 
     /// Show lockfile contents
     Show {
-        /// Lockfile path (default: brewx.lock)
+        /// Lockfile path (default: stout.lock)
         #[arg(short, long)]
         file: Option<PathBuf>,
     },
@@ -72,7 +72,7 @@ async fn generate_lockfile(output: Option<PathBuf>) -> Result<()> {
         lockfile.add_package(name, locked);
     }
 
-    let output_path = output.unwrap_or_else(|| PathBuf::from("brewx.lock"));
+    let output_path = output.unwrap_or_else(|| PathBuf::from("stout.lock"));
     lockfile.save(&output_path)?;
 
     println!(
@@ -86,7 +86,7 @@ async fn generate_lockfile(output: Option<PathBuf>) -> Result<()> {
 }
 
 async fn install_from_lockfile(file: Option<PathBuf>) -> Result<()> {
-    let lockfile_path = file.unwrap_or_else(|| PathBuf::from("brewx.lock"));
+    let lockfile_path = file.unwrap_or_else(|| PathBuf::from("stout.lock"));
 
     let lockfile = Lockfile::load(&lockfile_path)
         .context(format!("Failed to load lockfile from {:?}", lockfile_path))?;
@@ -128,7 +128,7 @@ async fn install_from_lockfile(file: Option<PathBuf>) -> Result<()> {
 
     println!(
         "\n{}\n",
-        style("Run 'brewx install <packages>' with the locked versions").dim()
+        style("Run 'stout install <packages>' with the locked versions").dim()
     );
 
     // In a full implementation, we would actually install the packages
@@ -138,7 +138,7 @@ async fn install_from_lockfile(file: Option<PathBuf>) -> Result<()> {
 }
 
 async fn show_lockfile(file: Option<PathBuf>) -> Result<()> {
-    let lockfile_path = file.unwrap_or_else(|| PathBuf::from("brewx.lock"));
+    let lockfile_path = file.unwrap_or_else(|| PathBuf::from("stout.lock"));
 
     let lockfile = Lockfile::load(&lockfile_path)
         .context(format!("Failed to load lockfile from {:?}", lockfile_path))?;

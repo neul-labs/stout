@@ -1,8 +1,8 @@
 //! Bottle command - create bottles from installed packages
 
 use anyhow::{bail, Context, Result};
-use brewx_install::create_bottle;
-use brewx_state::{InstalledPackages, Paths};
+use stout_install::create_bottle;
+use stout_state::{InstalledPackages, Paths};
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
 use flate2::read::GzDecoder;
@@ -128,7 +128,7 @@ async fn run_create(
     // Print usage hint
     println!("{}", style("To install this bottle:").dim());
     println!(
-        "  brewx install --bottle {}",
+        "  stout install --bottle {}",
         bottle_path.display()
     );
 

@@ -1,7 +1,7 @@
 //! List command
 
 use anyhow::Result;
-use brewx_state::{InstalledPackages, Paths};
+use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 

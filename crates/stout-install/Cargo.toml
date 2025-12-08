@@ -1,0 +1,25 @@
+[package]
+name = "stout-install"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Package installation for stout"
+
+[dependencies]
+stout-index.workspace = true
+stout-fetch.workspace = true
+stout-state.workspace = true
+tokio.workspace = true
+tar.workspace = true
+flate2.workspace = true
+zstd.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+reqwest.workspace = true
+sha2.workspace = true
+num_cpus.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

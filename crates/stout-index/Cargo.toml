@@ -1,0 +1,24 @@
+[package]
+name = "stout-index"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "SQLite index management for stout"
+
+[dependencies]
+rusqlite.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+zstd.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+ed25519-dalek.workspace = true
+hex.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+dirs.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

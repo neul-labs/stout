@@ -1,10 +1,10 @@
 //! Bundle command - Brewfile management
 
 use anyhow::{bail, Context, Result};
-use brewx_bundle::{Brewfile, BrewEntry, CaskEntry, TapEntry};
-use brewx_cask::{install_cask, CaskInstallOptions, InstalledCasks};
-use brewx_index::{Database, IndexSync};
-use brewx_state::{Config, InstalledPackages, Paths};
+use stout_bundle::{Brewfile, BrewEntry, CaskEntry, TapEntry};
+use stout_cask::{install_cask, CaskInstallOptions, InstalledCasks};
+use stout_index::{Database, IndexSync};
+use stout_state::{Config, InstalledPackages, Paths};
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
 use std::path::PathBuf;
@@ -164,10 +164,10 @@ async fn run_install(brewfile_path: &PathBuf, args: InstallArgs) -> Result<()> {
 
     // Open database
     let db = Database::open(paths.index_db())
-        .context("Failed to open index. Run 'brewx update' first.")?;
+        .context("Failed to open index. Run 'stout update' first.")?;
 
     let mut installed_formulas = InstalledPackages::load(&paths)?;
-    let state_path = paths.brewx_dir.join("casks.json");
+    let state_path = paths.stout_dir.join("casks.json");
     let installed_casks = InstalledCasks::load(&state_path)?;
 
     // Track what needs to be installed
@@ -270,10 +270,10 @@ async fn run_install(brewfile_path: &PathBuf, args: InstallArgs) -> Result<()> {
 
         let sync = IndexSync::with_security_policy(
             Some(&config.index.base_url),
-            &paths.brewx_dir,
+            &paths.stout_dir,
             config.security.to_security_policy(),
         )?;
-        let cache_dir = paths.brewx_dir.join("cache").join("casks");
+        let cache_dir = paths.stout_dir.join("cache").join("casks");
         std::fs::create_dir_all(&cache_dir)?;
 
         let options = CaskInstallOptions {
@@ -335,7 +335,7 @@ async fn run_dump(brewfile_path: &PathBuf, args: DumpArgs) -> Result<()> {
 
     let paths = Paths::default();
     let installed = InstalledPackages::load(&paths)?;
-    let state_path = paths.brewx_dir.join("casks.json");
+    let state_path = paths.stout_dir.join("casks.json");
     let installed_casks = InstalledCasks::load(&state_path)?;
 
     // Collect formulas
@@ -369,7 +369,7 @@ async fn run_check(brewfile_path: &PathBuf, args: CheckArgs) -> Result<()> {
 
     let paths = Paths::default();
     let installed = InstalledPackages::load(&paths)?;
-    let state_path = paths.brewx_dir.join("casks.json");
+    let state_path = paths.stout_dir.join("casks.json");
     let installed_casks = InstalledCasks::load(&state_path)?;
 
     let mut missing_formulas = Vec::new();
@@ -417,7 +417,7 @@ async fn run_check(brewfile_path: &PathBuf, args: CheckArgs) -> Result<()> {
 
     let total_missing = missing_formulas.len() + missing_casks.len();
     println!(
-        "\n{} {} dependencies are missing. Run 'brewx bundle install' to install.",
+        "\n{} {} dependencies are missing. Run 'stout bundle install' to install.",
         style("✗").red(),
         total_missing
     );
@@ -485,7 +485,7 @@ async fn run_cleanup(brewfile_path: &PathBuf, args: CleanupArgs) -> Result<()> {
 
     let paths = Paths::default();
     let installed = InstalledPackages::load(&paths)?;
-    let state_path = paths.brewx_dir.join("casks.json");
+    let state_path = paths.stout_dir.join("casks.json");
     let installed_casks = InstalledCasks::load(&state_path)?;
 
     // Find formulas not in Brewfile
@@ -538,7 +538,7 @@ async fn run_cleanup(brewfile_path: &PathBuf, args: CleanupArgs) -> Result<()> {
     println!("\n{}", style("Cleanup would remove these packages.").dim());
     println!(
         "{}",
-        style("Run 'brewx uninstall <package>' to remove them.").dim()
+        style("Run 'stout uninstall <package>' to remove them.").dim()
     );
 
     Ok(())

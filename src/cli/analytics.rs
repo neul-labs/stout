@@ -1,12 +1,12 @@
 //! Analytics command - manage opt-in usage analytics
 //!
-//! brewx respects user privacy. Analytics are:
+//! stout respects user privacy. Analytics are:
 //! - Completely opt-in (disabled by default)
 //! - Anonymous (no personally identifiable information)
 //! - Transparent (you can see what's collected)
 
 use anyhow::Result;
-use brewx_state::{Config, Paths};
+use stout_state::{Config, Paths};
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
 
@@ -52,8 +52,8 @@ async fn run_on() -> Result<()> {
         style("✓").green().bold()
     );
 
-    println!("Thank you for helping improve brewx!");
-    println!("Run '{}' to see what data is collected.\n", style("brewx analytics what").cyan());
+    println!("Thank you for helping improve stout!");
+    println!("Run '{}' to see what data is collected.\n", style("stout analytics what").cyan());
 
     Ok(())
 }
@@ -84,27 +84,27 @@ async fn run_status() -> Result<()> {
             "  Status: {}",
             style("Enabled").green()
         );
-        println!("\n  Run '{}' to disable.", style("brewx analytics off").cyan());
+        println!("\n  Run '{}' to disable.", style("stout analytics off").cyan());
     } else {
         println!(
             "  Status: {}",
             style("Disabled").dim()
         );
-        println!("\n  Run '{}' to enable.", style("brewx analytics on").cyan());
+        println!("\n  Run '{}' to enable.", style("stout analytics on").cyan());
     }
 
-    println!("  Run '{}' to see what data is collected.\n", style("brewx analytics what").cyan());
+    println!("  Run '{}' to see what data is collected.\n", style("stout analytics what").cyan());
 
     Ok(())
 }
 
 async fn run_what() -> Result<()> {
-    println!("\n{}\n", style("What brewx collects (when enabled)").cyan().bold());
+    println!("\n{}\n", style("What stout collects (when enabled)").cyan().bold());
 
     println!("{}:", style("Anonymous usage data").bold());
     println!("  • Commands used (install, search, update, etc.)");
     println!("  • Package names installed/searched");
-    println!("  • brewx version");
+    println!("  • stout version");
     println!("  • Operating system and architecture");
     println!("  • Success/failure status of operations");
     println!();
@@ -127,7 +127,7 @@ async fn run_what() -> Result<()> {
     println!("{}:", style("Data handling").bold());
     println!("  • Data is aggregated and anonymized");
     println!("  • No individual usage is tracked");
-    println!("  • You can disable at any time with '{}'\n", style("brewx analytics off").cyan());
+    println!("  • You can disable at any time with '{}'\n", style("stout analytics off").cyan());
 
     Ok(())
 }
@@ -152,7 +152,7 @@ pub async fn record_event(event_type: &str, data: &str) -> Result<()> {
     // This would be a simple HTTP POST to an analytics endpoint:
     //
     // let client = reqwest::Client::new();
-    // let _ = client.post("https://analytics.brewx.dev/v1/events")
+    // let _ = client.post("https://analytics.stout.dev/v1/events")
     //     .json(&serde_json::json!({
     //         "event": event_type,
     //         "data": data,

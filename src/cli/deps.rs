@@ -1,8 +1,8 @@
 //! Deps command - show dependencies of a package
 
 use anyhow::{bail, Context, Result};
-use brewx_index::{Database, IndexSync};
-use brewx_state::{Config, InstalledPackages, Paths};
+use stout_index::{Database, IndexSync};
+use stout_state::{Config, InstalledPackages, Paths};
 use clap::{Args as ClapArgs, ValueEnum};
 use console::style;
 use serde::Serialize;
@@ -92,16 +92,16 @@ pub async fn run(args: Args) -> Result<()> {
     let config = Config::load(&paths)?;
 
     let db = Database::open(paths.index_db())
-        .context("Failed to open index. Run 'brewx update' first.")?;
+        .context("Failed to open index. Run 'stout update' first.")?;
 
     if !db.is_initialized()? {
-        bail!("Index not initialized. Run 'brewx update' first.");
+        bail!("Index not initialized. Run 'stout update' first.");
     }
 
     // Fetch full formula data
     let sync = IndexSync::with_security_policy(
         Some(&config.index.base_url),
-        &paths.brewx_dir,
+        &paths.stout_dir,
         config.security.to_security_policy(),
     )?;
     let formula = sync

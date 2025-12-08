@@ -1,9 +1,9 @@
 //! Cask command - install macOS/Linux applications
 
 use anyhow::{bail, Context, Result};
-use brewx_cask::{install_cask, uninstall_cask, CaskInstallOptions, InstalledCasks};
-use brewx_index::{Database, IndexSync};
-use brewx_state::{Config, Paths};
+use stout_cask::{install_cask, uninstall_cask, CaskInstallOptions, InstalledCasks};
+use stout_index::{Database, IndexSync};
+use stout_state::{Config, Paths};
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
 use std::time::Instant;
@@ -152,25 +152,25 @@ async fn run_install(args: InstallArgs) -> Result<()> {
 
     // Open database
     let db = Database::open(paths.index_db())
-        .context("Failed to open index. Run 'brewx update' first.")?;
+        .context("Failed to open index. Run 'stout update' first.")?;
 
     if !db.is_initialized()? {
         eprintln!(
-            "{} Index not initialized. Run 'brewx update' first.",
+            "{} Index not initialized. Run 'stout update' first.",
             style("error:").red().bold()
         );
         std::process::exit(1);
     }
 
     // Get cask cache and state paths
-    let cache_dir = paths.brewx_dir.join("cache").join("casks");
+    let cache_dir = paths.stout_dir.join("cache").join("casks");
     std::fs::create_dir_all(&cache_dir)?;
-    let state_path = paths.brewx_dir.join("casks.json");
+    let state_path = paths.stout_dir.join("casks.json");
 
     // Fetch cask data and install
     let sync = IndexSync::with_security_policy(
         Some(&config.index.base_url),
-        &paths.brewx_dir,
+        &paths.stout_dir,
         config.security.to_security_policy(),
     )?;
 
@@ -258,7 +258,7 @@ async fn run_uninstall(args: UninstallArgs) -> Result<()> {
     }
 
     let paths = Paths::default();
-    let state_path = paths.brewx_dir.join("casks.json");
+    let state_path = paths.stout_dir.join("casks.json");
 
     for token in &args.casks {
         println!(
@@ -295,7 +295,7 @@ async fn run_info(args: InfoArgs) -> Result<()> {
 
     // Open database
     let db = Database::open(paths.index_db())
-        .context("Failed to open index. Run 'brewx update' first.")?;
+        .context("Failed to open index. Run 'stout update' first.")?;
 
     // Get cask from database
     let cask_info = db.get_cask(&args.cask)?.ok_or_else(|| {
@@ -305,7 +305,7 @@ async fn run_info(args: InfoArgs) -> Result<()> {
     // Fetch full cask data for more details
     let sync = IndexSync::with_security_policy(
         Some(&config.index.base_url),
-        &paths.brewx_dir,
+        &paths.stout_dir,
         config.security.to_security_policy(),
     )?;
     let full_cask = sync
@@ -341,7 +341,7 @@ async fn run_info(args: InfoArgs) -> Result<()> {
     }
 
     // Check if installed
-    let state_path = paths.brewx_dir.join("casks.json");
+    let state_path = paths.stout_dir.join("casks.json");
     let installed = InstalledCasks::load(&state_path)?;
     if let Some(inst) = installed.get(&args.cask) {
         println!(
@@ -359,7 +359,7 @@ async fn run_search(args: SearchArgs) -> Result<()> {
     let paths = Paths::default();
 
     let db = Database::open(paths.index_db())
-        .context("Failed to open index. Run 'brewx update' first.")?;
+        .context("Failed to open index. Run 'stout update' first.")?;
 
     let results = db.search_casks(&args.query, 20)?;
 
@@ -396,7 +396,7 @@ async fn run_search(args: SearchArgs) -> Result<()> {
 
 async fn run_list(args: ListArgs) -> Result<()> {
     let paths = Paths::default();
-    let state_path = paths.brewx_dir.join("casks.json");
+    let state_path = paths.stout_dir.join("casks.json");
 
     let installed = InstalledCasks::load(&state_path)?;
 
@@ -437,10 +437,10 @@ async fn run_list(args: ListArgs) -> Result<()> {
 
 async fn run_outdated(args: OutdatedArgs) -> Result<()> {
     let paths = Paths::default();
-    let state_path = paths.brewx_dir.join("casks.json");
+    let state_path = paths.stout_dir.join("casks.json");
 
     let db = Database::open(paths.index_db())
-        .context("Failed to open index. Run 'brewx update' first.")?;
+        .context("Failed to open index. Run 'stout update' first.")?;
 
     let installed = InstalledCasks::load(&state_path)?;
 
@@ -493,12 +493,12 @@ async fn run_outdated(args: OutdatedArgs) -> Result<()> {
 async fn run_upgrade(args: UpgradeArgs) -> Result<()> {
     let paths = Paths::default();
     let config = Config::load(&paths)?;
-    let state_path = paths.brewx_dir.join("casks.json");
-    let cache_dir = paths.brewx_dir.join("cache").join("casks");
+    let state_path = paths.stout_dir.join("casks.json");
+    let cache_dir = paths.stout_dir.join("cache").join("casks");
     std::fs::create_dir_all(&cache_dir)?;
 
     let db = Database::open(paths.index_db())
-        .context("Failed to open index. Run 'brewx update' first.")?;
+        .context("Failed to open index. Run 'stout update' first.")?;
 
     let installed = InstalledCasks::load(&state_path)?;
 
@@ -526,7 +526,7 @@ async fn run_upgrade(args: UpgradeArgs) -> Result<()> {
 
     let sync = IndexSync::with_security_policy(
         Some(&config.index.base_url),
-        &paths.brewx_dir,
+        &paths.stout_dir,
         config.security.to_security_policy(),
     )?;
 

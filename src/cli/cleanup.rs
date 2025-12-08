@@ -4,8 +4,8 @@
 //! downloads, and removes old versions of installed packages.
 
 use anyhow::{Context, Result};
-use brewx_fetch::DownloadCache;
-use brewx_state::{InstalledPackages, Paths};
+use stout_fetch::DownloadCache;
+use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 use std::path::Path;
@@ -55,7 +55,7 @@ pub async fn run(args: Args) -> Result<()> {
         let max_age_secs = max_age_days * 24 * 60 * 60;
 
         // Clean download cache
-        let cache = DownloadCache::new(&paths.brewx_dir);
+        let cache = DownloadCache::new(&paths.stout_dir);
 
         if max_age_days == 0 || args.scrub {
             // Remove all downloads (--prune=0 or --scrub)
@@ -129,7 +129,7 @@ fn clean_all_downloads(
     scrub: bool,
     dry_run: bool,
 ) -> Result<(u64, usize)> {
-    let downloads_dir = paths.brewx_dir.join("downloads");
+    let downloads_dir = paths.stout_dir.join("downloads");
     if !downloads_dir.exists() {
         return Ok((0, 0));
     }
@@ -180,7 +180,7 @@ fn clean_all_downloads(
 
 /// Preview what old downloads would be removed
 fn preview_old_downloads(paths: &Paths, max_age_secs: u64) -> Result<(u64, usize)> {
-    let downloads_dir = paths.brewx_dir.join("downloads");
+    let downloads_dir = paths.stout_dir.join("downloads");
     if !downloads_dir.exists() {
         return Ok((0, 0));
     }
@@ -222,7 +222,7 @@ fn clean_json_cache(paths: &Paths, dry_run: bool) -> Result<(u64, usize)> {
     let mut count = 0usize;
 
     for subdir in &["formulas", "casks"] {
-        let cache_dir = paths.brewx_dir.join(subdir);
+        let cache_dir = paths.stout_dir.join(subdir);
         if !cache_dir.exists() {
             continue;
         }
