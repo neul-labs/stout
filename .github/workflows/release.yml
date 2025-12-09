@@ -21,19 +21,19 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact: brewx-x86_64-unknown-linux-gnu
+            artifact: stout-x86_64-unknown-linux-gnu
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
-            artifact: brewx-x86_64-unknown-linux-musl
+            artifact: stout-x86_64-unknown-linux-musl
           - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
-            artifact: brewx-aarch64-unknown-linux-gnu
+            artifact: stout-aarch64-unknown-linux-gnu
           - os: macos-latest
             target: aarch64-apple-darwin
-            artifact: brewx-aarch64-apple-darwin
+            artifact: stout-aarch64-apple-darwin
           - os: macos-13
             target: x86_64-apple-darwin
-            artifact: brewx-x86_64-apple-darwin
+            artifact: stout-x86_64-apple-darwin
 
     steps:
       - uses: actions/checkout@v4
@@ -50,15 +50,25 @@ jobs:
           sudo apt-get install -y musl-tools
 
       - name: Build
+        env:
+          STOUT_GEN_MAN: "1"
         run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Generate completions
+        shell: bash
+        run: |
+          mkdir -p target/completions
+          ./target/${{ matrix.target }}/release/stout completions bash > target/completions/stout.bash
+          ./target/${{ matrix.target }}/release/stout completions zsh > target/completions/_stout
+          ./target/${{ matrix.target }}/release/stout completions fish > target/completions/stout.fish
 
       - name: Package
         shell: bash
         run: |
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/brewx dist/
+          cp target/${{ matrix.target }}/release/stout dist/
           cd dist
-          tar -czvf ../${{ matrix.artifact }}.tar.gz brewx
+          tar -czvf ../${{ matrix.artifact }}.tar.gz stout
           cd ..
           if command -v shasum &> /dev/null; then
             shasum -a 256 ${{ matrix.artifact }}.tar.gz > ${{ matrix.artifact }}.tar.gz.sha256
@@ -74,9 +84,123 @@ jobs:
             ${{ matrix.artifact }}.tar.gz
             ${{ matrix.artifact }}.tar.gz.sha256
 
+  # Build Debian packages (.deb)
+  build-deb:
+    name: Build Debian Package (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            arch: amd64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            arch: arm64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cargo-deb
+        run: cargo install cargo-deb
+
+      - name: Build release binary
+        env:
+          STOUT_GEN_MAN: "1"
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Generate completions
+        run: |
+          mkdir -p target/completions
+          ./target/${{ matrix.target }}/release/stout completions bash > target/completions/stout.bash
+          ./target/${{ matrix.target }}/release/stout completions zsh > target/completions/_stout
+          ./target/${{ matrix.target }}/release/stout completions fish > target/completions/stout.fish
+
+      - name: Build .deb package
+        run: cargo deb --target ${{ matrix.target }} --no-build
+
+      - name: Rename .deb with architecture
+        run: |
+          DEB_FILE=$(find target/${{ matrix.target }}/debian -name "*.deb" | head -1)
+          VERSION=${GITHUB_REF#refs/tags/v}
+          NEW_NAME="stout_${VERSION}_${{ matrix.arch }}.deb"
+          cp "$DEB_FILE" "$NEW_NAME"
+          sha256sum "$NEW_NAME" > "$NEW_NAME.sha256"
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.arch }}
+          path: |
+            *.deb
+            *.deb.sha256
+
+  # Build RPM packages (.rpm)
+  build-rpm:
+    name: Build RPM Package (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            arch: x86_64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            arch: aarch64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cargo-generate-rpm
+        run: cargo install cargo-generate-rpm
+
+      - name: Build release binary
+        env:
+          STOUT_GEN_MAN: "1"
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Generate completions
+        run: |
+          mkdir -p target/completions
+          ./target/${{ matrix.target }}/release/stout completions bash > target/completions/stout.bash
+          ./target/${{ matrix.target }}/release/stout completions zsh > target/completions/_stout
+          ./target/${{ matrix.target }}/release/stout completions fish > target/completions/stout.fish
+
+      - name: Build .rpm package
+        run: cargo generate-rpm --target ${{ matrix.target }}
+
+      - name: Rename .rpm with architecture
+        run: |
+          RPM_FILE=$(find target/${{ matrix.target }}/generate-rpm -name "*.rpm" | head -1)
+          VERSION=${GITHUB_REF#refs/tags/v}
+          NEW_NAME="stout-${VERSION}-1.${{ matrix.arch }}.rpm"
+          cp "$RPM_FILE" "$NEW_NAME"
+          sha256sum "$NEW_NAME" > "$NEW_NAME.sha256"
+
+      - name: Upload .rpm artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpm-${{ matrix.arch }}
+          path: |
+            *.rpm
+            *.rpm.sha256
+
   release:
     name: Create Release
-    needs: build
+    needs: [build, build-deb, build-rpm]
     runs-on: ubuntu-latest
 
     steps:
@@ -90,7 +214,7 @@ jobs:
       - name: Collect release files
         run: |
           mkdir release
-          find artifacts -type f \( -name "*.tar.gz" -o -name "*.sha256" \) -exec mv {} release/ \;
+          find artifacts -type f \( -name "*.tar.gz" -o -name "*.sha256" -o -name "*.deb" -o -name "*.rpm" \) -exec mv {} release/ \;
           # Also include the install script
           cp install.sh release/
           ls -la release/
@@ -121,25 +245,147 @@ jobs:
           # Publish crates in dependency order
           # Wait between publishes to allow crates.io to index
 
-          echo "Publishing brewx-index..."
-          cargo publish -p brewx-index --allow-dirty || echo "brewx-index may already be published"
+          echo "Publishing stout-index..."
+          cargo publish -p stout-index --allow-dirty || echo "stout-index may already be published"
           sleep 30
 
-          echo "Publishing brewx-state..."
-          cargo publish -p brewx-state --allow-dirty || echo "brewx-state may already be published"
+          echo "Publishing stout-state..."
+          cargo publish -p stout-state --allow-dirty || echo "stout-state may already be published"
           sleep 30
 
-          echo "Publishing brewx-resolve..."
-          cargo publish -p brewx-resolve --allow-dirty || echo "brewx-resolve may already be published"
+          echo "Publishing stout-resolve..."
+          cargo publish -p stout-resolve --allow-dirty || echo "stout-resolve may already be published"
           sleep 30
 
-          echo "Publishing brewx-fetch..."
-          cargo publish -p brewx-fetch --allow-dirty || echo "brewx-fetch may already be published"
+          echo "Publishing stout-fetch..."
+          cargo publish -p stout-fetch --allow-dirty || echo "stout-fetch may already be published"
           sleep 30
 
-          echo "Publishing brewx-install..."
-          cargo publish -p brewx-install --allow-dirty || echo "brewx-install may already be published"
+          echo "Publishing stout-install..."
+          cargo publish -p stout-install --allow-dirty || echo "stout-install may already be published"
           sleep 30
 
-          echo "Publishing brewx..."
-          cargo publish --allow-dirty || echo "brewx may already be published"
+          echo "Publishing stout-cask..."
+          cargo publish -p stout-cask --allow-dirty || echo "stout-cask may already be published"
+          sleep 30
+
+          echo "Publishing stout-bundle..."
+          cargo publish -p stout-bundle --allow-dirty || echo "stout-bundle may already be published"
+          sleep 30
+
+          echo "Publishing stout-audit..."
+          cargo publish -p stout-audit --allow-dirty || echo "stout-audit may already be published"
+          sleep 30
+
+          echo "Publishing stout-mirror..."
+          cargo publish -p stout-mirror --allow-dirty || echo "stout-mirror may already be published"
+          sleep 30
+
+          echo "Publishing stout..."
+          cargo publish --allow-dirty || echo "stout may already be published"
+
+  # Publish to npm
+  publish-npm:
+    name: Publish to npm
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Update package version
+        working-directory: packaging/npm
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          npm version $VERSION --no-git-tag-version --allow-same-version
+
+      - name: Copy LICENSE and README
+        working-directory: packaging/npm
+        run: |
+          cp ../../LICENSE .
+          # README already exists in npm package
+
+      - name: Publish to npm
+        working-directory: packaging/npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Publish to PyPI
+  publish-pypi:
+    name: Publish to PyPI
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build tools
+        run: pip install build twine
+
+      - name: Update package version
+        working-directory: packaging/pypi
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+          sed -i "s/^__version__ = .*/__version__ = \"$VERSION\"/" src/stout_pkg/__init__.py
+
+      - name: Copy LICENSE
+        working-directory: packaging/pypi
+        run: cp ../../LICENSE .
+
+      - name: Build package
+        working-directory: packaging/pypi
+        run: python -m build
+
+      - name: Publish to PyPI
+        working-directory: packaging/pypi
+        run: twine upload dist/*
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+
+  # Publish to RubyGems
+  publish-gem:
+    name: Publish to RubyGems
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+
+      - name: Update gem version
+        working-directory: packaging/gem
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          sed -i "s/spec.version.*/spec.version       = \"$VERSION\"/" stout-pkg.gemspec
+          sed -i "s/VERSION = .*/VERSION = \"$VERSION\"/" lib/stout_pkg/version.rb
+
+      - name: Copy LICENSE
+        working-directory: packaging/gem
+        run: cp ../../LICENSE .
+
+      - name: Build gem
+        working-directory: packaging/gem
+        run: gem build stout-pkg.gemspec
+
+      - name: Publish to RubyGems
+        working-directory: packaging/gem
+        run: |
+          mkdir -p ~/.gem
+          echo -e "---\n:rubygems_api_key: ${{ secrets.RUBYGEMS_API_KEY }}" > ~/.gem/credentials
+          chmod 0600 ~/.gem/credentials
+          gem push stout-pkg-*.gem

@@ -39,6 +39,100 @@ STOUT_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/neul-labs/stou
 STOUT_NO_MODIFY_PATH=1 curl -fsSL https://raw.githubusercontent.com/neul-labs/stout/main/install.sh | bash
 ```
 
+## Package Managers
+
+### npm (Node.js)
+
+```bash
+npm install -g stout-pkg
+```
+
+### pip (Python)
+
+```bash
+pip install stout-pkg
+
+# Or with pipx for isolated installation
+pipx install stout-pkg
+```
+
+### gem (Ruby)
+
+```bash
+gem install stout-pkg
+```
+
+### Debian / Ubuntu (APT)
+
+Download and install the `.deb` package from the [releases page](https://github.com/neul-labs/stout/releases):
+
+```bash
+# Download (replace VERSION with the actual version, e.g., 0.1.0)
+wget https://github.com/neul-labs/stout/releases/latest/download/stout_VERSION_amd64.deb
+
+# Install with apt (handles dependencies)
+sudo apt install ./stout_VERSION_amd64.deb
+
+# Or install with dpkg
+sudo dpkg -i stout_VERSION_amd64.deb
+```
+
+For ARM64 systems, use `stout_VERSION_arm64.deb` instead.
+
+### Fedora / RHEL / CentOS (DNF/RPM)
+
+Download and install the `.rpm` package from the [releases page](https://github.com/neul-labs/stout/releases):
+
+```bash
+# Download (replace VERSION with the actual version, e.g., 0.1.0)
+wget https://github.com/neul-labs/stout/releases/latest/download/stout-VERSION-1.x86_64.rpm
+
+# Install with dnf
+sudo dnf install ./stout-VERSION-1.x86_64.rpm
+
+# Or with rpm directly
+sudo rpm -i stout-VERSION-1.x86_64.rpm
+```
+
+For ARM64 systems, use `stout-VERSION-1.aarch64.rpm` instead.
+
+### Arch Linux (AUR)
+
+Install from the AUR using your preferred AUR helper:
+
+```bash
+# Using yay
+yay -S stout
+
+# Using paru
+paru -S stout
+```
+
+### Nix / NixOS
+
+Using flakes:
+
+```bash
+# Run directly
+nix run github:neul-labs/stout
+
+# Install to profile
+nix profile install github:neul-labs/stout
+
+# Add to your flake.nix
+{
+  inputs.stout.url = "github:neul-labs/stout";
+}
+```
+
+### Homebrew
+
+```bash
+# Using the tap (recommended)
+brew tap neul-labs/tap
+brew install stout
+```
+
 ## Manual Download
 
 If you prefer to download manually, get the appropriate binary from the [releases page](https://github.com/neul-labs/stout/releases):

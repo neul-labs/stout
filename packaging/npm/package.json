@@ -1,0 +1,47 @@
+{
+  "name": "stout-pkg",
+  "version": "0.1.0",
+  "description": "A fast, Rust-based Homebrew-compatible package manager - 10-100x faster than brew",
+  "keywords": [
+    "homebrew",
+    "brew",
+    "package-manager",
+    "macos",
+    "linux",
+    "cli"
+  ],
+  "homepage": "https://github.com/neul-labs/stout",
+  "bugs": {
+    "url": "https://github.com/neul-labs/stout/issues"
+  },
+  "license": "MIT",
+  "author": "Neul Labs <hello@neul.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neul-labs/stout.git"
+  },
+  "bin": {
+    "stout": "bin/stout"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js",
+    "preuninstall": "node scripts/uninstall.js"
+  },
+  "files": [
+    "bin/",
+    "scripts/",
+    "README.md",
+    "LICENSE"
+  ],
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "engines": {
+    "node": ">=14"
+  }
+}

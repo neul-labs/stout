@@ -141,3 +141,44 @@ clap_mangen = "0.2"
 lto = true
 codegen-units = 1
 strip = true
+
+# Debian packaging configuration (cargo-deb)
+[package.metadata.deb]
+maintainer = "Neul Labs <hello@neul.com>"
+copyright = "2024, Neul Labs"
+license-file = ["LICENSE", "0"]
+extended-description = """\
+stout is a fast, Rust-based drop-in replacement for the Homebrew CLI. \
+It's 10-100x faster for common operations like search, info, and update. \
+Uses a pre-computed SQLite index with FTS5 full-text search."""
+section = "utils"
+priority = "optional"
+depends = "$auto"
+assets = [
+    ["target/release/stout", "usr/bin/", "755"],
+    ["README.md", "usr/share/doc/stout/", "644"],
+    ["LICENSE", "usr/share/doc/stout/", "644"],
+    ["target/release/build/stout-*/out/man/stout.1", "usr/share/man/man1/", "644"],
+    ["target/completions/stout.bash", "usr/share/bash-completion/completions/stout", "644"],
+    ["target/completions/stout.fish", "usr/share/fish/vendor_completions.d/stout.fish", "644"],
+    ["target/completions/_stout", "usr/share/zsh/vendor-completions/_stout", "644"],
+]
+
+# RPM packaging configuration (cargo-generate-rpm)
+[package.metadata.generate-rpm]
+name = "stout"
+license = "MIT"
+summary = "A fast, Rust-based Homebrew-compatible package manager"
+description = """\
+stout is a fast, Rust-based drop-in replacement for the Homebrew CLI. \
+It's 10-100x faster for common operations like search, info, and update. \
+Uses a pre-computed SQLite index with FTS5 full-text search."""
+url = "https://github.com/neul-labs/stout"
+assets = [
+    { source = "target/release/stout", dest = "/usr/bin/stout", mode = "0755" },
+    { source = "README.md", dest = "/usr/share/doc/stout/README.md", mode = "0644", doc = true },
+    { source = "LICENSE", dest = "/usr/share/doc/stout/LICENSE", mode = "0644", doc = true },
+    { source = "target/completions/stout.bash", dest = "/usr/share/bash-completion/completions/stout", mode = "0644" },
+    { source = "target/completions/stout.fish", dest = "/usr/share/fish/vendor_completions.d/stout.fish", mode = "0644" },
+    { source = "target/completions/_stout", dest = "/usr/share/zsh/site-functions/_stout", mode = "0644" },
+]
