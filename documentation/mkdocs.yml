@@ -1,0 +1,74 @@
+site_name: Stout
+site_description: A fast, Rust-based Homebrew-compatible package manager
+site_url: https://neul-labs.github.io/stout
+repo_url: https://github.com/neul-labs/stout
+repo_name: neul-labs/stout
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+  - tags
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started.md
+      - Quick Start: quickstart.md
+  - User Guide:
+      - Commands: commands.md
+      - Configuration: configuration.md
+      - Casks (Applications): casks.md
+  - Advanced:
+      - Security: security.md
+      - Enterprise: enterprise.md
+      - Offline & Mirroring: mirroring.md
+  - Help:
+      - FAQ: faq.md
+      - Troubleshooting: troubleshooting.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/neul-labs/stout
