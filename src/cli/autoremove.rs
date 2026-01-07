@@ -25,7 +25,8 @@ pub async fn run(args: Args) -> Result<()> {
     let mut needed_deps: HashSet<String> = HashSet::new();
 
     for name in installed.names() {
-        let pkg = installed.get(name).unwrap();
+        let pkg = installed.get(name)
+            .with_context(|| format!("failed to get package '{}' from installed", name))?;
         for dep in &pkg.dependencies {
             needed_deps.insert(dep.clone());
         }
@@ -35,7 +36,8 @@ pub async fn run(args: Args) -> Result<()> {
     let mut orphans: Vec<String> = Vec::new();
 
     for name in installed.names() {
-        let pkg = installed.get(name).unwrap();
+        let pkg = installed.get(name)
+            .with_context(|| format!("failed to get package '{}' from installed", name))?;
 
         // Skip if explicitly requested by user
         if pkg.requested {
@@ -65,7 +67,8 @@ pub async fn run(args: Args) -> Result<()> {
     );
 
     for name in &orphans {
-        let pkg = installed.get(name).unwrap();
+        let pkg = installed.get(name)
+            .with_context(|| format!("package '{}' was in orphan list but not found in installed", name))?;
         println!(
             "  {} {} {}",
             style("•").dim(),
@@ -89,7 +92,8 @@ pub async fn run(args: Args) -> Result<()> {
     // Remove orphaned packages
     let mut removed_count = 0;
     for name in &orphans {
-        let pkg = installed.get(name).unwrap();
+        let pkg = installed.get(name)
+            .with_context(|| format!("package '{}' was in orphan list but not found", name))?;
         let install_path = paths.cellar.join(name).join(&pkg.version);
 
         // Unlink from prefix

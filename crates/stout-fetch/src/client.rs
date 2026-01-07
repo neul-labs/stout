@@ -51,7 +51,7 @@ impl DownloadClient {
         progress: Option<&ProgressReporter>,
     ) -> Result<PathBuf> {
         // Check cache first
-        if let Some(path) = self.cache.get_bottle(name, version, platform) {
+        if let Some(path) = self.cache.get_bottle(name, version, platform)? {
             // Verify cached file
             if crate::verify::verify_sha256(&path, expected_sha256).is_ok() {
                 debug!("Using cached bottle for {}", name);

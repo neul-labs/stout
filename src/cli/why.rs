@@ -64,7 +64,8 @@ pub async fn run(args: Args) -> Result<()> {
     }
 
     // Check if it was explicitly requested
-    let pkg = installed.get(&args.formula).unwrap();
+    let pkg = installed.get(&args.formula)
+        .with_context(|| format!("package '{}' is installed but not found in state", args.formula))?;
     if pkg.requested {
         if args.json {
             let output = WhyJson {

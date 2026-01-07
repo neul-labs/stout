@@ -42,6 +42,9 @@ pub enum Error {
 
     #[error("Untrusted key: the signing key is not in the trusted keys list")]
     UntrustedKey,
+
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

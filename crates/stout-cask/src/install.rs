@@ -143,8 +143,9 @@ pub async fn uninstall_cask(
     installed_casks.save(state_path)?;
 
     if zap {
-        info!("Zap requested - additional cleanup would happen here");
-        // TODO: Implement zap (remove preferences, caches, etc.)
+        info!("Zap requested - note: full zap (preferences, caches, support files) not yet implemented");
+        // TODO: Implement zap - would require tracking additional file locations
+        // Typical locations: ~/Library/Preferences/, ~/Library/Caches/, ~/Application Support/
     }
 
     info!("Uninstalled {}", token);

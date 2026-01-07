@@ -78,7 +78,9 @@ async fn run_create(path: PathBuf, force: bool) -> Result<()> {
     // Expand path
     let path = if path.starts_with("~") {
         let home = dirs::home_dir().context("Could not determine home directory")?;
-        home.join(path.strip_prefix("~").unwrap())
+        let stripped = path.strip_prefix("~")
+            .expect("path starts with ~ so strip_prefix should succeed");
+        home.join(stripped)
     } else {
         path.canonicalize().unwrap_or(path)
     };
@@ -195,7 +197,9 @@ async fn run_list() -> Result<()> {
 async fn run_remove(path: PathBuf, remove_packages: bool, force: bool) -> Result<()> {
     let path = if path.starts_with("~") {
         let home = dirs::home_dir().context("Could not determine home directory")?;
-        home.join(path.strip_prefix("~").unwrap())
+        let stripped = path.strip_prefix("~")
+            .expect("path starts with ~ so strip_prefix should succeed");
+        home.join(stripped)
     } else {
         path.canonicalize().unwrap_or(path)
     };
@@ -241,7 +245,9 @@ async fn run_info(path: Option<PathBuf>) -> Result<()> {
         Some(p) => {
             if p.starts_with("~") {
                 let home = dirs::home_dir().context("Could not determine home directory")?;
-                home.join(p.strip_prefix("~").unwrap())
+                let stripped = p.strip_prefix("~")
+                    .expect("path starts with ~ so strip_prefix should succeed");
+                home.join(stripped)
             } else {
                 p.canonicalize().unwrap_or(p)
             }
@@ -300,7 +306,9 @@ async fn run_info(path: Option<PathBuf>) -> Result<()> {
 async fn run_default(path: PathBuf) -> Result<()> {
     let path = if path.starts_with("~") {
         let home = dirs::home_dir().context("Could not determine home directory")?;
-        home.join(path.strip_prefix("~").unwrap())
+        let stripped = path.strip_prefix("~")
+            .expect("path starts with ~ so strip_prefix should succeed");
+        home.join(stripped)
     } else {
         path.canonicalize().unwrap_or(path)
     };
@@ -458,7 +466,9 @@ mod tests {
         // Just verify it doesn't panic
         if path.starts_with("~") {
             if let Some(home) = dirs::home_dir() {
-                let expanded = home.join(path.strip_prefix("~").unwrap());
+                let stripped = path.strip_prefix("~")
+                    .expect("path starts with ~ so strip_prefix should succeed");
+                let expanded = home.join(stripped);
                 assert!(!expanded.starts_with("~"));
             }
         }

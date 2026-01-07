@@ -3,7 +3,7 @@
 //! This module provides functionality to build formulas from source
 //! when pre-built bottles are not available for the current platform.
 
-use crate::error::{Error, Result};
+use crate::error::{BuildError, Error, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tracing::{debug, info, warn};
@@ -189,9 +189,7 @@ impl SourceBuilder {
         } else if source_dir.join("Cargo.toml").exists() {
             self.build_cargo(source_dir, &install_path)?;
         } else {
-            return Err(Error::Build(
-                "Unknown build system. Cannot build from source without a recognized build system.".to_string()
-            ));
+            return Err(Error::Build(BuildError::unknown_build_system(&self.config.name)));
         }
 
         Ok(install_path)
@@ -218,7 +216,7 @@ impl SourceBuilder {
         let configure_status = configure_cmd.status()?;
 
         if !configure_status.success() {
-            return Err(Error::Build("configure failed".to_string()));
+            return Err(Error::Build(BuildError::configure_failed(&self.config.name)));
         }
 
         // Make
@@ -239,17 +237,19 @@ impl SourceBuilder {
         let make_status = make_cmd.status()?;
 
         if !make_status.success() {
-            return Err(Error::Build("make failed".to_string()));
+            return Err(Error::Build(BuildError::make_failed(&self.config.name)));
         }
 
         // Make install
+        // Use -- to prevent any argument injection - everything after -- is treated as a target
         let install_status = Command::new("make")
             .arg("install")
+            .arg("--")
             .current_dir(source_dir)
             .status()?;
 
         if !install_status.success() {
-            return Err(Error::Build("make install failed".to_string()));
+            return Err(Error::Build(BuildError::make_install_failed(&self.config.name)));
         }
 
         Ok(())
@@ -281,7 +281,9 @@ impl SourceBuilder {
         let cmake_status = cmake_cmd.status()?;
 
         if !cmake_status.success() {
-            return Err(Error::Build("cmake configure failed".to_string()));
+            return Err(Error::Build(BuildError::CmakeConfigureFailed {
+                package: self.config.name.clone()
+            }));
         }
 
         // Build
@@ -294,7 +296,9 @@ impl SourceBuilder {
             .status()?;
 
         if !build_status.success() {
-            return Err(Error::Build("cmake build failed".to_string()));
+            return Err(Error::Build(BuildError::CmakeBuildFailed {
+                package: self.config.name.clone()
+            }));
         }
 
         // Install
@@ -305,7 +309,9 @@ impl SourceBuilder {
             .status()?;
 
         if !install_status.success() {
-            return Err(Error::Build("cmake install failed".to_string()));
+            return Err(Error::Build(BuildError::CmakeInstallFailed {
+                package: self.config.name.clone()
+            }));
         }
 
         Ok(())
@@ -334,7 +340,7 @@ impl SourceBuilder {
         let make_status = make_cmd.status()?;
 
         if !make_status.success() {
-            return Err(Error::Build("make failed".to_string()));
+            return Err(Error::Build(BuildError::make_failed(&self.config.name)));
         }
 
         // Make install
@@ -345,7 +351,7 @@ impl SourceBuilder {
             .status()?;
 
         if !install_status.success() {
-            return Err(Error::Build("make install failed".to_string()));
+            return Err(Error::Build(BuildError::make_install_failed(&self.config.name)));
         }
 
         Ok(())

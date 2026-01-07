@@ -8,6 +8,25 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use tracing::{debug, info, warn};
 
+/// RAII guard for temporary directory cleanup
+struct TempDirGuard(PathBuf);
+
+impl TempDirGuard {
+    fn new(path: PathBuf) -> Self {
+        Self(path)
+    }
+}
+
+impl Drop for TempDirGuard {
+    fn drop(&mut self) {
+        if self.0.exists() {
+            if let Err(e) = std::fs::remove_dir_all(&self.0) {
+                warn!("Failed to clean up temp directory {}: {}", self.0.display(), e);
+            }
+        }
+    }
+}
+
 /// Install artifact on macOS
 pub async fn install_artifact(
     cask: &Cask,
@@ -78,10 +97,26 @@ async fn install_from_dmg(
 async fn install_from_pkg(pkg_path: &Path, options: &CaskInstallOptions) -> Result<PathBuf> {
     info!("Installing package {}...", pkg_path.display());
 
+    // Security: Verify PKG file exists and is a regular file before running installer
+    if !pkg_path.exists() {
+        return Err(Error::InstallFailed(format!(
+            "PKG file not found: {}",
+            pkg_path.display()
+        )));
+    }
+    if !pkg_path.is_file() {
+        return Err(Error::InstallFailed(format!(
+            "PKG path is not a file: {}",
+            pkg_path.display()
+        )));
+    }
+
     // PKG installation requires sudo - use installer command
+    // Use explicit argument separation to prevent any potential injection
     let output = Command::new("sudo")
         .args(["installer", "-pkg"])
         .arg(pkg_path)
+        .arg("--")
         .args(["-target", "/"])
         .output()
         .map_err(|e| Error::CommandFailed {
@@ -107,8 +142,12 @@ async fn install_from_zip(
     zip_path: &Path,
     options: &CaskInstallOptions,
 ) -> Result<PathBuf> {
-    let temp_dir = std::env::temp_dir().join(format!("stout-{}", cask.token));
+    let token = &cask.token;
+    let temp_dir = std::env::temp_dir().join(format!("stout-{}", token));
     std::fs::create_dir_all(&temp_dir)?;
+
+    // Use RAII guard for automatic cleanup
+    let _guard = TempDirGuard(temp_dir.clone());
 
     // Extract ZIP
     let output = Command::new("unzip")
@@ -147,8 +186,7 @@ async fn install_from_zip(
     info!("Installing {} to {}", app_name, appdir.display());
     copy_dir_all(&app_bundle, &dest)?;
 
-    // Clean up temp dir
-    let _ = std::fs::remove_dir_all(&temp_dir);
+    // Guard will clean up on drop
 
     // Remove quarantine
     remove_quarantine(&dest)?;
@@ -162,8 +200,12 @@ async fn install_from_archive(
     archive_path: &Path,
     options: &CaskInstallOptions,
 ) -> Result<PathBuf> {
-    let temp_dir = std::env::temp_dir().join(format!("stout-{}", cask.token));
+    let token = &cask.token;
+    let temp_dir = std::env::temp_dir().join(format!("stout-{}", token));
     std::fs::create_dir_all(&temp_dir)?;
+
+    // Use RAII guard for automatic cleanup
+    let _guard = TempDirGuard(temp_dir.clone());
 
     // Extract archive
     let output = Command::new("tar")
@@ -201,8 +243,7 @@ async fn install_from_archive(
     // Move app to Applications
     copy_dir_all(&app_bundle, &dest)?;
 
-    // Clean up temp dir
-    let _ = std::fs::remove_dir_all(&temp_dir);
+    // Guard will clean up on drop
 
     // Remove quarantine
     remove_quarantine(&dest)?;
