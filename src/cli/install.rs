@@ -188,7 +188,8 @@ pub async fn run(args: Args) -> Result<()> {
             }
             source_installs.push((step.clone(), formula));
         } else {
-            let bottle = formula.bottle_for_platform(&platform).unwrap();
+            let bottle = formula.bottle_for_platform(&platform)
+                .expect("bottle_for_platform returned None after None check");
             bottle_specs.push(BottleSpec {
                 name: step.name.clone(),
                 version: step.version.clone(),
@@ -276,7 +277,8 @@ pub async fn run(args: Args) -> Result<()> {
         println!("\n{}...", style("Building from source").cyan());
 
         for (step, formula) in &source_installs {
-            let source = formula.urls.stable.as_ref().unwrap();
+            let source = formula.urls.stable.as_ref()
+                .expect("stable URL should exist for source builds");
 
             println!(
                 "  {} {} {} (from source)",

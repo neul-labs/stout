@@ -150,7 +150,8 @@ fn find_dependency_paths(
     queue.push_back(vec![target.to_string()]);
 
     while let Some(current_path) = queue.pop_front() {
-        let current = current_path.last().unwrap();
+        let current = current_path.last()
+            .expect("current_path should always have at least one element");
 
         if visited.contains(current) && !find_all {
             continue;

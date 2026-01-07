@@ -40,14 +40,12 @@ pub async fn run(args: Args) -> Result<()> {
         v.clone()
     } else {
         // Get previous version from history
-        let prev = history.get_previous(&args.formula);
-        if prev.is_none() {
-            bail!(
+        let prev = history.get_previous(&args.formula)
+            .ok_or_else(|| anyhow::anyhow!(
                 "No previous version found for {}. Use --version to specify a version.",
                 args.formula
-            );
-        }
-        prev.unwrap().version.clone()
+            ))?;
+        prev.version.clone()
     };
 
     if target_version == *current_version {

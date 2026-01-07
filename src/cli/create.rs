@@ -310,9 +310,10 @@ fn generate_formula(
     license: Option<&str>,
 ) -> String {
     let class_name = to_class_name(name);
-    let desc = desc.unwrap_or("TODO: Add description");
-    let homepage = homepage.unwrap_or("TODO: Add homepage URL");
-    let license = license.unwrap_or("TODO: Add license");
+    // Use provided values or clear placeholders that must be filled in
+    let desc = desc.unwrap_or("REPLACE: Add a one-line description of this software");
+    let homepage = homepage.unwrap_or("REPLACE: https://example.com");
+    let license = license.unwrap_or("REPLACE: e.g., MIT, Apache-2.0");
 
     format!(
         r#"class {class_name} < Formula
@@ -371,7 +372,8 @@ fn generate_cask(
     app_name: &str,
     homepage: Option<&str>,
 ) -> String {
-    let homepage = homepage.unwrap_or("TODO: Add homepage URL");
+    // Use provided homepage or clear placeholder
+    let homepage = homepage.unwrap_or("REPLACE: https://example.com");
 
     // Determine likely artifact type from URL
     let artifact_type = if url.ends_with(".dmg") {
@@ -391,7 +393,7 @@ fn generate_cask(
 
   url "{url}"
   name "{app_name}"
-  desc "TODO: Add description"
+  desc "REPLACE: Add a one-line description of this application"
   homepage "{homepage}"
 
   # TODO: Specify the correct artifact

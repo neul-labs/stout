@@ -35,7 +35,8 @@ impl DownloadClient {
         })
     }
 
-    /// Create with default concurrency (4)
+    /// Create with default concurrency (4 concurrent downloads)
+    /// This balance between parallelism and avoiding network congestion
     pub fn with_cache(cache: DownloadCache) -> Result<Self> {
         Self::new(cache, 4)
     }

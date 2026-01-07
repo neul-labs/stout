@@ -98,18 +98,24 @@ impl SourceBuilder {
         let response = client.get(&self.config.source_url)
             .send()
             .await
-            .map_err(|e| Error::Build(format!("Failed to download source: {}", e)))?;
+            .map_err(|e| Error::Build(BuildError::DownloadFailed {
+                package: self.config.name.clone(),
+                reason: format!("Failed to download: {}", e)
+            }))?;
 
         if !response.status().is_success() {
-            return Err(Error::Build(format!(
-                "Failed to download source: HTTP {}",
-                response.status()
-            )));
+            return Err(Error::Build(BuildError::DownloadFailed {
+                package: self.config.name.clone(),
+                reason: format!("HTTP {}", response.status())
+            }));
         }
 
         let bytes = response.bytes()
             .await
-            .map_err(|e| Error::Build(format!("Failed to read source: {}", e)))?;
+            .map_err(|e| Error::Build(BuildError::DownloadFailed {
+                package: self.config.name.clone(),
+                reason: format!("Failed to read: {}", e)
+            }))?;
 
         // Verify checksum
         let mut hasher = Sha256::new();
@@ -117,10 +123,10 @@ impl SourceBuilder {
         let hash = format!("{:x}", hasher.finalize());
 
         if hash != self.config.sha256 {
-            return Err(Error::Build(format!(
-                "Checksum mismatch: expected {}, got {}",
-                self.config.sha256, hash
-            )));
+            return Err(Error::Build(BuildError::DownloadFailed {
+                package: self.config.name.clone(),
+                reason: format!("Checksum mismatch: expected {}, got {}", self.config.sha256, hash)
+            }));
         }
 
         std::fs::write(&archive_path, &bytes)?;
@@ -162,7 +168,9 @@ impl SourceBuilder {
             }
         }
 
-        Err(Error::Build("Could not find extracted source directory".to_string()))
+        Err(Error::Build(BuildError::SourceDirectoryNotFound {
+            package: self.config.name.clone()
+        }))
     }
 
     /// Run the build process
@@ -205,11 +213,13 @@ impl SourceBuilder {
             .current_dir(source_dir)
             .env("HOMEBREW_PREFIX", &self.config.prefix);
 
-        // Set compilers if specified
+        // Set compilers if specified (with validation)
         if let Some(cc) = &self.config.cc {
+            validate_compiler_path(cc)?;
             configure_cmd.env("CC", cc);
         }
         if let Some(cxx) = &self.config.cxx {
+            validate_compiler_path(cxx)?;
             configure_cmd.env("CXX", cxx);
         }
 
@@ -226,11 +236,13 @@ impl SourceBuilder {
             .arg(self.config.get_jobs().to_string())
             .current_dir(source_dir);
 
-        // Set compilers for make too
+        // Set compilers for make too (with validation)
         if let Some(cc) = &self.config.cc {
+            validate_compiler_path(cc)?;
             make_cmd.env("CC", cc);
         }
         if let Some(cxx) = &self.config.cxx {
+            validate_compiler_path(cxx)?;
             make_cmd.env("CXX", cxx);
         }
 
@@ -270,11 +282,13 @@ impl SourceBuilder {
             .arg("-DCMAKE_BUILD_TYPE=Release")
             .current_dir(&build_dir);
 
-        // Set compilers if specified
+        // Set compilers if specified (with validation)
         if let Some(cc) = &self.config.cc {
+            validate_compiler_path(cc)?;
             cmake_cmd.arg(format!("-DCMAKE_C_COMPILER={}", cc));
         }
         if let Some(cxx) = &self.config.cxx {
+            validate_compiler_path(cxx)?;
             cmake_cmd.arg(format!("-DCMAKE_CXX_COMPILER={}", cxx));
         }
 
@@ -329,11 +343,13 @@ impl SourceBuilder {
             .current_dir(source_dir)
             .env("PREFIX", install_path);
 
-        // Set compilers if specified
+        // Set compilers if specified (with validation)
         if let Some(cc) = &self.config.cc {
+            validate_compiler_path(cc)?;
             make_cmd.env("CC", cc);
         }
         if let Some(cxx) = &self.config.cxx {
+            validate_compiler_path(cxx)?;
             make_cmd.env("CXX", cxx);
         }
 
@@ -371,18 +387,22 @@ impl SourceBuilder {
             .arg(format!("--prefix={}", install_path.display()))
             .current_dir(source_dir);
 
-        // Set compilers if specified (meson uses CC/CXX env vars)
+        // Set compilers if specified (meson uses CC/CXX env vars, with validation)
         if let Some(cc) = &self.config.cc {
+            validate_compiler_path(cc)?;
             setup_cmd.env("CC", cc);
         }
         if let Some(cxx) = &self.config.cxx {
+            validate_compiler_path(cxx)?;
             setup_cmd.env("CXX", cxx);
         }
 
         let setup_status = setup_cmd.status()?;
 
         if !setup_status.success() {
-            return Err(Error::Build("meson setup failed".to_string()));
+            return Err(Error::Build(BuildError::MesonConfigureFailed {
+                package: self.config.name.clone()
+            }));
         }
 
         // Compile with parallel jobs
@@ -395,7 +415,9 @@ impl SourceBuilder {
             .status()?;
 
         if !compile_status.success() {
-            return Err(Error::Build("meson compile failed".to_string()));
+            return Err(Error::Build(BuildError::MesonCompileFailed {
+                package: self.config.name.clone()
+            }));
         }
 
         // Install
@@ -406,7 +428,9 @@ impl SourceBuilder {
             .status()?;
 
         if !install_status.success() {
-            return Err(Error::Build("meson install failed".to_string()));
+            return Err(Error::Build(BuildError::MesonInstallFailed {
+                package: self.config.name.clone()
+            }));
         }
 
         Ok(())
@@ -426,7 +450,9 @@ impl SourceBuilder {
             .status()?;
 
         if !build_status.success() {
-            return Err(Error::Build("cargo build failed".to_string()));
+            return Err(Error::Build(BuildError::CargoBuildFailed {
+                package: self.config.name.clone()
+            }));
         }
 
         // Install binaries
@@ -464,6 +490,27 @@ fn is_executable(path: &Path) -> bool {
     } else {
         false
     }
+}
+
+/// Validate a compiler path for security
+///
+/// Ensures the path doesn't contain suspicious characters and is safe to use.
+fn validate_compiler_path(path: &str) -> Result<()> {
+    // Check for empty path
+    if path.trim().is_empty() {
+        return Err(Error::Build(BuildError::CompilerValidationFailed {
+            reason: "Compiler path cannot be empty".to_string(),
+        }));
+    }
+
+    // Check for path traversal attempts
+    if path.contains("..") || path.contains(';') || path.contains('|') || path.contains('$') {
+        return Err(Error::Build(BuildError::CompilerValidationFailed {
+            reason: format!("Invalid compiler path '{}': contains suspicious characters", path),
+        }));
+    }
+
+    Ok(())
 }
 
 /// Check if build from source is available for a formula

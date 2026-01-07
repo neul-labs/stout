@@ -3,7 +3,7 @@
 //! This provides basic service management for packages that include
 //! launchd plists (macOS) or systemd units (Linux).
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use stout_state::{InstalledPackages, Paths};
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
@@ -100,7 +100,8 @@ async fn list_services() -> Result<()> {
     let mut found_services = false;
 
     for name in installed.names() {
-        let pkg = installed.get(name).unwrap();
+        let pkg = installed.get(name)
+            .with_context(|| format!("package '{}' is in installed list but not found", name))?;
         let install_path = paths.cellar.join(name).join(&pkg.version);
 
         // Look for service files

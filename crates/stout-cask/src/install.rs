@@ -56,6 +56,11 @@ pub async fn install_cask(
 
     info!("Downloading {}...", token);
 
+    // Warn if verification is disabled
+    if options.no_verify {
+        warn!("Checksum verification is disabled - this is a security risk");
+    }
+
     if options.dry_run {
         info!("[dry-run] Would download {} from {}", token, url);
         info!("[dry-run] Would install to /Applications");

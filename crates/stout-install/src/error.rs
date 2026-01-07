@@ -68,6 +68,12 @@ pub enum BuildError {
     #[error("cargo build failed for {package}")]
     CargoBuildFailed { package: String },
 
+    #[error("meson compile failed for {package}")]
+    MesonCompileFailed { package: String },
+
+    #[error("meson install failed for {package}")]
+    MesonInstallFailed { package: String },
+
     #[error("unknown build system for {package}")]
     UnknownBuildSystem { package: String },
 
@@ -76,6 +82,12 @@ pub enum BuildError {
 
     #[error("extraction failed for {package}: {reason}")]
     ExtractionFailed { package: String, reason: String },
+
+    #[error("source directory not found for {package}")]
+    SourceDirectoryNotFound { package: String },
+
+    #[error("compiler validation failed: {reason}")]
+    CompilerValidationFailed { reason: String },
 }
 
 impl BuildError {
