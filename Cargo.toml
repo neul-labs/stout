@@ -13,7 +13,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/neul-labs/stout"
@@ -21,15 +21,15 @@ rust-version = "1.75"
 
 [workspace.dependencies]
 # Internal crates
-stout-index = { version = "0.1.0", path = "crates/stout-index" }
-stout-resolve = { version = "0.1.0", path = "crates/stout-resolve" }
-stout-fetch = { version = "0.1.0", path = "crates/stout-fetch" }
-stout-install = { version = "0.1.0", path = "crates/stout-install" }
-stout-state = { version = "0.1.0", path = "crates/stout-state" }
-stout-cask = { version = "0.1.0", path = "crates/stout-cask" }
-stout-bundle = { version = "0.1.0", path = "crates/stout-bundle" }
-stout-audit = { version = "0.1.0", path = "crates/stout-audit" }
-stout-mirror = { version = "0.1.0", path = "crates/stout-mirror" }
+stout-index = { version = "0.2.0", path = "crates/stout-index" }
+stout-resolve = { version = "0.2.0", path = "crates/stout-resolve" }
+stout-fetch = { version = "0.2.0", path = "crates/stout-fetch" }
+stout-install = { version = "0.2.0", path = "crates/stout-install" }
+stout-state = { version = "0.2.0", path = "crates/stout-state" }
+stout-cask = { version = "0.2.0", path = "crates/stout-cask" }
+stout-bundle = { version = "0.2.0", path = "crates/stout-bundle" }
+stout-audit = { version = "0.2.0", path = "crates/stout-audit" }
+stout-mirror = { version = "0.2.0", path = "crates/stout-mirror" }
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }
