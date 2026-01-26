@@ -4,6 +4,7 @@ A fast, Rust-based Homebrew-compatible package manager.
 
 [![Build](https://github.com/neul-labs/stout/actions/workflows/ci.yml/badge.svg)](https://github.com/neul-labs/stout/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Documentation](https://img.shields.io/badge/docs-docs.neullabs.com-blue)](https://docs.neullabs.com/stout)
 
 ## Why stout?
 
@@ -17,6 +18,17 @@ stout is a drop-in replacement for the Homebrew CLI that's **10-100x faster** fo
 | `update` | 10-60s | 1-3s | **10-20x** |
 
 The secret? stout eliminates Ruby entirely. It uses a pre-computed SQLite index with FTS5 full-text search, fetches only what it needs, and downloads bottles in parallel.
+
+### Key Features
+
+Beyond speed, stout is designed for real-world workflows:
+
+- **Offline & Air-Gapped Support** - Create local mirrors for environments without internet access
+- **Private Index Hosting** - Host your own package index at [neul-labs/stout-index](https://github.com/neul-labs/stout-index) or fork it for internal use
+- **Multi-Prefix Environments** - Isolated package installations per project, no conflicts
+- **Signed Index Updates** - Ed25519 cryptographic signatures on all index data
+- **Vulnerability Scanning** - Built-in `stout audit` checks packages against known CVEs
+- **Full Homebrew Compatibility** - Drop-in replacement, works alongside existing brew installations
 
 ## Installation
 

@@ -96,6 +96,11 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 description = "A fast, Rust-based Homebrew-compatible package manager"
+keywords = ["homebrew", "package-manager", "cli", "brew", "macos"]
+categories = ["command-line-utilities", "development-tools"]
+documentation = "https://docs.neullabs.com/stout"
+homepage = "https://github.com/neul-labs/stout"
+readme = "README.md"
 
 [[bin]]
 name = "stout"

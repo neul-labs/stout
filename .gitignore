@@ -25,4 +25,4 @@ venv/
 Thumbs.db
 
 # Local testing
-.brewx/
+.stout/
