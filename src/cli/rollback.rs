@@ -31,7 +31,8 @@ pub async fn run(args: Args) -> Result<()> {
         bail!("{} is not installed", args.formula);
     }
 
-    let current = installed.get(&args.formula).unwrap();
+    let current = installed.get(&args.formula)
+        .with_context(|| format!("package '{}' is installed but not found in state", args.formula))?;
     let current_version = &current.version;
 
     // Determine target version
@@ -39,14 +40,12 @@ pub async fn run(args: Args) -> Result<()> {
         v.clone()
     } else {
         // Get previous version from history
-        let prev = history.get_previous(&args.formula);
-        if prev.is_none() {
-            bail!(
+        let prev = history.get_previous(&args.formula)
+            .ok_or_else(|| anyhow::anyhow!(
                 "No previous version found for {}. Use --version to specify a version.",
                 args.formula
-            );
-        }
-        prev.unwrap().version.clone()
+            ))?;
+        prev.version.clone()
     };
 
     if target_version == *current_version {
@@ -86,7 +85,8 @@ pub async fn run(args: Args) -> Result<()> {
 
         // Update installed state
         let mut installed = InstalledPackages::load(&paths)?;
-        let pkg = installed.get(&args.formula).unwrap();
+        let pkg = installed.get(&args.formula)
+            .with_context(|| format!("package '{}' is installed but not found in state", args.formula))?;
         let requested = pkg.requested;
         let deps = pkg.dependencies.clone();
         installed.add_with_deps(&args.formula, &target_version, 0, requested, deps);

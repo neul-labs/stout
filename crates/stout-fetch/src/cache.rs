@@ -4,6 +4,20 @@ use crate::error::{Error, Result};
 use std::path::{Path, PathBuf};
 use tracing::debug;
 
+/// Validate a name for safe use in file paths
+fn validate_name(name: &str) -> Result<()> {
+    if name.is_empty() {
+        return Err(Error::InvalidInput("name cannot be empty".to_string()));
+    }
+    if name.contains("..") || name.contains('/') || name.contains('\0') {
+        return Err(Error::InvalidInput(format!(
+            "name '{}' contains invalid characters for file path",
+            name
+        )));
+    }
+    Ok(())
+}
+
 /// Cache for downloaded bottles
 pub struct DownloadCache {
     cache_dir: PathBuf,
@@ -22,24 +36,28 @@ impl DownloadCache {
     }
 
     /// Get the path for a cached bottle
-    pub fn bottle_path(&self, name: &str, version: &str, platform: &str) -> PathBuf {
-        self.cache_dir
+    pub fn bottle_path(&self, name: &str, version: &str, platform: &str) -> Result<PathBuf> {
+        validate_name(name)?;
+        validate_name(version)?;
+        validate_name(platform)?;
+
+        Ok(self.cache_dir
             .join("downloads")
-            .join(format!("{}-{}-{}.tar.gz", name, version, platform))
+            .join(format!("{}-{}-{}.tar.gz", name, version, platform)))
     }
 
     /// Check if a bottle is cached
     pub fn has_bottle(&self, name: &str, version: &str, platform: &str) -> bool {
-        self.bottle_path(name, version, platform).exists()
+        self.bottle_path(name, version, platform).map_or(false, |p| p.exists())
     }
 
     /// Get a cached bottle path if it exists
-    pub fn get_bottle(&self, name: &str, version: &str, platform: &str) -> Option<PathBuf> {
-        let path = self.bottle_path(name, version, platform);
+    pub fn get_bottle(&self, name: &str, version: &str, platform: &str) -> Result<Option<PathBuf>> {
+        let path = self.bottle_path(name, version, platform)?;
         if path.exists() {
-            Some(path)
+            Ok(Some(path))
         } else {
-            None
+            Ok(None)
         }
     }
 
@@ -51,7 +69,7 @@ impl DownloadCache {
         platform: &str,
         data: &[u8],
     ) -> Result<PathBuf> {
-        let path = self.bottle_path(name, version, platform);
+        let path = self.bottle_path(name, version, platform)?;
 
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -65,7 +83,7 @@ impl DownloadCache {
 
     /// Remove a bottle from the cache
     pub fn remove_bottle(&self, name: &str, version: &str, platform: &str) -> Result<()> {
-        let path = self.bottle_path(name, version, platform);
+        let path = self.bottle_path(name, version, platform)?;
         if path.exists() {
             std::fs::remove_file(&path)?;
         }

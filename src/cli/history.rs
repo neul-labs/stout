@@ -49,7 +49,7 @@ pub async fn run(args: Args) -> Result<()> {
         // Show history for specific formula
         let entries = history.get(formula);
 
-        if entries.is_none() || entries.unwrap().is_empty() {
+        if entries.as_ref().map_or(true, |e| e.is_empty()) {
             if args.json {
                 println!("{{\"packages\": []}}");
             } else {
@@ -58,7 +58,7 @@ pub async fn run(args: Args) -> Result<()> {
             return Ok(());
         }
 
-        let entries = entries.unwrap();
+        let entries = entries.expect("checked that entries is Some above");
         let entries: Vec<_> = if let Some(limit) = args.limit {
             entries.iter().rev().take(limit).collect()
         } else {
@@ -144,7 +144,8 @@ pub async fn run(args: Args) -> Result<()> {
             names.sort();
 
             for name in names {
-                let entries = history.packages.get(name).unwrap();
+                let entries = history.packages.get(name)
+                    .ok_or_else(|| anyhow::anyhow!("package '{}' in history but not found", name))?;
                 let entries: Vec<_> = if let Some(limit) = args.limit {
                     entries.iter().rev().take(limit).collect()
                 } else {

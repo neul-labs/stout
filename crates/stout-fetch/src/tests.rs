@@ -24,7 +24,7 @@ fn test_cache_bottle_path() {
     let tmp = tempdir().unwrap();
     let cache = DownloadCache::new(tmp.path());
 
-    let path = cache.bottle_path("wget", "1.24.5", "x86_64_linux");
+    let path = cache.bottle_path("wget", "1.24.5", "x86_64_linux").unwrap();
     assert!(path.to_string_lossy().contains("wget-1.24.5-x86_64_linux.tar.gz"));
     assert!(path.to_string_lossy().contains("downloads"));
 }
@@ -50,7 +50,7 @@ fn test_cache_store_and_get() {
     assert!(cache.has_bottle("wget", "1.0.0", "x86_64_linux"));
 
     // Get it back
-    let got = cache.get_bottle("wget", "1.0.0", "x86_64_linux");
+    let got = cache.get_bottle("wget", "1.0.0", "x86_64_linux").unwrap();
     assert!(got.is_some());
     assert_eq!(got.unwrap(), path);
 
@@ -64,7 +64,7 @@ fn test_cache_get_missing() {
     let tmp = tempdir().unwrap();
     let cache = DownloadCache::new(tmp.path());
 
-    let got = cache.get_bottle("nonexistent", "1.0.0", "x86_64_linux");
+    let got = cache.get_bottle("nonexistent", "1.0.0", "x86_64_linux").unwrap();
     assert!(got.is_none());
 }
 

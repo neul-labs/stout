@@ -13,6 +13,35 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{debug, info, warn};
 
+/// Validate a package name for safe use in file paths
+/// Returns an error if the name contains path traversal characters or is empty
+pub fn validate_package_name(name: &str) -> Result<()> {
+    if name.is_empty() {
+        return Err(Error::InvalidInput("package name cannot be empty".to_string()));
+    }
+    if name.contains("..") || name.contains('/') || name.contains('\0') {
+        return Err(Error::InvalidInput(format!(
+            "package name '{}' contains invalid characters for file path",
+            name
+        )));
+    }
+    Ok(())
+}
+
+/// Validate a cask token for safe use in file paths
+pub fn validate_cask_token(token: &str) -> Result<()> {
+    if token.is_empty() {
+        return Err(Error::InvalidInput("cask token cannot be empty".to_string()));
+    }
+    if token.contains("..") || token.contains('/') || token.contains('\0') {
+        return Err(Error::InvalidInput(format!(
+            "cask token '{}' contains invalid characters for file path",
+            token
+        )));
+    }
+    Ok(())
+}
+
 /// Manifest file structure (with optional signature for backwards compatibility)
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Manifest {
@@ -349,6 +378,9 @@ impl IndexSync {
 
     /// Fetch and cache a formula
     pub async fn fetch_formula_cached(&self, name: &str, expected_hash: Option<&str>) -> Result<Formula> {
+        // Validate package name to prevent path traversal
+        validate_package_name(name)?;
+
         let cache_path = self.cache_dir.join("formulas").join(format!("{}.json", name));
 
         // Check cache
@@ -410,6 +442,9 @@ impl IndexSync {
 
     /// Fetch and cache a cask
     pub async fn fetch_cask_cached(&self, token: &str, expected_hash: Option<&str>) -> Result<Cask> {
+        // Validate cask token to prevent path traversal
+        validate_cask_token(token)?;
+
         let cache_path = self.cache_dir.join("casks").join(format!("{}.json", token));
 
         // Check cache

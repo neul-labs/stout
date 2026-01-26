@@ -1,6 +1,7 @@
 //! Mirror command - create and serve offline mirrors
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
+use sha2::{Digest, Sha256};
 use stout_index::Database;
 use stout_mirror::{
     create_mirror, detect_platform, serve_mirror, MirrorClient, MirrorClientConfig, MirrorConfig,
@@ -10,7 +11,21 @@ use stout_state::Paths;
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
 use humansize::{format_size, BINARY};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+/// Verify SHA256 checksum of a file
+fn verify_file_checksum(path: &Path, expected: &str) -> Result<()> {
+    let data = std::fs::read(path)?;
+    let mut hasher = Sha256::new();
+    hasher.update(&data);
+    let actual = format!("{:x}", hasher.finalize());
+
+    if actual == expected {
+        Ok(())
+    } else {
+        bail!("expected {}, got {}", expected, actual)
+    }
+}
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -434,6 +449,8 @@ async fn run_update(
         bail!("Invalid mirror: missing manifest.json");
     }
 
+    let manifest = MirrorManifest::load(&manifest_path)?;
+
     println!(
         "\n{} mirror at {}\n",
         style("Updating").cyan().bold(),
@@ -444,10 +461,83 @@ async fn run_update(
         println!("{}", style("DRY RUN - no files will be modified").yellow());
     }
 
-    // TODO: Implement actual update logic
-    println!("{}", style("Mirror update not yet implemented").yellow());
+    // Load the index to check for updates
+    let paths = Paths::default();
+    let db = Database::open(paths.index_db())
+        .context("Failed to open index. Run 'stout update' first.")?;
+
+    if !db.is_initialized()? {
+        bail!("Index not initialized. Run 'stout update' first.");
+    }
+
+    // Determine which packages to update
+    let packages_to_update: Vec<&String> = if packages.is_empty() {
+        manifest.formulas.packages.keys().collect()
+    } else {
+        packages.iter().collect()
+    };
+
+    let mut updated = 0;
+    let mut skipped = 0;
+
+    for name in &packages_to_update {
+        if let Some(current_info) = manifest.formulas.packages.get(*name) {
+            // Get latest from index
+            let latest = db.get_formula(*name)?;
+
+            match latest {
+                Some(latest_formula) => {
+                    if latest_formula.version != current_info.version
+                        || latest_formula.revision != current_info.revision
+                    {
+                        println!(
+                            "  {} {} -> {}",
+                            style(name).white().bold(),
+                            style(&current_info.version).red(),
+                            style(&latest_formula.version).green()
+                        );
+
+                        if !dry_run {
+                            // TODO: Implement bottle download and manifest update
+                            // This requires integrating with stout-fetch for downloading
+                            // and updating the manifest.json with new checksums
+                            println!("    (update not yet implemented - run 'stout mirror create' to rebuild)");
+                        }
+                        updated += 1;
+                    } else {
+                        if verbose_output() {
+                            println!("  {} is up to date", name);
+                        }
+                        skipped += 1;
+                    }
+                }
+                None => {
+                    println!("  {} {} (removed from upstream)", style(name).white().bold(), current_info.version);
+                    skipped += 1;
+                }
+            }
+        } else if packages.is_empty() {
+            // Package not in manifest, skip
+            continue;
+        } else {
+            bail!("Package {} not found in mirror", name);
+        }
+    }
+
+    println!();
+    if dry_run {
+        println!("{} Would update {} packages, skip {}", style("DRY RUN:").yellow(), updated, skipped);
+    } else {
+        println!("{} {} packages updated, {} skipped", style("✓").green(), updated, skipped);
+        println!("{}", style("Note: Package download not yet implemented").yellow());
+    }
 
     Ok(())
+}
+
+/// Helper to check if verbose output is enabled
+fn verbose_output() -> bool {
+    std::env::var("STOUT_VERBOSE").is_ok()
 }
 
 async fn run_prune(path: PathBuf, keep: usize, dry_run: bool) -> Result<()> {
@@ -455,6 +545,8 @@ async fn run_prune(path: PathBuf, keep: usize, dry_run: bool) -> Result<()> {
     if !manifest_path.exists() {
         bail!("Invalid mirror: missing manifest.json");
     }
+
+    let manifest = MirrorManifest::load(&manifest_path)?;
 
     println!(
         "\n{} mirror at {} (keeping {} versions)\n",
@@ -467,8 +559,124 @@ async fn run_prune(path: PathBuf, keep: usize, dry_run: bool) -> Result<()> {
         println!("{}", style("DRY RUN - no files will be removed").yellow());
     }
 
-    // TODO: Implement actual prune logic
-    println!("{}", style("Mirror prune not yet implemented").yellow());
+    // Collect all files referenced in the manifest
+    let mut referenced_files: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    // Add formula JSON files
+    for info in manifest.formulas.packages.values() {
+        referenced_files.insert(info.json_path.clone());
+        for bottle in info.bottles.values() {
+            referenced_files.insert(bottle.path.clone());
+        }
+    }
+
+    // Add cask files
+    for info in manifest.casks.packages.values() {
+        referenced_files.insert(info.json_path.clone());
+        if let Some(artifact) = &info.artifact {
+            referenced_files.insert(artifact.path.clone());
+        }
+    }
+
+    // Find orphaned files (in mirror but not in manifest)
+    let mut orphaned: Vec<PathBuf> = Vec::new();
+
+    // Check formulas directory
+    let formulas_dir = path.join("formulas");
+    if formulas_dir.exists() {
+        for entry in std::fs::read_dir(&formulas_dir)? {
+            let entry = entry?;
+            let rel_path = entry.path().strip_prefix(&path)?.to_string_lossy().to_string();
+            if !referenced_files.contains(&rel_path) {
+                orphaned.push(entry.path());
+            }
+        }
+    }
+
+    // Check bottles directory
+    let bottles_dir = path.join("bottles");
+    if bottles_dir.exists() {
+        for entry in std::fs::read_dir(&bottles_dir)? {
+            let entry = entry?;
+            let rel_path = entry.path().strip_prefix(&path)?.to_string_lossy().to_string();
+            if !referenced_files.contains(&rel_path) {
+                orphaned.push(entry.path());
+            }
+        }
+    }
+
+    // Check casks directory
+    let casks_dir = path.join("casks");
+    if casks_dir.exists() {
+        for entry in std::fs::read_dir(&casks_dir)? {
+            let entry = entry?;
+            let rel_path = entry.path().strip_prefix(&path)?.to_string_lossy().to_string();
+            if !referenced_files.contains(&rel_path) {
+                orphaned.push(entry.path());
+            }
+        }
+    }
+
+    // Check artifacts directory
+    let artifacts_dir = path.join("artifacts");
+    if artifacts_dir.exists() {
+        for entry in std::fs::read_dir(&artifacts_dir)? {
+            let entry = entry?;
+            let rel_path = entry.path().strip_prefix(&path)?.to_string_lossy().to_string();
+            if !referenced_files.contains(&rel_path) {
+                orphaned.push(entry.path());
+            }
+        }
+    }
+
+    if orphaned.is_empty() {
+        println!("  {} No orphaned files found", style("✓").green());
+        println!();
+        return Ok(());
+    }
+
+    // Calculate total size of orphaned files
+    let mut total_size = 0u64;
+    for p in &orphaned {
+        if let Ok(m) = p.metadata() {
+            total_size += m.len();
+        }
+    }
+
+    println!("  Found {} orphaned file{} ({})", orphaned.len(), if orphaned.len() == 1 { "" } else { "s" }, humansize::format_size(total_size, BINARY));
+    println!();
+
+    if dry_run {
+        println!("{} Would remove {} orphaned files:", style("DRY RUN:").yellow(), orphaned.len());
+        for p in &orphaned {
+            println!("    {}", p.display());
+        }
+    } else {
+        let mut removed = 0;
+        let mut failed = 0;
+
+        for p in orphaned {
+            match std::fs::remove_file(&p) {
+                Ok(_) => {
+                    if verbose_output() {
+                        println!("  Removed {}", p.display());
+                    }
+                    removed += 1;
+                }
+                Err(e) => {
+                    println!("  {} Failed to remove {}: {}", style("✗").red(), p.display(), e);
+                    failed += 1;
+                }
+            }
+        }
+
+        println!();
+        if failed == 0 {
+            println!("{} Removed {} orphaned files", style("✓").green(), removed);
+        } else {
+            println!("{} Removed {}, {} failed", style("!").yellow(), removed, failed);
+        }
+    }
 
     Ok(())
 }
@@ -511,11 +719,18 @@ async fn run_verify(path: PathBuf, packages: Vec<String>, verbose: bool) -> Resu
                 }
 
                 if bottle_path.exists() {
-                    // TODO: Verify checksum
-                    if verbose {
-                        println!("{}", style("✓").green());
+                    // Verify checksum
+                    if let Err(e) = verify_file_checksum(&bottle_path, &bottle.sha256) {
+                        if verbose {
+                            println!("{} {}", style("✗").red(), e);
+                        }
+                        errors += 1;
+                    } else {
+                        if verbose {
+                            println!("{}", style("✓").green());
+                        }
+                        verified += 1;
                     }
-                    verified += 1;
                 } else {
                     if verbose {
                         println!("{}", style("✗ missing").red());

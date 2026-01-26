@@ -5,6 +5,7 @@ use stout_index::{Database, IndexSync};
 use stout_state::{Config, Paths};
 use clap::Args as ClapArgs;
 use console::style;
+use tracing::warn;
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -78,11 +79,11 @@ fn open_url(url: &str) -> Result<()> {
     #[cfg(target_os = "linux")]
     {
         // Try xdg-open first, then common browsers
-        if std::process::Command::new("xdg-open")
+        if let Err(e) = std::process::Command::new("xdg-open")
             .arg(url)
             .spawn()
-            .is_err()
         {
+            warn!("Failed to open URL with xdg-open: {}", e);
             // Fallback to common browsers
             for browser in &["firefox", "chromium", "google-chrome", "brave"] {
                 if std::process::Command::new(browser)

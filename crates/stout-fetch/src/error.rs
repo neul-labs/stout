@@ -22,6 +22,9 @@ pub enum Error {
 
     #[error("File not found in cache: {0}")]
     NotInCache(String),
+
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

@@ -3,7 +3,7 @@
 //! Runs basic smoke tests on installed packages by verifying binaries
 //! can execute with --version or --help flags.
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
@@ -67,7 +67,8 @@ pub async fn run(args: Args) -> Result<()> {
             continue;
         }
 
-        let pkg_info = installed.get(name).unwrap();
+        let pkg_info = installed.get(name)
+            .with_context(|| format!("package '{}' is installed but not found in state", name))?;
         let install_path = paths
             .cellar
             .join(name)

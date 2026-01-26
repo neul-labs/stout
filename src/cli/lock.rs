@@ -54,7 +54,8 @@ async fn generate_lockfile(output: Option<PathBuf>) -> Result<()> {
     println!("{}...", style("Generating lockfile").cyan());
 
     for name in installed.names() {
-        let pkg = installed.get(name).unwrap();
+        let pkg = installed.get(name)
+            .with_context(|| format!("package '{}' is in installed list but not found", name))?;
 
         // Create a basic locked package entry
         // In a full implementation, we'd look up bottle/source info

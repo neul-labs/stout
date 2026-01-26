@@ -34,7 +34,8 @@ pub fn link_package(
         // Link all files in this directory
         for entry in walkdir(&source_dir)? {
             let entry = entry?;
-            let relative = entry.strip_prefix(&source_dir).unwrap();
+            let relative = entry.strip_prefix(&source_dir)
+                .expect("entry should be under source_dir");
             let target = target_dir.join(relative);
 
             // Create parent directories for nested files
@@ -58,7 +59,8 @@ pub fn link_package(
             }
 
             // Create relative symlink
-            let relative_source = pathdiff::diff_paths(&entry, target.parent().unwrap())
+            let relative_source = pathdiff::diff_paths(&entry, target.parent()
+                .expect("target should have a parent directory"))
                 .unwrap_or_else(|| entry.to_path_buf());
 
             debug!("Linking {} -> {}", target.display(), relative_source.display());
@@ -107,12 +109,15 @@ pub fn unlink_package(
 
         for entry in walkdir(&source_dir)? {
             let entry = entry?;
-            let relative = entry.strip_prefix(&source_dir).unwrap();
+            let relative = entry.strip_prefix(&source_dir)
+                .expect("entry should be under source_dir");
             let target = target_dir.join(relative);
 
             if let Ok(link_target) = std::fs::read_link(&target) {
                 // Check if it points to our file
-                let resolved = target.parent().unwrap().join(&link_target);
+                let resolved = target.parent()
+                    .expect("target should have a parent directory")
+                    .join(&link_target);
                 if resolved.canonicalize().ok() == entry.canonicalize().ok() {
                     debug!("Unlinking {}", target.display());
                     std::fs::remove_file(&target)?;

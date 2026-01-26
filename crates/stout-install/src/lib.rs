@@ -22,7 +22,7 @@ mod tests;
 
 pub use bottle::{create_bottle, BottleResult};
 pub use build::{BuildConfig, BuildResult, SourceBuilder, can_build_from_source};
-pub use error::{Error, Result};
+pub use error::{BuildError, Error, Result};
 pub use extract::{extract_bottle, remove_package};
 pub use link::{link_package, unlink_package};
 pub use parallel::{BottleInfo, LinkInfo, PackageInstallResult, ParallelConfig, ParallelInstaller};

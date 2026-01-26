@@ -98,7 +98,8 @@ impl ParallelInstaller {
 
             join_set.spawn(async move {
                 // Acquire semaphore permit
-                let _permit = semaphore.acquire().await.unwrap();
+                let _permit = semaphore.acquire().await
+                    .map_err(|e| crate::error::Error::Other(format!("Semaphore error: {}", e)))?;
 
                 // Run blocking extraction in a spawn_blocking
                 let name = bottle.name.clone();
@@ -169,7 +170,8 @@ impl ParallelInstaller {
             let semaphore = Arc::clone(&semaphore);
 
             join_set.spawn(async move {
-                let _permit = semaphore.acquire().await.unwrap();
+                let _permit = semaphore.acquire().await
+                    .map_err(|e| crate::error::Error::Other(format!("Semaphore error: {}", e)))?;
 
                 let name = pkg.name.clone();
                 let install_path = pkg.install_path.clone();

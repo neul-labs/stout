@@ -35,7 +35,8 @@ impl DownloadClient {
         })
     }
 
-    /// Create with default concurrency (4)
+    /// Create with default concurrency (4 concurrent downloads)
+    /// This balance between parallelism and avoiding network congestion
     pub fn with_cache(cache: DownloadCache) -> Result<Self> {
         Self::new(cache, 4)
     }
@@ -51,7 +52,7 @@ impl DownloadClient {
         progress: Option<&ProgressReporter>,
     ) -> Result<PathBuf> {
         // Check cache first
-        if let Some(path) = self.cache.get_bottle(name, version, platform) {
+        if let Some(path) = self.cache.get_bottle(name, version, platform)? {
             // Verify cached file
             if crate::verify::verify_sha256(&path, expected_sha256).is_ok() {
                 debug!("Using cached bottle for {}", name);

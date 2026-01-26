@@ -64,7 +64,8 @@ pub async fn run(args: Args) -> Result<()> {
     }
 
     // Check if it was explicitly requested
-    let pkg = installed.get(&args.formula).unwrap();
+    let pkg = installed.get(&args.formula)
+        .with_context(|| format!("package '{}' is installed but not found in state", args.formula))?;
     if pkg.requested {
         if args.json {
             let output = WhyJson {
@@ -149,7 +150,8 @@ fn find_dependency_paths(
     queue.push_back(vec![target.to_string()]);
 
     while let Some(current_path) = queue.pop_front() {
-        let current = current_path.last().unwrap();
+        let current = current_path.last()
+            .expect("current_path should always have at least one element");
 
         if visited.contains(current) && !find_all {
             continue;

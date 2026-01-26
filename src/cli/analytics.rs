@@ -148,8 +148,9 @@ pub async fn record_event(event_type: &str, data: &str) -> Result<()> {
         tracing::debug!("Analytics event: {} - {}", event_type, data);
     }
 
-    // TODO: Implement actual analytics posting
-    // This would be a simple HTTP POST to an analytics endpoint:
+    // NOTE: Analytics posting is intentionally disabled by default
+    // This feature would require user opt-in and a dedicated analytics endpoint
+    // Uncomment below to enable in development:
     //
     // let client = reqwest::Client::new();
     // let _ = client.post("https://analytics.stout.dev/v1/events")

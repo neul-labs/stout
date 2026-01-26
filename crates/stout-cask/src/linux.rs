@@ -9,6 +9,39 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use tracing::{debug, info, warn};
 
+/// Validate a cask token for safe use in file paths
+fn validate_token(token: &str) -> Result<()> {
+    if token.is_empty() {
+        return Err(Error::InvalidInput("cask token cannot be empty".to_string()));
+    }
+    if token.contains("..") || token.contains('/') || token.contains('\0') {
+        return Err(Error::InvalidInput(format!(
+            "cask token '{}' contains invalid characters for file path",
+            token
+        )));
+    }
+    Ok(())
+}
+
+/// RAII guard for temporary directory cleanup
+struct TempDirGuard(PathBuf);
+
+impl TempDirGuard {
+    fn new(path: PathBuf) -> Self {
+        Self(path)
+    }
+}
+
+impl Drop for TempDirGuard {
+    fn drop(&mut self) {
+        if self.0.exists() {
+            if let Err(e) = std::fs::remove_dir_all(&self.0) {
+                warn!("Failed to clean up temp directory {}: {}", self.0.display(), e);
+            }
+        }
+    }
+}
+
 /// Install artifact on Linux
 pub async fn install_artifact(
     cask: &Cask,
@@ -89,8 +122,15 @@ async fn install_from_archive(
     options: &CaskInstallOptions,
 ) -> Result<PathBuf> {
     let token = &cask.token;
+
+    // Validate token to prevent path traversal
+    validate_token(token)?;
+
     let temp_dir = std::env::temp_dir().join(format!("stout-{}", token));
     std::fs::create_dir_all(&temp_dir)?;
+
+    // Use RAII guard for automatic cleanup
+    let _guard = TempDirGuard(temp_dir.clone());
 
     // Extract archive
     let extract_args: Vec<&str> = match artifact_type {
@@ -134,7 +174,7 @@ async fn install_from_archive(
     // Look for AppImage or executable
     if let Some(appimage) = find_file_by_extension(&temp_dir, "AppImage")? {
         let result = install_appimage(cask, &appimage, options).await?;
-        let _ = std::fs::remove_dir_all(&temp_dir);
+        // Success - guard will clean up on drop
         return Ok(result);
     }
 
@@ -158,11 +198,11 @@ async fn install_from_archive(
         perms.set_mode(0o755);
         std::fs::set_permissions(&dest, perms)?;
 
-        let _ = std::fs::remove_dir_all(&temp_dir);
+        // Success - guard will clean up on drop
         return Ok(dest);
     }
 
-    let _ = std::fs::remove_dir_all(&temp_dir);
+    // Guard will clean up on drop
     Err(Error::ArtifactNotFound(
         "No AppImage or executable found in archive".to_string(),
     ))
@@ -239,6 +279,9 @@ fn is_executable(path: &Path) -> bool {
 
 /// Extract .desktop file from AppImage
 fn extract_desktop_file(appimage_path: &Path, token: &str) -> Result<()> {
+    // Validate token to prevent path traversal
+    validate_token(token)?;
+
     let applications_dir = dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("~/.local/share"))
         .join("applications");
@@ -246,6 +289,15 @@ fn extract_desktop_file(appimage_path: &Path, token: &str) -> Result<()> {
 
     // Try to extract using --appimage-extract (works with most AppImages)
     let temp_dir = std::env::temp_dir().join(format!("stout-desktop-{}", token));
+
+    // Security: Verify AppImage is a regular executable file before executing
+    if !appimage_path.is_file() {
+        warn!("AppImage path is not a file: {}", appimage_path.display());
+        return Err(Error::InstallFailed(format!(
+            "AppImage is not a file: {}",
+            appimage_path.display()
+        )));
+    }
 
     let output = Command::new(appimage_path)
         .args(["--appimage-extract", "*.desktop"])

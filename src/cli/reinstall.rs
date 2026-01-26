@@ -54,17 +54,9 @@ pub async fn run(args: Args) -> Result<()> {
 
     for name in &args.formulas {
         // Check if installed
-        let old_pkg = installed.get(name).cloned();
-        if old_pkg.is_none() {
-            eprintln!(
-                "{} {} is not installed, use 'stout install' instead",
-                style("Warning:").yellow(),
-                name
-            );
-            continue;
-        }
-
-        let old_pkg = old_pkg.unwrap();
+        let old_pkg = installed.get(name)
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("{} is not installed, use 'stout install' instead", name))?;
 
         println!(
             "\n{} Reinstalling {} {}",
@@ -124,7 +116,8 @@ pub async fn run(args: Args) -> Result<()> {
             result.install_path
         } else {
             // Download and extract bottle
-            let bottle = formula.bottle_for_platform(&platform).unwrap();
+            let bottle = formula.bottle_for_platform(&platform)
+                .expect("bottle_for_platform returned None after None check");
 
             println!("  {} Downloading bottle...", style("•").dim());
 
