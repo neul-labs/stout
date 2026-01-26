@@ -112,7 +112,7 @@ Stout supports all common Homebrew operations:
 
 ### Enterprise Ready
 
-- Private index hosting for internal packages
+- Private index hosting - fork [stout-index](https://github.com/neul-labs/stout-index) for internal packages
 - Multi-prefix isolation for project environments
 - Air-gapped deployment with offline mirrors
 - Vulnerability scanning with CVE database integration

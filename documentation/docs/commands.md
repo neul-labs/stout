@@ -24,6 +24,11 @@ stout install <package>...
 | `--only-dependencies` | Install only dependencies, not the package |
 | `--cask` | Install as a cask (application) |
 | `--quiet` | Suppress output |
+| `--dry-run` | Preview what would be installed |
+| `--keep-bottles` | Keep downloaded bottles after installation |
+| `-j, --jobs=<n>` | Number of parallel jobs for source builds |
+| `--cc=<compiler>` | Use specified C compiler |
+| `--cxx=<compiler>` | Use specified C++ compiler |
 
 **Examples:**
 
@@ -453,6 +458,8 @@ stout services <command> [service]
 | `stop <service>` | Stop a service |
 | `restart <service>` | Restart a service |
 | `run <service>` | Run in foreground |
+| `info <service>` | Show service information |
+| `cleanup` | Remove unused service files |
 
 ---
 
@@ -470,7 +477,7 @@ stout tap [user/repo]
 |---------|-------------|
 | `stout tap` | List tapped repositories |
 | `stout tap <user/repo>` | Add a tap |
-| `stout untap <user/repo>` | Remove a tap |
+| `stout tap remove <user/repo>` | Remove a tap |
 
 ---
 
@@ -597,10 +604,46 @@ stout snapshot <command>
 
 | Command | Description |
 |---------|-------------|
-| `save <name>` | Save current state |
-| `restore <name>` | Restore a snapshot |
+| `create <name>` | Create a snapshot |
 | `list` | List snapshots |
+| `show <name>` | Show snapshot details |
+| `restore <name>` | Restore a snapshot |
 | `delete <name>` | Delete a snapshot |
+| `export <name> <file>` | Export snapshot to file |
+| `import <file>` | Import snapshot from file |
+
+---
+
+### lock
+
+Manage lockfiles for reproducible environments.
+
+```bash
+stout lock <command>
+```
+
+**Subcommands:**
+
+| Command | Description |
+|---------|-------------|
+| `generate` | Generate lockfile from installed packages |
+| `install` | Install packages from lockfile |
+| `show` | Display lockfile contents |
+
+**Examples:**
+
+```bash
+# Generate lockfile
+stout lock generate
+
+# Install from lockfile
+stout lock install
+
+# View lockfile
+stout lock show
+```
+
+Creates `stout.lock` with exact versions for reproducible environments.
 
 ---
 
@@ -698,13 +741,19 @@ stout prefix default ~/project/.stout
 
 ### bottle
 
-Create binary packages.
+Create and manage binary packages.
 
 ```bash
-stout bottle <package>
+stout bottle <command> [package]
 ```
 
-Creates a distributable bottle from an installed package.
+**Subcommands:**
+
+| Command | Description |
+|---------|-------------|
+| `create <package>` | Create bottle from installed package |
+| `info <bottle>` | Show bottle information |
+| `verify <bottle>` | Verify bottle integrity |
 
 ---
 
@@ -744,9 +793,10 @@ stout analytics <command>
 
 | Command | Description |
 |---------|-------------|
-| `state` | Show analytics status |
+| `status` | Show analytics status |
 | `on` | Enable analytics |
 | `off` | Disable analytics |
+| `what` | Show what data is collected |
 
 ---
 

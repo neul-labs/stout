@@ -101,6 +101,15 @@ stout prefix default ~/projects/webapp/.stout
 stout prefix list
 ```
 
+### Environment Variable
+
+You can also set the default prefix via environment variable:
+
+```bash
+export STOUT_PREFIX=~/projects/myapp/.stout
+stout install node@20  # Installs to custom prefix
+```
+
 ### Use Cases
 
 - **Project isolation:** Each project has its own dependencies
@@ -174,7 +183,7 @@ Create reproducible builds with lock files:
 
 ```bash
 # Generate lock file
-stout lock create
+stout lock generate
 
 # Install from lock file
 stout lock install
@@ -334,4 +343,4 @@ Error: Package 'unapproved-pkg' is not in the approved list
 For enterprise support inquiries:
 
 - Email: enterprise@neul-labs.com
-- Documentation: https://neul-labs.github.io/stout/enterprise
+- Documentation: https://docs.neullabs.com/stout/enterprise
