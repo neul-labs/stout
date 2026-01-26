@@ -21,15 +21,15 @@ rust-version = "1.75"
 
 [workspace.dependencies]
 # Internal crates
-stout-index = { path = "crates/stout-index" }
-stout-resolve = { path = "crates/stout-resolve" }
-stout-fetch = { path = "crates/stout-fetch" }
-stout-install = { path = "crates/stout-install" }
-stout-state = { path = "crates/stout-state" }
-stout-cask = { path = "crates/stout-cask" }
-stout-bundle = { path = "crates/stout-bundle" }
-stout-audit = { path = "crates/stout-audit" }
-stout-mirror = { path = "crates/stout-mirror" }
+stout-index = { version = "0.1.0", path = "crates/stout-index" }
+stout-resolve = { version = "0.1.0", path = "crates/stout-resolve" }
+stout-fetch = { version = "0.1.0", path = "crates/stout-fetch" }
+stout-install = { version = "0.1.0", path = "crates/stout-install" }
+stout-state = { version = "0.1.0", path = "crates/stout-state" }
+stout-cask = { version = "0.1.0", path = "crates/stout-cask" }
+stout-bundle = { version = "0.1.0", path = "crates/stout-bundle" }
+stout-audit = { version = "0.1.0", path = "crates/stout-audit" }
+stout-mirror = { version = "0.1.0", path = "crates/stout-mirror" }
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }
