@@ -98,6 +98,31 @@ pub async fn run(_args: Args) -> Result<()> {
         }
     }
 
+    // Check patchelf on Linux (required for ELF binary relocation)
+    #[cfg(target_os = "linux")]
+    {
+        print!("  Checking patchelf (ELF relocator)... ");
+        if std::process::Command::new("patchelf")
+            .arg("--version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+        {
+            println!("{}", style("✓").green());
+        } else {
+            println!("{}", style("✗ not found").red());
+            println!(
+                "    {}",
+                style("patchelf is required for Homebrew bottles to work on Linux").yellow()
+            );
+            println!(
+                "    {}",
+                style("Install with: sudo apt install patchelf").dim()
+            );
+            issues += 1;
+        }
+    }
+
     // Summary
     println!();
     if issues == 0 {

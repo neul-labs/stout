@@ -60,7 +60,7 @@ pub async fn run(args: Args) -> Result<()> {
         "\n{} to {} ({} formulas)",
         style("Updated").green().bold(),
         style(&manifest.version).cyan(),
-        manifest.formula_count
+        manifest.formula_count()
     );
 
     // Show signature info

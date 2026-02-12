@@ -359,6 +359,33 @@ pub async fn run(args: Args) -> Result<()> {
         }
     }
 
+    // Check patchelf on Linux and warn if not found
+    #[cfg(target_os = "linux")]
+    {
+        let patchelf_available = std::process::Command::new("patchelf")
+            .arg("--version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+
+        if !patchelf_available && !bottle_installs.is_empty() {
+            println!();
+            println!(
+                "  {} {}",
+                style("⚠").yellow().bold(),
+                style("patchelf not found - binaries may not run correctly").yellow().bold()
+            );
+            println!(
+                "    {}",
+                style("Install patchelf to fix ELF binaries: sudo apt install patchelf").dim()
+            );
+            println!(
+                "    {}",
+                style("Then reinstall packages: stout reinstall <package>").dim()
+            );
+        }
+    }
+
     let elapsed = start.elapsed();
     println!(
         "\n{} {} packages in {:.1}s",

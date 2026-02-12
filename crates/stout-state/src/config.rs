@@ -100,11 +100,32 @@ fn default_update_interval() -> u64 {
 }
 
 fn default_cellar() -> String {
-    "/opt/homebrew/Cellar".to_string()
+    format!("{}/Cellar", default_prefix())
 }
 
 fn default_prefix() -> String {
-    "/opt/homebrew".to_string()
+    // Use platform-appropriate defaults
+    #[cfg(target_os = "macos")]
+    {
+        #[cfg(target_arch = "aarch64")]
+        return "/opt/homebrew".to_string();
+        #[cfg(not(target_arch = "aarch64"))]
+        return "/usr/local".to_string();
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Linux: use ~/.local/stout for user-level installs
+        if let Some(home) = dirs::home_dir() {
+            return home.join(".local").join("stout").to_string_lossy().to_string();
+        }
+        "/home/linuxbrew/.linuxbrew".to_string()
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        "/opt/homebrew".to_string()
+    }
 }
 
 fn default_parallel() -> u32 {
@@ -124,11 +145,13 @@ fn default_download_ttl() -> u64 {
 }
 
 fn default_require_signature() -> bool {
-    cfg!(not(debug_assertions))
+    // TODO: Enable signature requirement once index server implements signing
+    false
 }
 
 fn default_allow_unsigned() -> bool {
-    cfg!(debug_assertions)
+    // TODO: Set to false once index server implements signing
+    true
 }
 
 fn default_max_signature_age() -> u64 {

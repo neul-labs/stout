@@ -4,7 +4,7 @@
 //! for faster installation times.
 
 use crate::error::Result;
-use crate::extract::extract_bottle;
+use crate::extract::{extract_bottle, relocate_bottle};
 use crate::link::link_package;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -78,6 +78,7 @@ impl ParallelInstaller {
         &self,
         bottles: Vec<BottleInfo>,
         cellar: &Path,
+        prefix: &Path,
     ) -> Result<Vec<(String, PathBuf)>> {
         info!(
             "Extracting {} bottles with {} concurrent workers",
@@ -86,6 +87,7 @@ impl ParallelInstaller {
         );
 
         let cellar = cellar.to_path_buf();
+        let prefix = prefix.to_path_buf();
         let semaphore: Arc<Semaphore> = Arc::clone(&self.extract_semaphore);
         let mut join_set = JoinSet::new();
 
@@ -94,6 +96,7 @@ impl ParallelInstaller {
 
         for bottle in bottles {
             let cellar = cellar.clone();
+            let prefix = prefix.clone();
             let semaphore = Arc::clone(&semaphore);
 
             join_set.spawn(async move {
@@ -105,9 +108,13 @@ impl ParallelInstaller {
                 let name = bottle.name.clone();
                 let bottle_path = bottle.bottle_path.clone();
                 let cellar_clone = cellar.clone();
+                let prefix_clone = prefix.clone();
 
                 let install_path = tokio::task::spawn_blocking(move || {
-                    extract_bottle(&bottle_path, &cellar_clone)
+                    let path = extract_bottle(&bottle_path, &cellar_clone)?;
+                    // Relocate Homebrew placeholders to actual paths
+                    relocate_bottle(&path, &prefix_clone)?;
+                    Ok::<_, crate::error::Error>(path)
                 })
                 .await
                 .map_err(|e| crate::error::Error::Other(format!("Task join error: {}", e)))??;
@@ -225,7 +232,7 @@ impl ParallelInstaller {
         prefix: &Path,
     ) -> Result<Vec<PackageInstallResult>> {
         // Phase 1: Extract all bottles in parallel
-        let extracted = self.extract_bottles(bottles, cellar).await?;
+        let extracted = self.extract_bottles(bottles, cellar, prefix).await?;
 
         // Phase 2: Link all packages in parallel
         let link_infos: Vec<LinkInfo> = extracted

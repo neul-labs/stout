@@ -6,10 +6,11 @@ use crate::progress::ProgressReporter;
 use crate::verify::sha256_bytes;
 use futures::future::join_all;
 use reqwest::Client;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::Semaphore;
-use tracing::{debug, info, warn};
+use tokio::sync::{RwLock, Semaphore};
+use tracing::{debug, info};
 
 /// Download client for bottles
 #[derive(Clone)]
@@ -18,6 +19,8 @@ pub struct DownloadClient {
     cache: Arc<DownloadCache>,
     /// Semaphore to limit concurrent downloads
     semaphore: Arc<Semaphore>,
+    /// Cache for OAuth tokens (scope -> token)
+    token_cache: Arc<RwLock<HashMap<String, String>>>,
 }
 
 impl DownloadClient {
@@ -32,6 +35,7 @@ impl DownloadClient {
             client,
             cache: Arc::new(cache),
             semaphore: Arc::new(Semaphore::new(max_concurrent)),
+            token_cache: Arc::new(RwLock::new(HashMap::new())),
         })
     }
 
@@ -39,6 +43,69 @@ impl DownloadClient {
     /// This balance between parallelism and avoiding network congestion
     pub fn with_cache(cache: DownloadCache) -> Result<Self> {
         Self::new(cache, 4)
+    }
+
+    /// Get a cached token or fetch a new one for ghcr.io
+    async fn get_ghcr_token(&self, scope: &str) -> Result<String> {
+        // Check cache first
+        {
+            let cache = self.token_cache.read().await;
+            if let Some(token) = cache.get(scope) {
+                return Ok(token.clone());
+            }
+        }
+
+        // Fetch new token
+        let token_url = format!(
+            "https://ghcr.io/token?service=ghcr.io&scope={}",
+            urlencoding::encode(scope)
+        );
+
+        debug!("Fetching ghcr.io token for scope: {}", scope);
+
+        let response = self.client.get(&token_url).send().await?;
+
+        if !response.status().is_success() {
+            return Err(Error::DownloadFailed(format!(
+                "Failed to get ghcr.io token: HTTP {}",
+                response.status()
+            )));
+        }
+
+        #[derive(serde::Deserialize)]
+        struct TokenResponse {
+            token: String,
+        }
+
+        let token_resp: TokenResponse = response.json().await.map_err(|e| {
+            Error::DownloadFailed(format!("Failed to parse token response: {}", e))
+        })?;
+
+        // Cache the token
+        {
+            let mut cache = self.token_cache.write().await;
+            cache.insert(scope.to_string(), token_resp.token.clone());
+        }
+
+        Ok(token_resp.token)
+    }
+
+    /// Extract the repository scope from a ghcr.io URL
+    fn get_ghcr_scope(url: &str) -> Option<String> {
+        // URL format: https://ghcr.io/v2/homebrew/core/PACKAGE/blobs/sha256:...
+        if !url.starts_with("https://ghcr.io/v2/") {
+            return None;
+        }
+
+        // Extract repository path: homebrew/core/PACKAGE
+        let path = url.strip_prefix("https://ghcr.io/v2/")?;
+        let parts: Vec<&str> = path.split('/').collect();
+        if parts.len() >= 3 {
+            let repo = format!("{}/{}/{}", parts[0], parts[1], parts[2]);
+            Some(format!("repository:{}:pull", repo))
+        } else {
+            None
+        }
     }
 
     /// Download a bottle, returning the path to the downloaded file
@@ -62,14 +129,26 @@ impl DownloadClient {
             self.cache.remove_bottle(name, version, platform)?;
         }
 
-        // Download
+        // Download with authentication if needed
         debug!("Downloading {} from {}", name, url);
-        let response = self.client.get(url).send().await?;
+
+        // Check if this is a ghcr.io URL that needs authentication
+        let response = if let Some(scope) = Self::get_ghcr_scope(url) {
+            let token = self.get_ghcr_token(&scope).await?;
+            self.client
+                .get(url)
+                .header("Authorization", format!("Bearer {}", token))
+                .send()
+                .await?
+        } else {
+            self.client.get(url).send().await?
+        };
 
         if !response.status().is_success() {
             return Err(Error::DownloadFailed(format!(
-                "HTTP {}: {}",
-                response.status(),
+                "HTTP {} {}: {}",
+                response.status().as_u16(),
+                response.status().canonical_reason().unwrap_or("Unknown"),
                 url
             )));
         }

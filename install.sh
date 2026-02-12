@@ -205,6 +205,28 @@ add_to_path() {
     warn "Run 'source $shell_config' or restart your shell to update PATH"
 }
 
+# Install using cargo (fallback method)
+install_with_cargo() {
+    if ! command_exists cargo; then
+        error "cargo not found. Please install Rust: https://rustup.rs"
+        exit 1
+    fi
+
+    info "Installing stout using cargo..."
+
+    if cargo install stout 2>/dev/null; then
+        return 0
+    fi
+
+    # If crates.io install fails, try installing from git
+    info "Trying to install from git repository..."
+    if cargo install --git "https://github.com/${REPO}.git"; then
+        return 0
+    fi
+
+    return 1
+}
+
 # Main installation function
 main() {
     echo ""
@@ -221,30 +243,59 @@ main() {
 
     # Get version
     local version="${STOUT_VERSION:-}"
+    local use_cargo_fallback=0
+
     if [ -z "$version" ]; then
         info "Fetching latest version..."
-        version=$(get_latest_version)
+        if ! version=$(get_latest_version 2>/dev/null); then
+            warn "Failed to fetch latest version from GitHub releases"
+            use_cargo_fallback=1
+        fi
     fi
 
-    info "Installing stout $version"
+    if [ "$use_cargo_fallback" = "0" ]; then
+        info "Installing stout $version"
 
-    # Set up URLs
-    local base_url="https://github.com/${REPO}/releases/download/${version}"
-    local archive_name="stout-${target}.tar.gz"
-    local archive_url="${base_url}/${archive_name}"
-    local checksum_url="${base_url}/${archive_name}.sha256"
+        # Set up URLs
+        local base_url="https://github.com/${REPO}/releases/download/${version}"
+        local archive_name="stout-${target}.tar.gz"
+        local archive_url="${base_url}/${archive_name}"
+        local checksum_url="${base_url}/${archive_name}.sha256"
 
-    # Create temp directory
-    local tmp_dir
-    tmp_dir=$(mktemp -d)
-    trap "rm -rf $tmp_dir" EXIT
+        # Create temp directory
+        local tmp_dir
+        tmp_dir=$(mktemp -d)
+        trap "rm -rf $tmp_dir" EXIT
 
-    # Download archive and checksum
-    local archive_path="${tmp_dir}/${archive_name}"
-    local checksum_path="${tmp_dir}/${archive_name}.sha256"
+        # Download archive and checksum
+        local archive_path="${tmp_dir}/${archive_name}"
+        local checksum_path="${tmp_dir}/${archive_name}.sha256"
 
-    download "$archive_url" "$archive_path"
-    download "$checksum_url" "$checksum_path"
+        if ! download "$archive_url" "$archive_path" 2>/dev/null || \
+           ! download "$checksum_url" "$checksum_path" 2>/dev/null; then
+            warn "Failed to download pre-built binary, falling back to cargo install"
+            use_cargo_fallback=1
+        fi
+    fi
+
+    if [ "$use_cargo_fallback" = "1" ]; then
+        if install_with_cargo; then
+            echo ""
+            success "stout installed successfully via cargo!"
+            echo ""
+            if command_exists stout; then
+                printf "  ${BOLD}Version${NC}:  $(stout --version)\n"
+            fi
+            echo ""
+            printf "  Run ${CYAN}stout update${NC} to download the formula index.\n"
+            printf "  Run ${CYAN}stout --help${NC} to get started.\n"
+            echo ""
+            return 0
+        else
+            error "Failed to install stout"
+            exit 1
+        fi
+    fi
 
     # Verify checksum
     local expected_checksum

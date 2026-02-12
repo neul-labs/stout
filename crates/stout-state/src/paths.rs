@@ -116,7 +116,7 @@ impl Paths {
 
 /// Detect the Homebrew prefix based on platform
 fn detect_homebrew_prefix() -> PathBuf {
-    // Check common locations
+    // Check common locations for existing Homebrew installations
     let candidates = [
         "/opt/homebrew",       // macOS ARM
         "/usr/local",          // macOS Intel / Linux
@@ -130,8 +130,30 @@ fn detect_homebrew_prefix() -> PathBuf {
         }
     }
 
-    // Default to /opt/homebrew for new installs
-    PathBuf::from("/opt/homebrew")
+    // For new installs, use platform-appropriate location
+    #[cfg(target_os = "macos")]
+    {
+        // macOS: use /opt/homebrew (ARM) or /usr/local (Intel)
+        #[cfg(target_arch = "aarch64")]
+        return PathBuf::from("/opt/homebrew");
+        #[cfg(not(target_arch = "aarch64"))]
+        return PathBuf::from("/usr/local");
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Linux: use ~/.local/stout for user-level installs (no sudo required)
+        if let Some(home) = dirs::home_dir() {
+            return home.join(".local").join("stout");
+        }
+        // Fallback to linuxbrew location
+        PathBuf::from("/home/linuxbrew/.linuxbrew")
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        PathBuf::from("/opt/homebrew")
+    }
 }
 
 impl Default for Paths {
