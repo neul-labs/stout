@@ -1,0 +1,33 @@
+#!/usr/bin/env node
+/**
+ * Wrapper script for stout binary
+ * This script is needed because npm creates bin symlinks before postinstall runs
+ */
+
+const { spawn } = require('child_process');
+const path = require('path');
+const fs = require('fs');
+
+const binaryPath = path.join(__dirname, 'stout-bin');
+
+if (!fs.existsSync(binaryPath)) {
+  console.error('Error: stout binary not found.');
+  console.error('The binary should have been downloaded during npm install.');
+  console.error('Try reinstalling: npm uninstall -g stout-pkg && npm install -g stout-pkg');
+  console.error('Or install manually from: https://github.com/neul-labs/stout/releases');
+  process.exit(1);
+}
+
+const child = spawn(binaryPath, process.argv.slice(2), {
+  stdio: 'inherit',
+  env: process.env
+});
+
+child.on('error', (err) => {
+  console.error('Failed to execute stout:', err.message);
+  process.exit(1);
+});
+
+child.on('close', (code) => {
+  process.exit(code || 0);
+});

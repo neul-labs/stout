@@ -13,6 +13,7 @@ const zlib = require('zlib');
 
 const REPO = 'neul-labs/stout';
 const BINARY_NAME = 'stout';
+const INSTALLED_BINARY_NAME = 'stout-bin'; // Actual binary name (wrapper script is 'stout')
 
 function getPlatform() {
   const platform = os.platform();
@@ -153,16 +154,29 @@ async function main() {
     // Download archive
     await downloadFile(downloadUrl, archivePath);
 
-    // Extract
+    // Extract to temp location first
     console.log('Extracting...');
-    extractTarGz(archivePath, binDir);
+    const extractDir = path.join(tmpDir, 'stout-extract');
+    if (!fs.existsSync(extractDir)) {
+      fs.mkdirSync(extractDir, { recursive: true });
+    }
+    extractTarGz(archivePath, extractDir);
 
-    // Make executable
-    const binaryPath = path.join(binDir, BINARY_NAME);
+    // Move binary to bin directory with correct name
+    const extractedBinary = path.join(extractDir, BINARY_NAME);
+    const binaryPath = path.join(binDir, INSTALLED_BINARY_NAME);
+
+    // Remove old binary if exists
+    if (fs.existsSync(binaryPath)) {
+      fs.unlinkSync(binaryPath);
+    }
+
+    fs.copyFileSync(extractedBinary, binaryPath);
     fs.chmodSync(binaryPath, 0o755);
 
     // Cleanup
     fs.unlinkSync(archivePath);
+    fs.rmSync(extractDir, { recursive: true, force: true });
 
     console.log(`stout installed successfully to ${binaryPath}`);
 
