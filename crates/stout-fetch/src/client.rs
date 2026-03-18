@@ -12,6 +12,9 @@ use std::sync::Arc;
 use tokio::sync::{RwLock, Semaphore};
 use tracing::{debug, info};
 
+/// GitHub Container Registry API v2 URL prefix for Homebrew bottles
+const GHCR_V2_URL_PREFIX: &str = "https://ghcr.io/v2/";
+
 /// Download client for bottles
 #[derive(Clone)]
 pub struct DownloadClient {
@@ -93,15 +96,22 @@ impl DownloadClient {
     /// Extract the repository scope from a ghcr.io URL
     fn get_ghcr_scope(url: &str) -> Option<String> {
         // URL format: https://ghcr.io/v2/homebrew/core/PACKAGE/blobs/sha256:...
-        if !url.starts_with("https://ghcr.io/v2/") {
+        // For versioned packages like openssl@3, the URL becomes:
+        // https://ghcr.io/v2/homebrew/core/openssl/3/blobs/...
+        if !url.starts_with(GHCR_V2_URL_PREFIX) {
             return None;
         }
 
-        // Extract repository path: homebrew/core/PACKAGE
-        let path = url.strip_prefix("https://ghcr.io/v2/")?;
+        // Extract repository path: homebrew/core/PACKAGE or homebrew/core/PACKAGE/VERSION
+        let path = url.strip_prefix(GHCR_V2_URL_PREFIX)?;
         let parts: Vec<&str> = path.split('/').collect();
-        if parts.len() >= 3 {
-            let repo = format!("{}/{}/{}", parts[0], parts[1], parts[2]);
+
+        // Find the index of "blobs" or "manifests" to know where the repo path ends
+        let end_idx = parts.iter().position(|&p| p == "blobs" || p == "manifests")?;
+
+        if end_idx >= 3 {
+            // Join all parts up to (but not including) blobs/manifests
+            let repo = parts[..end_idx].join("/");
             Some(format!("repository:{}:pull", repo))
         } else {
             None
@@ -284,5 +294,57 @@ mod tests {
 
         // Should find it in cache
         assert!(client.cache().has_bottle("test", "1.0.0", "x86_64_linux"));
+    }
+
+    // ========================================================================
+    // get_ghcr_scope tests
+    // ========================================================================
+
+    #[test]
+    fn test_get_ghcr_scope_simple_package() {
+        // Simple package like wget
+        let url = &format!("{}homebrew/core/wget/blobs/sha256:abc123", GHCR_V2_URL_PREFIX);
+        let scope = DownloadClient::get_ghcr_scope(url);
+        assert_eq!(scope, Some("repository:homebrew/core/wget:pull".to_string()));
+    }
+
+    #[test]
+    fn test_get_ghcr_scope_versioned_package() {
+        // Versioned package like openssl@3 -> openssl/3
+        let url = &format!("{}homebrew/core/openssl/3/blobs/sha256:abc123", GHCR_V2_URL_PREFIX);
+        let scope = DownloadClient::get_ghcr_scope(url);
+        assert_eq!(scope, Some("repository:homebrew/core/openssl/3:pull".to_string()));
+    }
+
+    #[test]
+    fn test_get_ghcr_scope_python_versioned() {
+        // Python with version like python@3.14 -> python/3.14
+        let url = &format!("{}homebrew/core/python/3.14/blobs/sha256:abc123", GHCR_V2_URL_PREFIX);
+        let scope = DownloadClient::get_ghcr_scope(url);
+        assert_eq!(scope, Some("repository:homebrew/core/python/3.14:pull".to_string()));
+    }
+
+    #[test]
+    fn test_get_ghcr_scope_manifest_url() {
+        // Manifest URL format
+        let url = &format!("{}homebrew/core/wget/manifests/latest", GHCR_V2_URL_PREFIX);
+        let scope = DownloadClient::get_ghcr_scope(url);
+        assert_eq!(scope, Some("repository:homebrew/core/wget:pull".to_string()));
+    }
+
+    #[test]
+    fn test_get_ghcr_scope_non_ghcr_url() {
+        // Non-ghcr.io URL should return None
+        let url = "https://example.com/bottle.tar.gz";
+        let scope = DownloadClient::get_ghcr_scope(url);
+        assert_eq!(scope, None);
+    }
+
+    #[test]
+    fn test_get_ghcr_scope_too_short_path() {
+        // Path too short (missing package name)
+        let url = &format!("{}homebrew/core/blobs/sha256:abc123", GHCR_V2_URL_PREFIX);
+        let scope = DownloadClient::get_ghcr_scope(url);
+        assert_eq!(scope, None);
     }
 }
