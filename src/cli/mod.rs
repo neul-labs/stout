@@ -12,6 +12,7 @@ pub mod config;
 pub mod create;
 pub mod deps;
 pub mod doctor;
+pub mod first_run;
 pub mod history;
 pub mod home;
 pub mod import;
@@ -30,6 +31,7 @@ pub mod search;
 pub mod services;
 pub mod snapshot;
 pub mod switch;
+pub mod sync;
 pub mod tap;
 pub mod test;
 pub mod uninstall;
@@ -164,6 +166,9 @@ pub enum Command {
 
     /// Manage system snapshots
     Snapshot(snapshot::Args),
+
+    /// Reconcile Stout state with the Homebrew Cellar
+    Sync(sync::Args),
 
     /// Audit packages for known vulnerabilities
     Audit(audit::Args),

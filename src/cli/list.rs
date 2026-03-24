@@ -1,9 +1,9 @@
 //! List command
 
 use anyhow::Result;
-use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
+use stout_state::{InstalledPackages, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -18,7 +18,10 @@ pub struct Args {
 
 pub async fn run(args: Args) -> Result<()> {
     let paths = Paths::default();
-    let installed = InstalledPackages::load(&paths)?;
+    let mut installed = InstalledPackages::load(&paths)?;
+
+    // First-run import prompt
+    super::first_run::check_first_run_import(&mut installed, &paths)?;
 
     if installed.count() == 0 {
         println!("\n{}", style("No packages installed.").dim());

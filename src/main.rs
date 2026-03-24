@@ -56,6 +56,7 @@ async fn main() -> Result<()> {
         Command::Cask(args) => cli::cask::run(args).await,
         Command::Bundle(args) => cli::bundle::run(args).await,
         Command::Snapshot(args) => cli::snapshot::run(args).await,
+        Command::Sync(args) => cli::sync::run(args).await,
         Command::Audit(args) => cli::audit::run(args).await,
         Command::Mirror(args) => cli::mirror::run(args).await,
         Command::Bottle(args) => cli::bottle::run(args).await,
