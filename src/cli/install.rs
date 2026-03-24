@@ -4,9 +4,9 @@ use anyhow::{bail, Context, Result};
 use stout_fetch::{BottleSpec, DownloadCache, DownloadClient, ProgressReporter};
 use stout_index::{Database, Formula, IndexSync};
 use stout_install::{
-    link_package, scan_cellar_package, write_receipt, BottleInfo, BuildConfig,
-    InstallReceipt, ParallelInstaller, RuntimeDependency, SourceBuilder,
-    link_package, scan_cellar_package, timestamp_to_iso, write_receipt, BottleInfo, BuildConfig,
+    BottleInfo, BuildConfig, HeadBuildConfig, HeadBuilder, InstallReceipt,
+    ParallelInstaller, RuntimeDependency, SourceBuilder, link_package, scan_cellar_package,
+    write_receipt,
 };
 use stout_resolve::{DependencyGraph, InstallPlan, InstallStep};
 use stout_state::{Config, InstalledPackages, Paths};
@@ -31,6 +31,10 @@ pub struct Args {
     /// Build from source instead of using bottles
     #[arg(long, short = 's')]
     pub build_from_source: bool,
+
+    /// Install from HEAD (latest git commit, implies --build-from-source)
+    #[arg(long = "HEAD", short = 'H')]
+    pub head: bool,
 
     /// Keep downloaded bottles after installation (don't cleanup)
     #[arg(long)]
@@ -211,7 +215,11 @@ pub async fn run(args: Args) -> Result<()> {
 
     let mut bottle_installs: Vec<(InstallStep, Formula)> = Vec::new();
     let mut source_installs: Vec<(InstallStep, Formula)> = Vec::new();
+    let mut head_installs: Vec<(InstallStep, Formula)> = Vec::new();
     let mut bottle_specs: Vec<BottleSpec> = Vec::new();
+
+    // HEAD implies build-from-source
+    let build_from_source = args.build_from_source || args.head;
 
     for step in plan.new_packages() {
         // Skip packages already registered from Cellar pre-check
@@ -226,18 +234,34 @@ pub async fn run(args: Args) -> Result<()> {
 
         // Verify formula version matches expected version from index
         // This catches stale formula JSON that doesn't match the index
-        if formula.version != step.version {
-            bail!(
-                "Formula version mismatch for {}: index says {} but formula JSON has {}. \
-                 Try running 'stout update' to refresh the index.",
-                step.name,
-                step.version,
-                formula.version
-            );
+        // Skip version check for HEAD builds since HEAD doesn't have a version
+        if !args.head {
+            if formula.version != step.version {
+                bail!(
+                    "Formula version mismatch for {}: index says {} but formula JSON has {}. \
+                     Try running 'stout update' to refresh the index.",
+                    step.name,
+                    step.version,
+                    formula.version
+                );
+            }
+        }
+
+        // HEAD builds: only for explicitly requested packages (not dependencies)
+        if args.head && !step.is_dependency {
+            // Check if HEAD URL is available
+            if formula.urls.head.is_none() {
+                bail!(
+                    "No HEAD URL available for {}. Use -s for stable source builds.",
+                    step.name
+                );
+            }
+            head_installs.push((step.clone(), formula));
+            continue;
         }
 
         // Check if we should build from source
-        let use_source = args.build_from_source || formula.bottle_for_platform(&platform).is_none();
+        let use_source = build_from_source || formula.bottle_for_platform(&platform).is_none();
 
         if use_source {
             // Check if source is available
@@ -421,6 +445,82 @@ pub async fn run(args: Args) -> Result<()> {
             let _ = std::fs::remove_dir_all(&work_dir);
 
             println!("  {} {} {}", style("✓").green(), step.name, step.version);
+        }
+    }
+
+    // Build from HEAD
+    if !head_installs.is_empty() {
+        println!("\n{}...", style("Building from HEAD").cyan());
+
+        for (step, formula) in &head_installs {
+            let head_url = formula.urls.head.as_ref().expect("head URL should exist");
+
+            println!(
+                "  {} {} (from HEAD)",
+                style("Building").yellow(),
+                step.name
+            );
+
+            let head_config = HeadBuildConfig {
+                git_url: head_url.url.clone(),
+                branch: head_url.branch.clone().unwrap_or_else(|| "master".to_string()),
+                name: step.name.clone(),
+                prefix: paths.prefix.clone(),
+                cellar: paths.cellar.clone(),
+                jobs: args.jobs,
+                cc: args.cc.clone(),
+                cxx: args.cxx.clone(),
+            };
+
+            let work_dir = paths.stout_dir.join("build").join(&step.name);
+            let builder = HeadBuilder::new(head_config, &work_dir);
+
+            let result = builder
+                .build()
+                .await
+                .context(format!("Failed to build {} from HEAD", step.name))?;
+
+            // Link
+            link_package(&result.install_path, &paths.prefix)?;
+
+            // Write receipt
+            let runtime_deps: Vec<RuntimeDependency> = formula
+                .runtime_deps()
+                .iter()
+                .filter_map(|dep| {
+                    db.get_formula(dep)
+                        .ok()
+                        .flatten()
+                        .map(|info| RuntimeDependency {
+                            full_name: dep.clone(),
+                            version: info.version,
+                            revision: Some(info.revision),
+                        })
+                })
+                .collect();
+
+            let receipt =
+                InstallReceipt::new_source(&formula.tap, !step.is_dependency, runtime_deps);
+            write_receipt(&result.install_path, &receipt)?;
+
+            // Track with HEAD SHA
+            installed.add_head(
+                &step.name,
+                &result.short_sha,
+                &result.commit_sha,
+                !step.is_dependency,
+                formula.runtime_deps().to_vec(),
+            );
+
+            // Cleanup build directory
+            let _ = std::fs::remove_dir_all(&work_dir);
+
+            println!(
+                "  {} {} {}",
+                style("✓").green(),
+                step.name,
+                result.short_sha
+            );
         }
     }
 

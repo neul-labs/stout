@@ -20,10 +20,32 @@ pub struct InstalledPackage {
     pub pinned: bool,
     #[serde(default)]
     pub dependencies: Vec<String>,
+    /// Full commit SHA for HEAD installations
+    #[serde(default)]
+    pub head_sha: Option<String>,
+    /// Quick flag for HEAD detection
+    #[serde(default)]
+    pub is_head: bool,
 }
 
 fn default_installed_by() -> String {
     "stout".to_string()
+}
+
+impl InstalledPackage {
+    /// Check if this is a HEAD installation
+    pub fn is_head_install(&self) -> bool {
+        self.is_head || self.version.starts_with("HEAD")
+    }
+
+    /// Get the short SHA for display (from version string)
+    pub fn short_sha(&self) -> Option<&str> {
+        if self.version.starts_with("HEAD-") {
+            Some(&self.version[5..])
+        } else {
+            None
+        }
+    }
 }
 
 /// Collection of installed packages
@@ -87,6 +109,8 @@ impl InstalledPackages {
                 requested,
                 pinned,
                 dependencies,
+                head_sha: None,
+                is_head: version.starts_with("HEAD"),
             },
         );
     }
@@ -114,6 +138,36 @@ impl InstalledPackages {
                 requested,
                 pinned,
                 dependencies,
+                head_sha: None,
+                is_head: version.starts_with("HEAD"),
+            },
+        );
+    }
+
+    /// Add a HEAD package with SHA tracking
+    pub fn add_head(
+        &mut self,
+        name: &str,
+        short_sha: &str,
+        full_sha: &str,
+        requested: bool,
+        dependencies: Vec<String>,
+    ) {
+        let now = chrono_lite_now();
+        // Preserve pinned status if updating existing package
+        let pinned = self.packages.get(name).map(|p| p.pinned).unwrap_or(false);
+        self.packages.insert(
+            name.to_string(),
+            InstalledPackage {
+                version: format!("HEAD-{}", short_sha),
+                revision: 0,
+                installed_at: now,
+                installed_by: "stout".to_string(),
+                requested,
+                pinned,
+                dependencies,
+                head_sha: Some(full_sha.to_string()),
+                is_head: true,
             },
         );
     }

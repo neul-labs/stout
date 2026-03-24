@@ -21,6 +21,10 @@ pub struct Args {
     /// Show what would be done without doing it
     #[arg(long)]
     pub dry_run: bool,
+
+    /// Check HEAD packages for updates (does not upgrade, use reinstall)
+    #[arg(long = "fetch-HEAD")]
+    pub fetch_head: bool,
 }
 
 struct UpgradeCandidate {
@@ -60,7 +64,7 @@ pub async fn run(args: Args) -> Result<()> {
         };
 
         // Skip HEAD formulas - they are not upgraded to stable versions
-        if pkg.version.starts_with("HEAD") {
+        if pkg.is_head_install() {
             continue;
         }
 
@@ -79,7 +83,43 @@ pub async fn run(args: Args) -> Result<()> {
         }
     }
 
-    if upgradable.is_empty() {
+    // Check HEAD packages for updates if --fetch-HEAD is specified
+    let mut head_updates: Vec<(String, String, String)> = Vec::new(); // (name, old_sha, new_sha)
+    if args.fetch_head {
+        let sync = IndexSync::with_security_policy(
+            Some(&config.index.base_url),
+            &paths.stout_dir,
+            config.security.to_security_policy(),
+        )?;
+
+        for (name, pkg) in installed.iter() {
+            if !pkg.is_head_install() {
+                continue;
+            }
+
+            let formula = match sync.fetch_formula_cached(name, None).await {
+                Ok(f) => f,
+                Err(_) => continue,
+            };
+
+            let head_url = match &formula.urls.head {
+                Some(url) => url,
+                None => continue,
+            };
+
+            // Get remote HEAD SHA (without cloning)
+            let remote_sha = get_remote_head_sha(&head_url.url, &head_url.branch).ok();
+
+            if let (Some(current), Some(remote)) = (&pkg.head_sha, remote_sha) {
+                if current != &remote {
+                    let short_remote: String = remote.chars().take(7).collect();
+                    head_updates.push((name.clone(), pkg.short_sha().unwrap_or("?").to_string(), short_remote));
+                }
+            }
+        }
+    }
+
+    if upgradable.is_empty() && head_updates.is_empty() {
         println!("\n{}", style("All packages are up to date.").green());
         return Ok(());
     }
@@ -116,6 +156,26 @@ pub async fn run(args: Args) -> Result<()> {
             style(&candidate.new_version).cyan(),
             name_w = max_name,
             old_w = max_old,
+        );
+    }
+
+    // Show HEAD updates if any
+    if !head_updates.is_empty() {
+        println!("\n{} HEAD packages have updates:", head_updates.len());
+
+        for (name, old_sha, new_sha) in &head_updates {
+            println!(
+                "  {} {} {} → {}",
+                style("~").yellow(),
+                style(name).green(),
+                style(old_sha).dim(),
+                style(new_sha).cyan()
+            );
+        }
+
+        println!(
+            "\n  {}",
+            style("Use 'stout reinstall <package>' to update HEAD packages").dim()
         );
     }
 
@@ -368,5 +428,27 @@ pub async fn run(args: Args) -> Result<()> {
     println!();
 
     Ok(())
+}
+
+/// Get remote HEAD SHA without cloning (uses git ls-remote)
+fn get_remote_head_sha(url: &str, branch: &Option<String>) -> Result<String> {
+    let branch = branch.as_deref().unwrap_or("HEAD");
+
+    let output = std::process::Command::new("git")
+        .args(["ls-remote", url, branch])
+        .output()
+        .context("git ls-remote failed")?;
+
+    if !output.status.success() {
+        anyhow::bail!("git ls-remote returned non-zero exit code");
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let sha = stdout
+        .split_whitespace()
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("No SHA in git ls-remote output"))?;
+
+    Ok(sha.to_string())
 }
 

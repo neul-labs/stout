@@ -59,7 +59,8 @@ pub struct Formula {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FormulaUrls {
     pub stable: Option<UrlSpec>,
-    pub head: Option<String>,
+    #[serde(deserialize_with = "deserialize_head_url_spec", default)]
+    pub head: Option<HeadUrlSpec>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,6 +68,36 @@ pub struct UrlSpec {
     pub url: String,
     #[serde(default)]
     pub sha256: Option<String>,
+}
+
+/// HEAD URL specification for building from git
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeadUrlSpec {
+    /// Git repository URL
+    pub url: String,
+    /// Branch name (default: "master" or "main")
+    #[serde(default)]
+    pub branch: Option<String>,
+}
+
+/// Helper type for deserializing head URL that can be either a string or object
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum HeadUrlRaw {
+    String(String),
+    Object { url: String, #[serde(default)] branch: Option<String> },
+}
+
+/// Custom deserializer for HeadUrlSpec that handles both string and object formats
+fn deserialize_head_url_spec<'de, D>(deserializer: D) -> Result<Option<HeadUrlSpec>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let raw: Option<HeadUrlRaw> = Option::deserialize(deserializer)?;
+    Ok(raw.map(|r| match r {
+        HeadUrlRaw::String(url) => HeadUrlSpec { url, branch: None },
+        HeadUrlRaw::Object { url, branch } => HeadUrlSpec { url, branch },
+    }))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -194,6 +225,8 @@ pub struct HomebrewFormula {
     pub license: Option<String>,
     pub revision: u32,
     pub versions: HomebrewVersions,
+    #[serde(default)]
+    pub urls: HomebrewUrls,
     pub bottle: HomebrewBottle,
     #[serde(default)]
     pub dependencies: Vec<String>,
@@ -219,6 +252,28 @@ pub struct HomebrewFormula {
     #[serde(default)]
     pub post_install_defined: bool,
     pub service: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct HomebrewUrls {
+    #[serde(default)]
+    pub stable: Option<HomebrewStableUrl>,
+    #[serde(default)]
+    pub head: Option<HomebrewHeadUrl>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct HomebrewStableUrl {
+    pub url: String,
+    #[serde(default)]
+    pub sha256: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct HomebrewHeadUrl {
+    pub url: String,
+    #[serde(default)]
+    pub branch: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -269,6 +324,18 @@ impl From<HomebrewFormula> for Formula {
             })
             .unwrap_or_default();
 
+        // Parse URLs from Homebrew API
+        let urls = FormulaUrls {
+            stable: hb.urls.stable.map(|s| UrlSpec {
+                url: s.url,
+                sha256: s.sha256,
+            }),
+            head: hb.urls.head.map(|h| HeadUrlSpec {
+                url: h.url,
+                branch: h.branch,
+            }),
+        };
+
         Formula {
             name: hb.name,
             version,
@@ -277,10 +344,7 @@ impl From<HomebrewFormula> for Formula {
             homepage: hb.homepage,
             license: hb.license,
             tap: hb.tap,
-            urls: FormulaUrls {
-                stable: None,
-                head: None,
-            },
+            urls,
             bottles,
             dependencies: Dependencies {
                 runtime: hb.dependencies,
@@ -301,5 +365,78 @@ impl From<HomebrewFormula> for Formula {
             service: hb.service,
             meta: FormulaMeta::default(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_head_url_as_string() {
+        let json = r#"{
+            "stable": {
+                "url": "https://example.com/stable.tar.gz",
+                "sha256": "abc123"
+            },
+            "head": "https://github.com/example/repo.git"
+        }"#;
+
+        let urls: FormulaUrls = serde_json::from_str(json).unwrap();
+        assert!(urls.stable.is_some());
+        assert!(urls.head.is_some());
+        let head = urls.head.unwrap();
+        assert_eq!(head.url, "https://github.com/example/repo.git");
+        assert!(head.branch.is_none());
+    }
+
+    #[test]
+    fn test_parse_head_url_as_object() {
+        let json = r#"{
+            "stable": {
+                "url": "https://example.com/stable.tar.gz",
+                "sha256": "abc123"
+            },
+            "head": {
+                "url": "https://github.com/example/repo.git",
+                "branch": "main"
+            }
+        }"#;
+
+        let urls: FormulaUrls = serde_json::from_str(json).unwrap();
+        assert!(urls.stable.is_some());
+        assert!(urls.head.is_some());
+        let head = urls.head.unwrap();
+        assert_eq!(head.url, "https://github.com/example/repo.git");
+        assert_eq!(head.branch, Some("main".to_string()));
+    }
+
+    #[test]
+    fn test_parse_head_url_null() {
+        let json = r#"{
+            "stable": {
+                "url": "https://example.com/stable.tar.gz",
+                "sha256": "abc123"
+            },
+            "head": null
+        }"#;
+
+        let urls: FormulaUrls = serde_json::from_str(json).unwrap();
+        assert!(urls.stable.is_some());
+        assert!(urls.head.is_none());
+    }
+
+    #[test]
+    fn test_parse_head_url_missing() {
+        let json = r#"{
+            "stable": {
+                "url": "https://example.com/stable.tar.gz",
+                "sha256": "abc123"
+            }
+        }"#;
+
+        let urls: FormulaUrls = serde_json::from_str(json).unwrap();
+        assert!(urls.stable.is_some());
+        assert!(urls.head.is_none());
     }
 }

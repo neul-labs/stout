@@ -4,8 +4,8 @@ use anyhow::{bail, Context, Result};
 use stout_fetch::{BottleSpec, DownloadCache, DownloadClient, ProgressReporter};
 use stout_index::{Database, IndexSync};
 use stout_install::{
-    extract_bottle, link_package, unlink_package, write_receipt, BuildConfig, InstallReceipt,
-    RuntimeDependency, SourceBuilder,
+    extract_bottle, link_package, unlink_package, write_receipt, BuildConfig, HeadBuildConfig,
+    HeadBuilder, InstallReceipt, RuntimeDependency, SourceBuilder,
 };
 use stout_state::{Config, InstalledPackages, Paths};
 use clap::Args as ClapArgs;
@@ -20,6 +20,10 @@ pub struct Args {
     /// Build from source instead of using bottles
     #[arg(long, short = 's')]
     pub build_from_source: bool,
+
+    /// Reinstall from HEAD (latest git commit)
+    #[arg(long = "HEAD", short = 'H')]
+    pub head: bool,
 
     /// Keep downloaded bottles after installation
     #[arg(long)]
@@ -50,7 +54,7 @@ pub async fn run(args: Args) -> Result<()> {
     )?;
 
     // Detect platform
-    let platform = detect_platform();
+    let platform = super::detect_platform();
 
     for name in &args.formulas {
         // Check if installed
@@ -72,7 +76,7 @@ pub async fn run(args: Args) -> Result<()> {
             .context(format!("Failed to fetch formula {}", name))?;
 
         // Warn if formula version differs from installed version
-        if formula.version != old_pkg.version {
+        if formula.version != old_pkg.version && !old_pkg.is_head_install() {
             println!(
                 "  {} Formula version {} differs from installed {} - will reinstall to newer version",
                 style("!").yellow(),
@@ -81,6 +85,10 @@ pub async fn run(args: Args) -> Result<()> {
             );
         }
 
+        // Determine reinstall type
+        let reinstall_as_head =
+            args.head || (old_pkg.is_head_install() && !args.build_from_source);
+
         // Unlink old version
         let old_install_path = paths.cellar.join(name).join(&old_pkg.version);
         if old_install_path.exists() {
@@ -88,10 +96,71 @@ pub async fn run(args: Args) -> Result<()> {
             let _ = unlink_package(&old_install_path, &paths.prefix);
         }
 
-        // Determine if we're building from source
-        let use_source = args.build_from_source || formula.bottle_for_platform(&platform).is_none();
+        let install_path = if reinstall_as_head {
+            // Build from HEAD
+            let head_url = formula.urls.head.as_ref().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "No HEAD URL available for {}. Use -s for stable source builds.",
+                    name
+                )
+            })?;
 
-        let install_path = if use_source {
+            println!(
+                "  {} Building from HEAD...",
+                style("•").dim()
+            );
+
+            let head_config = HeadBuildConfig {
+                git_url: head_url.url.clone(),
+                branch: head_url.branch.clone().unwrap_or_else(|| "master".to_string()),
+                name: name.clone(),
+                prefix: paths.prefix.clone(),
+                cellar: paths.cellar.clone(),
+                jobs: None,
+                cc: None,
+                cxx: None,
+            };
+
+            let work_dir = paths.stout_dir.join("build").join(name);
+            let builder = HeadBuilder::new(head_config, &work_dir);
+
+            let result = builder.build().await.context(format!(
+                "Failed to build {} from HEAD",
+                name
+            ))?;
+
+            // Cleanup build directory
+            let _ = std::fs::remove_dir_all(&work_dir);
+
+            // Check if SHA changed
+            if let Some(ref old_sha) = old_pkg.head_sha {
+                if old_sha == &result.commit_sha {
+                    println!(
+                        "  {} Already at latest HEAD ({})",
+                        style("•").dim(),
+                        result.short_sha
+                    );
+                } else {
+                    println!(
+                        "  {} Updated {} → {}",
+                        style("•").dim(),
+                        old_pkg.short_sha().unwrap_or("?"),
+                        result.short_sha
+                    );
+                }
+            }
+
+            // Update state with new HEAD SHA
+            installed.add_head(
+                name,
+                &result.short_sha,
+                &result.commit_sha,
+                old_pkg.requested,
+                formula.runtime_deps().to_vec(),
+            );
+
+            result.install_path
+        } else if args.build_from_source || formula.bottle_for_platform(&platform).is_none() {
             // Build from source
             let source = formula.urls.stable.as_ref().ok_or_else(|| {
                 anyhow::anyhow!("No source URL available for {}", name)
@@ -161,6 +230,14 @@ pub async fn run(args: Args) -> Result<()> {
             install_path
         };
 
+        // Get the actual installed version from the install path
+        // (includes revision suffix like 25.8.1_1)
+        let installed_version = install_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(&formula.version)
+            .to_string();
+
         // Link new version
         println!("  {} Linking...", style("•").dim());
         link_package(&install_path, &paths.prefix)?;
@@ -178,27 +255,44 @@ pub async fn run(args: Args) -> Result<()> {
             })
             .collect();
 
-        let receipt = if use_source {
+        let receipt = if reinstall_as_head {
+            InstallReceipt::new_source(&formula.tap, old_pkg.requested, runtime_deps)
+        } else if args.build_from_source || formula.bottle_for_platform(&platform).is_none() {
             InstallReceipt::new_source(&formula.tap, old_pkg.requested, runtime_deps)
         } else {
             InstallReceipt::new_bottle(&formula.tap, old_pkg.requested, runtime_deps)
         };
         write_receipt(&install_path, &receipt)?;
 
-        // Update installed state (preserve requested status)
-        installed.add(name, &formula.version, formula.revision, old_pkg.requested);
+        // Update installed state
+        if reinstall_as_head {
+            // HEAD install - state already updated in the HEAD build branch
+        } else {
+            // Stable install - preserve requested status
+            // Use installed_version which includes revision suffix
+            installed.add(name, &installed_version, formula.revision, old_pkg.requested);
+        }
 
         // Remove old version from cellar if different
-        if old_pkg.version != formula.version && old_install_path.exists() {
+        if old_pkg.version != installed_version && old_install_path.exists() {
             let _ = std::fs::remove_dir_all(&old_install_path);
         }
 
-        println!(
-            "{} Reinstalled {} {}",
-            style("✓").green(),
-            name,
-            formula.version
-        );
+        // Print success message
+        if reinstall_as_head {
+            println!(
+                "{} Reinstalled {} (HEAD)",
+                style("✓").green(),
+                name,
+            );
+        } else {
+            println!(
+                "{} Reinstalled {} {}",
+                style("✓").green(),
+                name,
+                installed_version
+            );
+        }
     }
 
     // Save state
@@ -207,16 +301,3 @@ pub async fn run(args: Args) -> Result<()> {
     Ok(())
 }
 
-fn detect_platform() -> String {
-    let arch = if cfg!(target_arch = "aarch64") {
-        "arm64"
-    } else {
-        "x86_64"
-    };
-
-    if cfg!(target_os = "macos") {
-        format!("{}_sonoma", arch)
-    } else {
-        format!("{}_linux", arch)
-    }
-}

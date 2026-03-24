@@ -23,7 +23,10 @@ mod receipt;
 mod tests;
 
 pub use bottle::{create_bottle, BottleResult};
-pub use build::{can_build_from_source, BuildConfig, BuildResult, SourceBuilder};
+pub use build::{
+    can_build_from_source, BuildConfig, BuildResult, HeadBuildConfig, HeadBuildResult, HeadBuilder,
+    SourceBuilder,
+};
 pub use cask_scan::{count_caskroom_casks, scan_caskroom, InstalledBrewCask};
 pub use cellar::{
     count_cellar_packages, parse_brew_receipt, scan_cellar, scan_cellar_package, timestamp_to_iso,

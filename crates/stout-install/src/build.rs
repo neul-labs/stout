@@ -545,3 +545,482 @@ fn validate_compiler_path(path: &str) -> Result<()> {
 pub fn can_build_from_source(source_url: &Option<String>) -> bool {
     source_url.is_some()
 }
+
+// ============================================================================
+// HEAD Build Support
+// ============================================================================
+
+/// Configuration for building from HEAD (git)
+#[derive(Debug, Clone)]
+pub struct HeadBuildConfig {
+    /// Git repository URL
+    pub git_url: String,
+    /// Branch to clone (default: "master")
+    pub branch: String,
+    /// Formula name
+    pub name: String,
+    /// Homebrew prefix
+    pub prefix: PathBuf,
+    /// Cellar path
+    pub cellar: PathBuf,
+    /// Number of parallel build jobs
+    pub jobs: Option<usize>,
+    /// C compiler
+    pub cc: Option<String>,
+    /// C++ compiler
+    pub cxx: Option<String>,
+}
+
+impl HeadBuildConfig {
+    /// Get the number of parallel jobs to use
+    pub fn get_jobs(&self) -> usize {
+        self.jobs.unwrap_or_else(num_cpus::get)
+    }
+}
+
+/// Result of a HEAD build
+#[derive(Debug)]
+pub struct HeadBuildResult {
+    /// Path to installed package
+    pub install_path: PathBuf,
+    /// Full commit SHA
+    pub commit_sha: String,
+    /// Short SHA (7 chars)
+    pub short_sha: String,
+}
+
+/// Builder for HEAD (git) installations
+pub struct HeadBuilder {
+    config: HeadBuildConfig,
+    work_dir: PathBuf,
+}
+
+impl HeadBuilder {
+    /// Create a new HEAD builder
+    pub fn new(config: HeadBuildConfig, work_dir: impl AsRef<Path>) -> Self {
+        Self {
+            config,
+            work_dir: work_dir.as_ref().to_path_buf(),
+        }
+    }
+
+    /// Build from HEAD git repository
+    pub async fn build(&self) -> Result<HeadBuildResult> {
+        info!(
+            "Building {} from HEAD ({})",
+            self.config.name, self.config.git_url
+        );
+
+        // Create work directory
+        std::fs::create_dir_all(&self.work_dir)?;
+
+        // Clone repository
+        let repo_dir = self.clone_repository()?;
+
+        // Get commit SHA
+        let (full_sha, short_sha) = self.get_commit_sha(&repo_dir)?;
+        info!("HEAD commit: {} ({})", short_sha, full_sha);
+
+        // Build using detected build system
+        let install_path = self.run_build(&repo_dir, &short_sha)?;
+
+        Ok(HeadBuildResult {
+            install_path,
+            commit_sha: full_sha,
+            short_sha,
+        })
+    }
+
+    /// Clone the git repository
+    fn clone_repository(&self) -> Result<PathBuf> {
+        let repo_dir = self.work_dir.join(&self.config.name);
+
+        // Remove existing directory if present
+        if repo_dir.exists() {
+            debug!("Removing existing repository directory");
+            std::fs::remove_dir_all(&repo_dir)?;
+        }
+
+        info!("Cloning {}...", self.config.git_url);
+
+        // Clone with depth 1 for efficiency (we just need the latest)
+        let mut args = vec!["clone", "--depth", "1"];
+
+        // Add branch if not default
+        if !self.config.branch.is_empty()
+            && self.config.branch != "master"
+            && self.config.branch != "main"
+        {
+            args.extend_from_slice(&["--branch", &self.config.branch]);
+        }
+
+        args.extend_from_slice(&[&self.config.git_url, repo_dir.to_str().unwrap()]);
+
+        let status = Command::new("git")
+            .args(&args)
+            .status()
+            .map_err(|e| Error::Build(BuildError::GitCloneFailed {
+                package: self.config.name.clone(),
+                reason: e.to_string(),
+            }))?;
+
+        if !status.success() {
+            return Err(Error::Build(BuildError::GitCloneFailed {
+                package: self.config.name.clone(),
+                reason: "git clone returned non-zero exit code".to_string(),
+            }));
+        }
+
+        debug!("Repository cloned to {:?}", repo_dir);
+        Ok(repo_dir)
+    }
+
+    /// Get the current commit SHA from the cloned repository
+    fn get_commit_sha(&self, repo_dir: &Path) -> Result<(String, String)> {
+        let output = Command::new("git")
+            .args(&["rev-parse", "HEAD"])
+            .current_dir(repo_dir)
+            .output()
+            .map_err(|e| Error::Build(BuildError::GitFailed {
+                package: self.config.name.clone(),
+                reason: e.to_string(),
+            }))?;
+
+        if !output.status.success() {
+            return Err(Error::Build(BuildError::GitFailed {
+                package: self.config.name.clone(),
+                reason: "Failed to get commit SHA".to_string(),
+            }));
+        }
+
+        let full_sha = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let short_sha: String = full_sha.chars().take(7).collect();
+
+        Ok((full_sha, short_sha))
+    }
+
+    /// Build using detected build system
+    fn run_build(&self, source_dir: &Path, short_sha: &str) -> Result<PathBuf> {
+        let install_path = self
+            .config
+            .cellar
+            .join(&self.config.name)
+            .join(format!("HEAD-{}", short_sha));
+
+        info!("Building in {:?}", source_dir);
+        info!("Install path: {:?}", install_path);
+
+        // Create install directory
+        std::fs::create_dir_all(&install_path)?;
+
+        // Detect build system and run appropriate commands
+        if source_dir.join("CMakeLists.txt").exists() {
+            self.build_cmake(source_dir, &install_path)?;
+        } else if source_dir.join("autogen.sh").exists() {
+            self.build_autogen(source_dir, &install_path)?;
+        } else if source_dir.join("configure").exists() {
+            self.build_autotools(source_dir, &install_path)?;
+        } else if source_dir.join("Makefile").exists() {
+            self.build_make(source_dir, &install_path)?;
+        } else if source_dir.join("meson.build").exists() {
+            self.build_meson(source_dir, &install_path)?;
+        } else if source_dir.join("Cargo.toml").exists() {
+            self.build_cargo(source_dir, &install_path)?;
+        } else {
+            return Err(Error::Build(BuildError::unknown_build_system(
+                &self.config.name,
+            )));
+        }
+
+        Ok(install_path)
+    }
+
+    /// Build using autogen.sh then autotools
+    fn build_autogen(&self, source_dir: &Path, install_path: &Path) -> Result<()> {
+        info!("Running autogen.sh");
+
+        // Run autogen.sh
+        let autogen_status = Command::new("./autogen.sh")
+            .current_dir(source_dir)
+            .status()?;
+
+        if !autogen_status.success() {
+            return Err(Error::Build(BuildError::ConfigureFailed {
+                package: self.config.name.clone(),
+            }));
+        }
+
+        // Fall through to autotools build
+        self.build_autotools(source_dir, install_path)
+    }
+
+    /// Build using autotools (configure/make/make install)
+    fn build_autotools(&self, source_dir: &Path, install_path: &Path) -> Result<()> {
+        info!("Using autotools build system");
+
+        let mut configure_cmd = Command::new("./configure");
+        configure_cmd
+            .arg(format!("--prefix={}", install_path.display()))
+            .current_dir(source_dir)
+            .env("HOMEBREW_PREFIX", &self.config.prefix);
+
+        // Set compilers if specified (with validation)
+        if let Some(cc) = &self.config.cc {
+            validate_compiler_path(cc)?;
+            configure_cmd.env("CC", cc);
+        }
+        if let Some(cxx) = &self.config.cxx {
+            validate_compiler_path(cxx)?;
+            configure_cmd.env("CXX", cxx);
+        }
+
+        let configure_status = configure_cmd.status()?;
+
+        if !configure_status.success() {
+            return Err(Error::Build(BuildError::configure_failed(
+                &self.config.name,
+            )));
+        }
+
+        // Make with parallel jobs
+        let mut make_cmd = Command::new("make");
+        make_cmd
+            .arg("-j")
+            .arg(self.config.get_jobs().to_string())
+            .current_dir(source_dir);
+
+        let make_status = make_cmd.status()?;
+
+        if !make_status.success() {
+            return Err(Error::Build(BuildError::make_failed(&self.config.name)));
+        }
+
+        // Make install
+        let install_status = Command::new("make")
+            .arg("install")
+            .current_dir(source_dir)
+            .status()?;
+
+        if !install_status.success() {
+            return Err(Error::Build(BuildError::make_install_failed(
+                &self.config.name,
+            )));
+        }
+
+        Ok(())
+    }
+
+    /// Build using CMake
+    fn build_cmake(&self, source_dir: &Path, install_path: &Path) -> Result<()> {
+        info!("Using CMake build system");
+
+        let build_dir = source_dir.join("build");
+        std::fs::create_dir_all(&build_dir)?;
+
+        // Configure
+        let mut cmake_cmd = Command::new("cmake");
+        cmake_cmd
+            .arg("..")
+            .arg(format!("-DCMAKE_INSTALL_PREFIX={}", install_path.display()))
+            .arg("-DCMAKE_BUILD_TYPE=Release")
+            .current_dir(&build_dir);
+
+        // Set compilers if specified (with validation)
+        if let Some(cc) = &self.config.cc {
+            validate_compiler_path(cc)?;
+            cmake_cmd.arg(format!("-DCMAKE_C_COMPILER={}", cc));
+        }
+        if let Some(cxx) = &self.config.cxx {
+            validate_compiler_path(cxx)?;
+            cmake_cmd.arg(format!("-DCMAKE_CXX_COMPILER={}", cxx));
+        }
+
+        let cmake_status = cmake_cmd.status()?;
+
+        if !cmake_status.success() {
+            return Err(Error::Build(BuildError::CmakeConfigureFailed {
+                package: self.config.name.clone(),
+            }));
+        }
+
+        // Build
+        let build_status = Command::new("cmake")
+            .arg("--build")
+            .arg(".")
+            .arg("-j")
+            .arg(self.config.get_jobs().to_string())
+            .current_dir(&build_dir)
+            .status()?;
+
+        if !build_status.success() {
+            return Err(Error::Build(BuildError::CmakeBuildFailed {
+                package: self.config.name.clone(),
+            }));
+        }
+
+        // Install
+        let install_status = Command::new("cmake")
+            .arg("--install")
+            .arg(".")
+            .current_dir(&build_dir)
+            .status()?;
+
+        if !install_status.success() {
+            return Err(Error::Build(BuildError::CmakeInstallFailed {
+                package: self.config.name.clone(),
+            }));
+        }
+
+        Ok(())
+    }
+
+    /// Build using plain Makefile
+    fn build_make(&self, source_dir: &Path, install_path: &Path) -> Result<()> {
+        info!("Using Makefile build system");
+
+        let mut make_cmd = Command::new("make");
+        make_cmd
+            .arg("-j")
+            .arg(self.config.get_jobs().to_string())
+            .current_dir(source_dir)
+            .env("PREFIX", install_path);
+
+        // Set compilers if specified (with validation)
+        if let Some(cc) = &self.config.cc {
+            validate_compiler_path(cc)?;
+            make_cmd.env("CC", cc);
+        }
+        if let Some(cxx) = &self.config.cxx {
+            validate_compiler_path(cxx)?;
+            make_cmd.env("CXX", cxx);
+        }
+
+        let make_status = make_cmd.status()?;
+
+        if !make_status.success() {
+            return Err(Error::Build(BuildError::make_failed(&self.config.name)));
+        }
+
+        // Make install
+        let install_status = Command::new("make")
+            .arg("install")
+            .arg(format!("PREFIX={}", install_path.display()))
+            .current_dir(source_dir)
+            .status()?;
+
+        if !install_status.success() {
+            return Err(Error::Build(BuildError::make_install_failed(
+                &self.config.name,
+            )));
+        }
+
+        Ok(())
+    }
+
+    /// Build using Meson
+    fn build_meson(&self, source_dir: &Path, install_path: &Path) -> Result<()> {
+        info!("Using Meson build system");
+
+        let build_dir = source_dir.join("build");
+
+        // Setup with compiler options
+        let mut setup_cmd = Command::new("meson");
+        setup_cmd
+            .arg("setup")
+            .arg(&build_dir)
+            .arg(format!("--prefix={}", install_path.display()))
+            .current_dir(source_dir);
+
+        // Set compilers if specified (with validation)
+        if let Some(cc) = &self.config.cc {
+            validate_compiler_path(cc)?;
+            setup_cmd.env("CC", cc);
+        }
+        if let Some(cxx) = &self.config.cxx {
+            validate_compiler_path(cxx)?;
+            setup_cmd.env("CXX", cxx);
+        }
+
+        let setup_status = setup_cmd.status()?;
+
+        if !setup_status.success() {
+            return Err(Error::Build(BuildError::MesonConfigureFailed {
+                package: self.config.name.clone(),
+            }));
+        }
+
+        // Compile with parallel jobs
+        let compile_status = Command::new("meson")
+            .arg("compile")
+            .arg("-C")
+            .arg(&build_dir)
+            .arg("-j")
+            .arg(self.config.get_jobs().to_string())
+            .status()?;
+
+        if !compile_status.success() {
+            return Err(Error::Build(BuildError::MesonCompileFailed {
+                package: self.config.name.clone(),
+            }));
+        }
+
+        // Install
+        let install_status = Command::new("meson")
+            .arg("install")
+            .arg("-C")
+            .arg(&build_dir)
+            .status()?;
+
+        if !install_status.success() {
+            return Err(Error::Build(BuildError::MesonInstallFailed {
+                package: self.config.name.clone(),
+            }));
+        }
+
+        Ok(())
+    }
+
+    /// Build using Cargo (Rust)
+    fn build_cargo(&self, source_dir: &Path, install_path: &Path) -> Result<()> {
+        info!("Using Cargo build system");
+
+        // Build release with configurable jobs
+        let build_status = Command::new("cargo")
+            .arg("build")
+            .arg("--release")
+            .arg("-j")
+            .arg(self.config.get_jobs().to_string())
+            .current_dir(source_dir)
+            .status()?;
+
+        if !build_status.success() {
+            return Err(Error::Build(BuildError::CargoBuildFailed {
+                package: self.config.name.clone(),
+            }));
+        }
+
+        // Install binaries
+        let bin_dir = install_path.join("bin");
+        std::fs::create_dir_all(&bin_dir)?;
+
+        let release_dir = source_dir.join("target/release");
+        if release_dir.exists() {
+            for entry in std::fs::read_dir(&release_dir)? {
+                let entry = entry?;
+                let path = entry.path();
+                if path.is_file() && is_executable(&path) {
+                    let file_name = path.file_name().unwrap();
+                    // Skip common non-binary files
+                    let name = file_name.to_string_lossy();
+                    if !name.contains('.') && !name.starts_with("lib") {
+                        let dest = bin_dir.join(file_name);
+                        std::fs::copy(&path, &dest)?;
+                        debug!("Installed binary: {:?}", dest);
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
