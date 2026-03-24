@@ -14,6 +14,7 @@ pub mod deps;
 pub mod doctor;
 pub mod history;
 pub mod home;
+pub mod import;
 pub mod info;
 pub mod install;
 pub mod link;
@@ -133,6 +134,9 @@ pub enum Command {
 
     /// Open package homepage in browser
     Home(home::Args),
+
+    /// Import existing Homebrew packages into Stout tracking
+    Import(import::Args),
 
     /// Manage taps (custom formula repositories)
     Tap(tap::Args),

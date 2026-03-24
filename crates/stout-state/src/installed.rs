@@ -91,6 +91,33 @@ impl InstalledPackages {
         );
     }
 
+    /// Add or update a package with full metadata (used by import/sync)
+    pub fn add_imported(
+        &mut self,
+        name: &str,
+        version: &str,
+        revision: u32,
+        requested: bool,
+        installed_by: &str,
+        installed_at: &str,
+        dependencies: Vec<String>,
+    ) {
+        // Preserve pinned status if updating existing package
+        let pinned = self.packages.get(name).map(|p| p.pinned).unwrap_or(false);
+        self.packages.insert(
+            name.to_string(),
+            InstalledPackage {
+                version: version.to_string(),
+                revision,
+                installed_at: installed_at.to_string(),
+                installed_by: installed_by.to_string(),
+                requested,
+                pinned,
+                dependencies,
+            },
+        );
+    }
+
     /// Pin a package to prevent upgrades
     pub fn pin(&mut self, name: &str) -> bool {
         if let Some(pkg) = self.packages.get_mut(name) {
