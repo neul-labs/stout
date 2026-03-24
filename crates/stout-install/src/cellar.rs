@@ -122,8 +122,8 @@ pub fn scan_cellar(cellar: &Path) -> Result<Vec<CellarPackage>> {
             Err(_) => continue,
         };
 
-        // Skip hidden directories
-        if name.starts_with('.') {
+        // Skip hidden directories and reject unsafe names
+        if name.starts_with('.') || !is_safe_package_name(&name) {
             continue;
         }
 
@@ -144,11 +144,23 @@ pub fn scan_cellar(cellar: &Path) -> Result<Vec<CellarPackage>> {
 
 /// Scan a single package in the Cellar by name.
 pub fn scan_cellar_package(cellar: &Path, name: &str) -> Result<Option<CellarPackage>> {
+    if !is_safe_package_name(name) {
+        return Ok(None);
+    }
     let pkg_dir = cellar.join(name);
     if !pkg_dir.is_dir() {
         return Ok(None);
     }
     scan_package_versions(&pkg_dir, name)
+}
+
+/// Reject package names that could escape the Cellar directory.
+fn is_safe_package_name(name: &str) -> bool {
+    !name.is_empty()
+        && !name.contains('/')
+        && !name.contains('\\')
+        && !name.contains('\0')
+        && name != ".."
 }
 
 /// Scan version subdirectories for a single package, picking the best version.
@@ -224,62 +236,9 @@ pub fn count_cellar_packages(cellar: &Path) -> usize {
 
 /// Convert a Unix timestamp to an ISO 8601 string.
 pub fn timestamp_to_iso(ts: u64) -> String {
-    // Simple conversion without pulling in chrono
-    let secs = ts;
-    let days_since_epoch = secs / 86400;
-    let remaining_secs = secs % 86400;
-    let hours = remaining_secs / 3600;
-    let minutes = (remaining_secs % 3600) / 60;
-    let seconds = remaining_secs % 60;
-
-    // Approximate year/month/day (handles leap years roughly)
-    let mut year = 1970u64;
-    let mut remaining_days = days_since_epoch;
-    loop {
-        let days_in_year = if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) {
-            366
-        } else {
-            365
-        };
-        if remaining_days < days_in_year {
-            break;
-        }
-        remaining_days -= days_in_year;
-        year += 1;
-    }
-
-    let is_leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-    let days_in_month = [
-        31,
-        if is_leap { 29 } else { 28 },
-        31,
-        30,
-        31,
-        30,
-        31,
-        31,
-        30,
-        31,
-        30,
-        31,
-    ];
-
-    let mut month = 0usize;
-    for (i, &dim) in days_in_month.iter().enumerate() {
-        if remaining_days < dim {
-            month = i;
-            break;
-        }
-        remaining_days -= dim;
-    }
-
-    format!(
-        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
-        year,
-        month + 1,
-        remaining_days + 1,
-        hours,
-        minutes,
-        seconds
-    )
+    use jiff::Timestamp;
+    Timestamp::from_second(ts as i64)
+        .unwrap_or(Timestamp::UNIX_EPOCH)
+        .strftime("%Y-%m-%dT%H:%M:%SZ")
+        .to_string()
 }

@@ -4,7 +4,7 @@ use anyhow::{bail, Context, Result};
 use sha2::{Digest, Sha256};
 use stout_index::Database;
 use stout_mirror::{
-    create_mirror, detect_platform, serve_mirror, MirrorClient, MirrorClientConfig, MirrorConfig,
+    create_mirror, detect_platform, serve_mirror, MirrorConfig,
     MirrorManifest, ServeConfig,
 };
 use stout_state::Paths;

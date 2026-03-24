@@ -1,12 +1,12 @@
 //! Cask installation logic
 
+use crate::detect_artifact_type;
 use crate::download::{download_cask_artifact, ArtifactType};
 use crate::error::{Error, Result};
-use crate::state::{now_timestamp, InstalledArtifact, InstalledCask, InstalledCasks};
-use crate::detect_artifact_type;
-use stout_index::Cask;
+use crate::state::{now_timestamp, InstalledCask, InstalledCasks};
 use std::path::{Path, PathBuf};
-use tracing::{debug, info, warn};
+use stout_index::Cask;
+use tracing::{info, warn};
 
 /// Options for cask installation
 #[derive(Debug, Clone, Default)]
@@ -40,9 +40,9 @@ pub async fn install_cask(
     }
 
     // Get download URL
-    let url = cask.download_url().ok_or_else(|| {
-        Error::InstallFailed(format!("No download URL for cask {}", token))
-    })?;
+    let url = cask
+        .download_url()
+        .ok_or_else(|| Error::InstallFailed(format!("No download URL for cask {}", token)))?;
 
     // Detect artifact type
     let artifact_type = detect_artifact_type(url);
@@ -68,7 +68,8 @@ pub async fn install_cask(
     }
 
     // Download artifact
-    let artifact_path = download_cask_artifact(url, cache_dir, token, sha256, artifact_type).await?;
+    let artifact_path =
+        download_cask_artifact(url, cache_dir, token, sha256, artifact_type).await?;
 
     // Install based on platform and artifact type
     let install_result = install_artifact(cask, &artifact_path, artifact_type, options).await?;
@@ -108,23 +109,17 @@ async fn install_artifact(
 
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {
-        Err(Error::UnsupportedPlatform(
-            std::env::consts::OS.to_string(),
-        ))
+        Err(Error::UnsupportedPlatform(std::env::consts::OS.to_string()))
     }
 }
 
 /// Uninstall a cask
-pub async fn uninstall_cask(
-    token: &str,
-    state_path: &Path,
-    zap: bool,
-) -> Result<()> {
+pub async fn uninstall_cask(token: &str, state_path: &Path, zap: bool) -> Result<()> {
     let mut installed_casks = InstalledCasks::load(state_path)?;
 
-    let installed = installed_casks.get(token).ok_or_else(|| {
-        Error::UninstallFailed(format!("{} is not installed", token))
-    })?;
+    let installed = installed_casks
+        .get(token)
+        .ok_or_else(|| Error::UninstallFailed(format!("{} is not installed", token)))?;
 
     let artifact_path = installed.artifact_path.clone();
 
@@ -132,12 +127,22 @@ pub async fn uninstall_cask(
     if artifact_path.exists() {
         if artifact_path.is_dir() {
             info!("Removing {}", artifact_path.display());
-            std::fs::remove_dir_all(&artifact_path)
-                .map_err(|e| Error::UninstallFailed(format!("Failed to remove {}: {}", artifact_path.display(), e)))?;
+            std::fs::remove_dir_all(&artifact_path).map_err(|e| {
+                Error::UninstallFailed(format!(
+                    "Failed to remove {}: {}",
+                    artifact_path.display(),
+                    e
+                ))
+            })?;
         } else if artifact_path.is_file() {
             info!("Removing {}", artifact_path.display());
-            std::fs::remove_file(&artifact_path)
-                .map_err(|e| Error::UninstallFailed(format!("Failed to remove {}: {}", artifact_path.display(), e)))?;
+            std::fs::remove_file(&artifact_path).map_err(|e| {
+                Error::UninstallFailed(format!(
+                    "Failed to remove {}: {}",
+                    artifact_path.display(),
+                    e
+                ))
+            })?;
         }
     } else {
         warn!("Artifact path {} does not exist", artifact_path.display());

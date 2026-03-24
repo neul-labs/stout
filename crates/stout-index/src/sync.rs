@@ -3,7 +3,7 @@
 use crate::cask::Cask;
 use crate::db::Database;
 use crate::error::{Error, Result};
-use crate::formula::Formula;
+use crate::formula::{Formula, HomebrewFormula};
 use crate::signature::SignatureVerifier;
 use crate::DEFAULT_INDEX_URL;
 use reqwest::Client;
@@ -17,7 +17,9 @@ use tracing::{debug, info, warn};
 /// Returns an error if the name contains path traversal characters or is empty
 pub fn validate_package_name(name: &str) -> Result<()> {
     if name.is_empty() {
-        return Err(Error::InvalidInput("package name cannot be empty".to_string()));
+        return Err(Error::InvalidInput(
+            "package name cannot be empty".to_string(),
+        ));
     }
     if name.contains("..") || name.contains('/') || name.contains('\0') {
         return Err(Error::InvalidInput(format!(
@@ -31,7 +33,9 @@ pub fn validate_package_name(name: &str) -> Result<()> {
 /// Validate a cask token for safe use in file paths
 pub fn validate_cask_token(token: &str) -> Result<()> {
     if token.is_empty() {
-        return Err(Error::InvalidInput("cask token cannot be empty".to_string()));
+        return Err(Error::InvalidInput(
+            "cask token cannot be empty".to_string(),
+        ));
     }
     if token.contains("..") || token.contains('/') || token.contains('\0') {
         return Err(Error::InvalidInput(format!(
@@ -343,7 +347,10 @@ impl IndexSync {
 
             let age = now.saturating_sub(signed_at);
             if age > self.security_policy.max_signature_age {
-                return Err(Error::SignatureExpired(age, self.security_policy.max_signature_age));
+                return Err(Error::SignatureExpired(
+                    age,
+                    self.security_policy.max_signature_age,
+                ));
             }
         }
 
@@ -360,22 +367,24 @@ impl IndexSync {
         );
 
         // Parse and verify signature
-        let signature_bytes = hex::decode(signature).map_err(|e| {
-            Error::SignatureInvalid(format!("Invalid signature hex: {}", e))
-        })?;
+        let signature_bytes = hex::decode(signature)
+            .map_err(|e| Error::SignatureInvalid(format!("Invalid signature hex: {}", e)))?;
 
-        let sig = ed25519_dalek::Signature::from_slice(&signature_bytes).map_err(|e| {
-            Error::SignatureInvalid(format!("Invalid signature format: {}", e))
-        })?;
+        let sig = ed25519_dalek::Signature::from_slice(&signature_bytes)
+            .map_err(|e| Error::SignatureInvalid(format!("Invalid signature format: {}", e)))?;
 
         // Try verification with the verifier (which has all trusted keys)
         use ed25519_dalek::Verifier;
-        let verified = self.verifier.public_keys().iter().any(|key| {
-            key.verify(signed_data.as_bytes(), &sig).is_ok()
-        });
+        let verified = self
+            .verifier
+            .public_keys()
+            .iter()
+            .any(|key| key.verify(signed_data.as_bytes(), &sig).is_ok());
 
         if !verified {
-            return Err(Error::SignatureInvalid("Signature verification failed".to_string()));
+            return Err(Error::SignatureInvalid(
+                "Signature verification failed".to_string(),
+            ));
         }
 
         info!("Manifest signature verified successfully");
@@ -401,9 +410,9 @@ impl IndexSync {
         hasher.update(&compressed);
         let hash = format!("{:x}", hasher.finalize());
 
-        let expected_hash = manifest.formula_sha256().ok_or_else(|| {
-            Error::InvalidIndex("No formula index hash in manifest".to_string())
-        })?;
+        let expected_hash = manifest
+            .formula_sha256()
+            .ok_or_else(|| Error::InvalidIndex("No formula index hash in manifest".to_string()))?;
 
         if hash != expected_hash {
             return Err(Error::ChecksumMismatch("formulas.db.zst".to_string()));
@@ -424,21 +433,42 @@ impl IndexSync {
 
         info!(
             "Index updated to {} ({} formulas)",
-            manifest.version, manifest.formula_count()
+            manifest.version,
+            manifest.formula_count()
         );
 
         Ok(manifest)
     }
 
     /// Fetch a formula's full JSON data
+    ///
+    /// Tries the stout-index first, then falls back to Homebrew's official API
+    /// if the formula is not found in the index.
     pub async fn fetch_formula(&self, name: &str) -> Result<Formula> {
+        // Try stout-index first
+        match self.fetch_formula_from_index(name).await {
+            Ok(formula) => return Ok(formula),
+            Err(Error::FormulaNotFound(_)) => {
+                // Fall back to Homebrew API
+                debug!(
+                    "Formula {} not found in stout-index, trying Homebrew API",
+                    name
+                );
+                self.fetch_formula_from_homebrew(name).await
+            }
+            Err(e) => return Err(e),
+        }
+    }
+
+    /// Fetch a formula from the stout-index mirror
+    async fn fetch_formula_from_index(&self, name: &str) -> Result<Formula> {
         let first_char = name.chars().next().unwrap_or('_');
         let url = format!(
-            "{}/formulas/{}/{}.json.zst",
+            "{}/formulas/data/{}/{}.json.zst",
             self.base_url, first_char, name
         );
 
-        debug!("Fetching formula from {}", url);
+        debug!("Fetching formula from stout-index: {}", url);
 
         let response = self.client.get(&url).send().await?;
 
@@ -459,12 +489,43 @@ impl IndexSync {
         Ok(formula)
     }
 
+    /// Fetch a formula from Homebrew's official API (fallback)
+    async fn fetch_formula_from_homebrew(&self, name: &str) -> Result<Formula> {
+        let url = format!("https://formulae.brew.sh/api/formula/{}.json", name);
+
+        debug!("Fetching formula from Homebrew API: {}", url);
+
+        let response = self.client.get(&url).send().await?;
+
+        if !response.status().is_success() {
+            return Err(Error::FormulaNotFound(name.to_string()));
+        }
+
+        let json_bytes = response.bytes().await?;
+
+        // Parse Homebrew API format and convert to stout format
+        let homebrew_formula: HomebrewFormula =
+            serde_json::from_slice(&json_bytes).map_err(|e| {
+                warn!("Failed to parse Homebrew API response for {}: {}", name, e);
+                Error::Json(e)
+            })?;
+
+        Ok(Formula::from(homebrew_formula))
+    }
+
     /// Fetch and cache a formula
-    pub async fn fetch_formula_cached(&self, name: &str, expected_hash: Option<&str>) -> Result<Formula> {
+    pub async fn fetch_formula_cached(
+        &self,
+        name: &str,
+        expected_hash: Option<&str>,
+    ) -> Result<Formula> {
         // Validate package name to prevent path traversal
         validate_package_name(name)?;
 
-        let cache_path = self.cache_dir.join("formulas").join(format!("{}.json", name));
+        let cache_path = self
+            .cache_dir
+            .join("formulas")
+            .join(format!("{}.json", name));
 
         // Check cache
         if let Some(hash) = expected_hash {
@@ -498,7 +559,7 @@ impl IndexSync {
     pub async fn fetch_cask(&self, token: &str) -> Result<Cask> {
         let first_char = token.chars().next().unwrap_or('_');
         let url = format!(
-            "{}/casks/{}/{}.json.zst",
+            "{}/casks/data/{}/{}.json.zst",
             self.base_url, first_char, token
         );
 
@@ -524,7 +585,11 @@ impl IndexSync {
     }
 
     /// Fetch and cache a cask
-    pub async fn fetch_cask_cached(&self, token: &str, expected_hash: Option<&str>) -> Result<Cask> {
+    pub async fn fetch_cask_cached(
+        &self,
+        token: &str,
+        expected_hash: Option<&str>,
+    ) -> Result<Cask> {
         // Validate cask token to prevent path traversal
         validate_cask_token(token)?;
 

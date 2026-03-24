@@ -133,7 +133,8 @@ async fn run_what() -> Result<()> {
 }
 
 /// Record an analytics event (only if analytics are enabled)
-pub async fn record_event(event_type: &str, data: &str) -> Result<()> {
+#[allow(dead_code)]
+pub async fn record_event(_event_type: &str, _data: &str) -> Result<()> {
     let paths = Paths::default();
     let config = Config::load(&paths)?;
 

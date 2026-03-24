@@ -71,6 +71,16 @@ pub async fn run(args: Args) -> Result<()> {
             .await
             .context(format!("Failed to fetch formula {}", name))?;
 
+        // Warn if formula version differs from installed version
+        if formula.version != old_pkg.version {
+            println!(
+                "  {} Formula version {} differs from installed {} - will reinstall to newer version",
+                style("!").yellow(),
+                formula.version,
+                old_pkg.version
+            );
+        }
+
         // Unlink old version
         let old_install_path = paths.cellar.join(name).join(&old_pkg.version);
         if old_install_path.exists() {
@@ -91,7 +101,7 @@ pub async fn run(args: Args) -> Result<()> {
 
             let build_config = BuildConfig {
                 source_url: source.url.clone(),
-                sha256: source.sha256.clone(),
+                sha256: source.sha256.clone().unwrap_or_default(),
                 name: name.clone(),
                 version: formula.version.clone(),
                 prefix: paths.prefix.clone(),

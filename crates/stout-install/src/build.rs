@@ -6,7 +6,7 @@
 use crate::error::{BuildError, Error, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// Build configuration
 #[derive(Debug, Clone)]
@@ -64,7 +64,10 @@ impl SourceBuilder {
 
     /// Build the formula from source
     pub async fn build(&self) -> Result<BuildResult> {
-        info!("Building {} {} from source", self.config.name, self.config.version);
+        info!(
+            "Building {} {} from source",
+            self.config.name, self.config.version
+        );
 
         // Create work directory
         std::fs::create_dir_all(&self.work_dir)?;
@@ -85,7 +88,9 @@ impl SourceBuilder {
     async fn download_source(&self) -> Result<PathBuf> {
         use sha2::{Digest, Sha256};
 
-        let archive_name = self.config.source_url
+        let archive_name = self
+            .config
+            .source_url
             .rsplit('/')
             .next()
             .unwrap_or("source.tar.gz");
@@ -95,38 +100,48 @@ impl SourceBuilder {
 
         // Use reqwest to download
         let client = reqwest::Client::new();
-        let response = client.get(&self.config.source_url)
+        let response = client
+            .get(&self.config.source_url)
             .send()
             .await
-            .map_err(|e| Error::Build(BuildError::DownloadFailed {
-                package: self.config.name.clone(),
-                reason: format!("Failed to download: {}", e)
-            }))?;
+            .map_err(|e| {
+                Error::Build(BuildError::DownloadFailed {
+                    package: self.config.name.clone(),
+                    reason: format!("Failed to download: {}", e),
+                })
+            })?;
 
         if !response.status().is_success() {
             return Err(Error::Build(BuildError::DownloadFailed {
                 package: self.config.name.clone(),
-                reason: format!("HTTP {}", response.status())
+                reason: format!("HTTP {}", response.status()),
             }));
         }
 
-        let bytes = response.bytes()
-            .await
-            .map_err(|e| Error::Build(BuildError::DownloadFailed {
+        let bytes = response.bytes().await.map_err(|e| {
+            Error::Build(BuildError::DownloadFailed {
                 package: self.config.name.clone(),
-                reason: format!("Failed to read: {}", e)
-            }))?;
+                reason: format!("Failed to read: {}", e),
+            })
+        })?;
 
-        // Verify checksum
-        let mut hasher = Sha256::new();
-        hasher.update(&bytes);
-        let hash = format!("{:x}", hasher.finalize());
+        // Verify checksum (skip if not provided, e.g., for git-based sources)
+        if !self.config.sha256.is_empty() {
+            let mut hasher = Sha256::new();
+            hasher.update(&bytes);
+            let hash = format!("{:x}", hasher.finalize());
 
-        if hash != self.config.sha256 {
-            return Err(Error::Build(BuildError::DownloadFailed {
-                package: self.config.name.clone(),
-                reason: format!("Checksum mismatch: expected {}, got {}", self.config.sha256, hash)
-            }));
+            if hash != self.config.sha256 {
+                return Err(Error::Build(BuildError::DownloadFailed {
+                    package: self.config.name.clone(),
+                    reason: format!(
+                        "Checksum mismatch: expected {}, got {}",
+                        self.config.sha256, hash
+                    ),
+                }));
+            }
+        } else {
+            debug!("Skipping checksum verification (no sha256 provided)");
         }
 
         std::fs::write(&archive_path, &bytes)?;
@@ -169,13 +184,15 @@ impl SourceBuilder {
         }
 
         Err(Error::Build(BuildError::SourceDirectoryNotFound {
-            package: self.config.name.clone()
+            package: self.config.name.clone(),
         }))
     }
 
     /// Run the build process
     fn run_build(&self, source_dir: &Path) -> Result<PathBuf> {
-        let install_path = self.config.cellar
+        let install_path = self
+            .config
+            .cellar
             .join(&self.config.name)
             .join(&self.config.version);
 
@@ -197,7 +214,9 @@ impl SourceBuilder {
         } else if source_dir.join("Cargo.toml").exists() {
             self.build_cargo(source_dir, &install_path)?;
         } else {
-            return Err(Error::Build(BuildError::unknown_build_system(&self.config.name)));
+            return Err(Error::Build(BuildError::unknown_build_system(
+                &self.config.name,
+            )));
         }
 
         Ok(install_path)
@@ -226,7 +245,9 @@ impl SourceBuilder {
         let configure_status = configure_cmd.status()?;
 
         if !configure_status.success() {
-            return Err(Error::Build(BuildError::configure_failed(&self.config.name)));
+            return Err(Error::Build(BuildError::configure_failed(
+                &self.config.name,
+            )));
         }
 
         // Make
@@ -261,7 +282,9 @@ impl SourceBuilder {
             .status()?;
 
         if !install_status.success() {
-            return Err(Error::Build(BuildError::make_install_failed(&self.config.name)));
+            return Err(Error::Build(BuildError::make_install_failed(
+                &self.config.name,
+            )));
         }
 
         Ok(())
@@ -296,7 +319,7 @@ impl SourceBuilder {
 
         if !cmake_status.success() {
             return Err(Error::Build(BuildError::CmakeConfigureFailed {
-                package: self.config.name.clone()
+                package: self.config.name.clone(),
             }));
         }
 
@@ -311,7 +334,7 @@ impl SourceBuilder {
 
         if !build_status.success() {
             return Err(Error::Build(BuildError::CmakeBuildFailed {
-                package: self.config.name.clone()
+                package: self.config.name.clone(),
             }));
         }
 
@@ -324,7 +347,7 @@ impl SourceBuilder {
 
         if !install_status.success() {
             return Err(Error::Build(BuildError::CmakeInstallFailed {
-                package: self.config.name.clone()
+                package: self.config.name.clone(),
             }));
         }
 
@@ -367,7 +390,9 @@ impl SourceBuilder {
             .status()?;
 
         if !install_status.success() {
-            return Err(Error::Build(BuildError::make_install_failed(&self.config.name)));
+            return Err(Error::Build(BuildError::make_install_failed(
+                &self.config.name,
+            )));
         }
 
         Ok(())
@@ -401,7 +426,7 @@ impl SourceBuilder {
 
         if !setup_status.success() {
             return Err(Error::Build(BuildError::MesonConfigureFailed {
-                package: self.config.name.clone()
+                package: self.config.name.clone(),
             }));
         }
 
@@ -416,7 +441,7 @@ impl SourceBuilder {
 
         if !compile_status.success() {
             return Err(Error::Build(BuildError::MesonCompileFailed {
-                package: self.config.name.clone()
+                package: self.config.name.clone(),
             }));
         }
 
@@ -429,7 +454,7 @@ impl SourceBuilder {
 
         if !install_status.success() {
             return Err(Error::Build(BuildError::MesonInstallFailed {
-                package: self.config.name.clone()
+                package: self.config.name.clone(),
             }));
         }
 
@@ -451,7 +476,7 @@ impl SourceBuilder {
 
         if !build_status.success() {
             return Err(Error::Build(BuildError::CargoBuildFailed {
-                package: self.config.name.clone()
+                package: self.config.name.clone(),
             }));
         }
 
@@ -506,7 +531,10 @@ fn validate_compiler_path(path: &str) -> Result<()> {
     // Check for path traversal attempts
     if path.contains("..") || path.contains(';') || path.contains('|') || path.contains('$') {
         return Err(Error::Build(BuildError::CompilerValidationFailed {
-            reason: format!("Invalid compiler path '{}': contains suspicious characters", path),
+            reason: format!(
+                "Invalid compiler path '{}': contains suspicious characters",
+                path
+            ),
         }));
     }
 

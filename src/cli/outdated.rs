@@ -71,6 +71,11 @@ pub async fn run(args: Args) -> Result<()> {
             None => continue,
         };
 
+        // Skip HEAD formulas - they are not compared against stable versions
+        if pkg.version.starts_with("HEAD") {
+            continue;
+        }
+
         // Look up current version in index
         if let Ok(Some(info)) = db.get_formula(&name) {
             if info.version != pkg.version {

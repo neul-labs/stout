@@ -239,7 +239,7 @@ impl DeltaSync {
     }
 
     /// Apply a delta update to the database
-    pub async fn apply_delta(&mut self, db: &Database, delta: &DeltaManifest) -> Result<usize> {
+    pub async fn apply_delta(&mut self, _db: &Database, delta: &DeltaManifest) -> Result<usize> {
         let mut applied = 0;
 
         // Remove deleted formulas

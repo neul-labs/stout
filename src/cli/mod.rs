@@ -45,6 +45,48 @@ pub mod why;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+/// Detect the current platform string for bottle selection.
+pub fn detect_platform() -> String {
+    let arch = if cfg!(target_arch = "aarch64") {
+        "arm64"
+    } else {
+        "x86_64"
+    };
+
+    if cfg!(target_os = "macos") {
+        let codename = detect_macos_codename().unwrap_or("sonoma");
+        format!("{}_{}", arch, codename)
+    } else {
+        format!("{}_linux", arch)
+    }
+}
+
+/// Detect the macOS version codename from the kernel version.
+#[cfg(target_os = "macos")]
+fn detect_macos_codename() -> Option<&'static str> {
+    let output = std::process::Command::new("sw_vers")
+        .arg("-productVersion")
+        .output()
+        .ok()?;
+
+    let version = String::from_utf8_lossy(&output.stdout);
+    let major: u32 = version.trim().split('.').next()?.parse().ok()?;
+
+    Some(match major {
+        15 => "sequoia",
+        14 => "sonoma",
+        13 => "ventura",
+        12 => "monterey",
+        11 => "big_sur",
+        _ => return None,
+    })
+}
+
+#[cfg(not(target_os = "macos"))]
+fn detect_macos_codename() -> Option<&'static str> {
+    None
+}
+
 #[derive(Parser)]
 #[command(
     name = "stout",

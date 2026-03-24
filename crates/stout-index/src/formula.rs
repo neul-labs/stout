@@ -65,7 +65,8 @@ pub struct FormulaUrls {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UrlSpec {
     pub url: String,
-    pub sha256: String,
+    #[serde(default)]
+    pub sha256: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -142,8 +143,12 @@ pub struct FormulaMeta {
 
 impl Formula {
     /// Get the bottle for the current platform
+    ///
+    /// Falls back to "all" platform if no platform-specific bottle is found.
     pub fn bottle_for_platform(&self, platform: &str) -> Option<&Bottle> {
-        self.bottles.get(platform)
+        self.bottles
+            .get(platform)
+            .or_else(|| self.bottles.get("all"))
     }
 
     /// Get all runtime dependencies
@@ -174,5 +179,127 @@ impl Formula {
     /// Check if this formula has a bottle for any platform
     pub fn has_any_bottle(&self) -> bool {
         !self.bottles.is_empty()
+    }
+}
+
+/// Homebrew API response format (for fallback fetching)
+/// See: https://formulae.brew.sh/api/formula/<name>.json
+#[derive(Debug, Clone, Deserialize)]
+pub struct HomebrewFormula {
+    pub name: String,
+    pub full_name: String,
+    pub tap: String,
+    pub desc: Option<String>,
+    pub homepage: Option<String>,
+    pub license: Option<String>,
+    pub revision: u32,
+    pub versions: HomebrewVersions,
+    pub bottle: HomebrewBottle,
+    #[serde(default)]
+    pub dependencies: Vec<String>,
+    #[serde(default)]
+    pub build_dependencies: Vec<String>,
+    #[serde(default)]
+    pub test_dependencies: Vec<String>,
+    #[serde(default)]
+    pub recommended_dependencies: Vec<String>,
+    #[serde(default)]
+    pub optional_dependencies: Vec<String>,
+    #[serde(default)]
+    pub aliases: Vec<String>,
+    #[serde(default)]
+    pub conflicts_with: Vec<String>,
+    pub caveats: Option<String>,
+    #[serde(default)]
+    pub deprecated: bool,
+    #[serde(default)]
+    pub disabled: bool,
+    #[serde(default)]
+    pub keg_only: bool,
+    #[serde(default)]
+    pub post_install_defined: bool,
+    pub service: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct HomebrewVersions {
+    pub stable: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct HomebrewBottle {
+    pub stable: Option<HomebrewBottleStable>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct HomebrewBottleStable {
+    pub files: HashMap<String, HomebrewBottleFile>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct HomebrewBottleFile {
+    pub url: String,
+    pub sha256: String,
+    #[serde(default = "default_cellar")]
+    pub cellar: String,
+}
+
+impl From<HomebrewFormula> for Formula {
+    fn from(hb: HomebrewFormula) -> Self {
+        let version = hb.versions.stable.unwrap_or_else(|| "unknown".to_string());
+
+        let bottles: HashMap<String, Bottle> = hb
+            .bottle
+            .stable
+            .map(|stable| {
+                stable
+                    .files
+                    .into_iter()
+                    .map(|(platform, file)| {
+                        (
+                            platform,
+                            Bottle {
+                                url: file.url,
+                                sha256: file.sha256,
+                                cellar: file.cellar,
+                            },
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Formula {
+            name: hb.name,
+            version,
+            revision: hb.revision,
+            desc: hb.desc,
+            homepage: hb.homepage,
+            license: hb.license,
+            tap: hb.tap,
+            urls: FormulaUrls {
+                stable: None,
+                head: None,
+            },
+            bottles,
+            dependencies: Dependencies {
+                runtime: hb.dependencies,
+                build: hb.build_dependencies,
+                test: hb.test_dependencies,
+                optional: hb.optional_dependencies,
+                recommended: hb.recommended_dependencies,
+            },
+            aliases: hb.aliases,
+            conflicts_with: hb.conflicts_with,
+            caveats: hb.caveats,
+            flags: FormulaFlags {
+                keg_only: hb.keg_only,
+                deprecated: hb.deprecated,
+                disabled: hb.disabled,
+                has_post_install: hb.post_install_defined,
+            },
+            service: hb.service,
+            meta: FormulaMeta::default(),
+        }
     }
 }

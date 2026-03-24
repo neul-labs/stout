@@ -1,4 +1,5 @@
 //! Output formatting utilities
+#![allow(dead_code)]
 
 use console::{style, Style};
 
@@ -41,4 +42,10 @@ pub fn version(ver: &str) -> String {
 pub fn fatal(msg: &str) -> ! {
     eprintln!("\n{} {}\n", style("error:").red().bold(), msg);
     std::process::exit(1)
+}
+
+/// Check if stdin is a TTY (interactive terminal).
+pub fn is_interactive() -> bool {
+    use std::io::IsTerminal;
+    std::io::stdin().is_terminal()
 }

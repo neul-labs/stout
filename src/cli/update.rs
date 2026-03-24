@@ -88,18 +88,18 @@ pub async fn run(args: Args) -> Result<()> {
     let manifest_json = serde_json::to_string_pretty(&manifest)?;
     std::fs::write(paths.manifest(), manifest_json)?;
 
-    // Run Cellar sync if configured
+    // Run Homebrew sync if configured
     if config.sync.sync_on_update {
-        println!("\n{}...", style("Syncing with Cellar").cyan());
+        println!("\n{}...", style("Syncing with Homebrew").cyan());
         match super::sync::run_auto_sync(&paths).await {
             Ok(0) => {
-                println!("  {}", style("State is in sync with Cellar.").dim());
+                println!("  {}", style("State is in sync with Homebrew.").dim());
             }
             Ok(n) => {
                 println!("  {} Synced {} changes", style("✓").green(), n);
             }
             Err(e) => {
-                eprintln!("  {} Cellar sync failed: {}", style("⚠").yellow(), e);
+                eprintln!("  {} Homebrew sync failed: {}", style("⚠").yellow(), e);
             }
         }
     }
