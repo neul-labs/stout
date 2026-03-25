@@ -1,10 +1,12 @@
 //! Outdated command - list packages with available updates
 
 use anyhow::{Context, Result};
+use stout_audit::compare_versions;
 use stout_index::Database;
 use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
+use std::cmp::Ordering;
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -73,7 +75,8 @@ pub async fn run(args: Args) -> Result<()> {
 
         // Look up current version in index
         if let Ok(Some(info)) = db.get_formula(&name) {
-            if info.version != pkg.version {
+            // Only mark as outdated if installed version is strictly less than current
+            if compare_versions(&pkg.version, &info.version) == Ordering::Less {
                 outdated.push(OutdatedPackage {
                     name: name.clone(),
                     installed_version: pkg.version.clone(),
