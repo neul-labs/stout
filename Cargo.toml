@@ -17,7 +17,7 @@ version = "0.2.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/neul-labs/stout"
-rust-version = "1.75"
+rust-version = "1.85"
 
 [workspace.dependencies]
 # Internal crates
@@ -59,7 +59,7 @@ flate2 = "1"
 tar = "0.4"
 
 # Crypto
-sha2 = "0.10"
+sha2 = "0.11"
 ed25519-dalek = { version = "2", features = ["std", "rand_core"] }
 hex = "0.4"
 
@@ -135,6 +135,7 @@ tracing-subscriber.workspace = true
 flate2.workspace = true
 tar.workspace = true
 sha2.workspace = true
+hex.workspace = true
 walkdir = "2"
 dirs.workspace = true
 
