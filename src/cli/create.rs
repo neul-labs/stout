@@ -302,7 +302,7 @@ async fn calculate_sha256(url: &str) -> Result<String> {
 
 fn generate_formula(
     name: &str,
-    version: &str,
+    _version: &str,
     url: &str,
     sha256: &str,
     desc: Option<&str>,

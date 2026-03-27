@@ -78,7 +78,7 @@ async fn show_formula_info(
     info: &stout_index::FormulaInfo,
     sync: &IndexSync,
     paths: &Paths,
-    db: &Database,
+    _db: &Database,
 ) -> Result<()> {
     // Fetch full formula data
     let formula = sync
@@ -172,7 +172,7 @@ async fn show_cask_info(
     token: &str,
     info: &stout_index::CaskInfo,
     sync: &IndexSync,
-    paths: &Paths,
+    _paths: &Paths,
 ) -> Result<()> {
     // Fetch full cask data
     let cask = sync

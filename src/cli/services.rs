@@ -56,6 +56,7 @@ pub enum ServiceCommand {
 
 /// Service status
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(dead_code)]
 enum ServiceStatus {
     Running,
     Stopped,
@@ -319,7 +320,7 @@ fn find_service_files(install_path: &std::path::Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
 
     // Check for launchd plists
-    let homebrew_dir = install_path.join("homebrew.mxcl.*.plist");
+    let _homebrew_dir = install_path.join("homebrew.mxcl.*.plist");
     if let Ok(entries) = glob_simple(install_path, "*.plist") {
         files.extend(entries);
     }

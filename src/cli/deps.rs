@@ -1,12 +1,12 @@
 //! Deps command - show dependencies of a package
 
 use anyhow::{bail, Context, Result};
-use stout_index::{Database, IndexSync};
-use stout_state::{Config, InstalledPackages, Paths};
 use clap::{Args as ClapArgs, ValueEnum};
 use console::style;
 use serde::Serialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
+use stout_index::{Database, IndexSync};
+use stout_state::{Config, InstalledPackages, Paths};
 
 #[derive(Debug, Clone, Copy, Default, ValueEnum)]
 pub enum OutputFormat {
@@ -378,7 +378,11 @@ async fn print_dep_tree_with_indent(
                     let child_indent = if is_last { "    " } else { "│   " };
                     let new_indent = format!("{}{}", base_indent, child_indent);
                     Box::pin(print_dep_tree_with_indent(
-                        sync, installed, &subdeps, &new_indent, visited,
+                        sync,
+                        installed,
+                        &subdeps,
+                        &new_indent,
+                        visited,
                     ))
                     .await?;
                 }

@@ -1,10 +1,10 @@
 //! History command - show package version history
 
-use anyhow::{bail, Result};
-use stout_state::{HistoryAction, PackageHistory, Paths};
+use anyhow::Result;
 use clap::Args as ClapArgs;
 use console::style;
 use serde::Serialize;
+use stout_state::{HistoryAction, PackageHistory, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -144,8 +144,9 @@ pub async fn run(args: Args) -> Result<()> {
             names.sort();
 
             for name in names {
-                let entries = history.packages.get(name)
-                    .ok_or_else(|| anyhow::anyhow!("package '{}' in history but not found", name))?;
+                let entries = history.packages.get(name).ok_or_else(|| {
+                    anyhow::anyhow!("package '{}' in history but not found", name)
+                })?;
                 let entries: Vec<_> = if let Some(limit) = args.limit {
                     entries.iter().rev().take(limit).collect()
                 } else {
@@ -164,7 +165,7 @@ pub async fn run(args: Args) -> Result<()> {
     Ok(())
 }
 
-fn print_entry(name: &str, entry: &stout_state::HistoryEntry) {
+fn print_entry(_name: &str, entry: &stout_state::HistoryEntry) {
     let action_style = match entry.action {
         HistoryAction::Install => style("install").green(),
         HistoryAction::Upgrade => style("upgrade").blue(),

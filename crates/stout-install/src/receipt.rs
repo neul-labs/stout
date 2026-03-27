@@ -17,6 +17,8 @@ pub struct InstallReceipt {
     #[serde(default)]
     pub poured_from_bottle: bool,
     #[serde(default)]
+    pub built_as_bottle: bool,
+    #[serde(default)]
     pub changed_files: Vec<String>,
 }
 
@@ -58,6 +60,7 @@ impl InstallReceipt {
             },
             runtime_dependencies: dependencies,
             poured_from_bottle: true,
+            built_as_bottle: true,
             changed_files: Vec::new(),
         }
     }
@@ -84,6 +87,7 @@ impl InstallReceipt {
             },
             runtime_dependencies: dependencies,
             poured_from_bottle: false, // Built from source
+            built_as_bottle: false,
             changed_files: Vec::new(),
         }
     }
@@ -98,6 +102,7 @@ pub fn write_receipt(install_path: impl AsRef<Path>, receipt: &InstallReceipt) -
 }
 
 /// Read an existing INSTALL_RECEIPT.json
+#[allow(dead_code)]
 pub fn read_receipt(install_path: impl AsRef<Path>) -> Result<InstallReceipt> {
     let path = install_path.as_ref().join("INSTALL_RECEIPT.json");
     let json = std::fs::read_to_string(&path)?;

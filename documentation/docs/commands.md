@@ -18,6 +18,7 @@ stout install <package>...
 
 | Option | Description |
 |--------|-------------|
+| `--HEAD` | Install from git HEAD (implies --build-from-source) |
 | `--build-from-source` | Compile from source instead of using bottles |
 | `--force` | Install even if already installed |
 | `--ignore-dependencies` | Skip dependency installation |
@@ -44,6 +45,9 @@ stout install python@3.11
 
 # Build from source
 stout install --build-from-source neovim
+
+# Install from git HEAD (bleeding edge)
+stout install --HEAD neovim
 ```
 
 ---
@@ -85,8 +89,19 @@ stout reinstall <package>...
 
 | Option | Description |
 |--------|-------------|
+| `--HEAD` | Reinstall from git HEAD |
 | `--build-from-source` | Compile from source |
 | `--force` | Reinstall even if up to date |
+
+**Examples:**
+
+```bash
+# Reinstall a package
+stout reinstall jq
+
+# Reinstall as HEAD build
+stout reinstall --HEAD neovim
+```
 
 ---
 
@@ -119,6 +134,9 @@ stout upgrade
 
 # Preview upgrades
 stout upgrade --dry-run
+
+# Check HEAD packages for updates
+stout upgrade --fetch-HEAD
 ```
 
 ---
@@ -141,6 +159,69 @@ Downloads the latest package index from the stout-index repository.
 
 ---
 
+### sync
+
+Synchronize stout state with Homebrew Cellar and Caskroom.
+
+```bash
+stout sync
+```
+
+Detects drift between stout's tracked packages and what's actually installed in Homebrew's Cellar/Caskroom, then applies changes to bring state into sync.
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-n, --dry-run` | Show what would change without modifying state |
+| `-y, --yes` | Apply all changes without prompting |
+| `-v, --verbose` | Show detailed output |
+
+**Examples:**
+
+```bash
+# Check for drift
+stout sync --dry-run
+
+# Sync without prompting
+stout sync --yes
+```
+
+---
+
+### import
+
+Import existing Homebrew packages into stout's tracking.
+
+```bash
+stout import [package]...
+```
+
+Scans the Homebrew Cellar and imports packages into stout's state. Also relocates Homebrew placeholders to work with stout's prefix.
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-n, --dry-run` | Show what would be imported without modifying state |
+| `--overwrite` | Re-import packages already tracked by stout |
+| `-v, --verbose` | Show detailed output for each package |
+
+**Examples:**
+
+```bash
+# Import all untracked packages from Cellar
+stout import
+
+# Import specific packages
+stout import jq wget curl
+
+# Re-import already tracked packages
+stout import --overwrite jq
+```
+
+---
+
 ### outdated
 
 List packages with available updates.
@@ -153,9 +234,23 @@ stout outdated
 
 | Option | Description |
 |--------|-------------|
+| `--fetch-HEAD` | Check HEAD packages for updates |
 | `--json` | Output as JSON |
 | `--quiet` | Only show package names |
 | `--cask` | Check casks instead of formulas |
+
+**Examples:**
+
+```bash
+# List outdated packages
+stout outdated
+
+# Check HEAD packages for updates
+stout outdated --fetch-HEAD
+
+# JSON output
+stout outdated --json
+```
 
 ---
 
@@ -247,6 +342,22 @@ stout list
 | `--cask` | List installed casks |
 | `--json` | Output as JSON |
 | `-1` | One package per line |
+| `--source <src>` | Filter by source: stout, brew, unknown |
+| `--requested` | Show only explicitly installed packages |
+| `--deps` | Show only packages installed as dependencies |
+
+**Examples:**
+
+```bash
+# List all packages
+stout list
+
+# Show packages installed by Homebrew (not stout)
+stout list --source brew
+
+# Show only explicitly installed packages
+stout list --requested
+```
 
 ---
 
@@ -425,7 +536,30 @@ Check system for potential problems.
 stout doctor
 ```
 
-Runs diagnostics and reports issues.
+Runs diagnostics and reports issues:
+- stout data directory
+- Configuration file
+- Formula index
+- Homebrew prefix and Cellar
+- Installed packages state
+- Homebrew drift (packages in Cellar/Caskroom not tracked by stout)
+- Unrelocated Homebrew placeholders
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--fix` | Automatically fix issues (runs sync for drift) |
+
+**Examples:**
+
+```bash
+# Check system health
+stout doctor
+
+# Check and auto-fix issues
+stout doctor --fix
+```
 
 ---
 

@@ -1,9 +1,9 @@
 //! Pin command - prevent packages from being upgraded
 
-use anyhow::{bail, Result};
-use stout_state::{InstalledPackages, Paths};
+use anyhow::Result;
 use clap::Args as ClapArgs;
 use console::style;
+use stout_state::{InstalledPackages, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -24,7 +24,12 @@ pub async fn run(args: Args) -> Result<()> {
         } else {
             println!("{} Pinned packages:", style("==>").blue().bold());
             for (name, pkg) in pinned {
-                println!("  {} {} {}", style("•").dim(), name, style(&pkg.version).dim());
+                println!(
+                    "  {} {} {}",
+                    style("•").dim(),
+                    name,
+                    style(&pkg.version).dim()
+                );
             }
         }
         return Ok(());
@@ -37,11 +42,7 @@ pub async fn run(args: Args) -> Result<()> {
 
     for name in &args.formulas {
         if !installed.is_installed(name) {
-            eprintln!(
-                "{} {} is not installed",
-                style("Warning:").yellow(),
-                name
-            );
+            eprintln!("{} {} is not installed", style("Warning:").yellow(), name);
             continue;
         }
 

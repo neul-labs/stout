@@ -166,7 +166,7 @@ async fn run_install(brewfile_path: &PathBuf, args: InstallArgs) -> Result<()> {
     let db = Database::open(paths.index_db())
         .context("Failed to open index. Run 'stout update' first.")?;
 
-    let mut installed_formulas = InstalledPackages::load(&paths)?;
+    let installed_formulas = InstalledPackages::load(&paths)?;
     let state_path = paths.stout_dir.join("casks.json");
     let installed_casks = InstalledCasks::load(&state_path)?;
 

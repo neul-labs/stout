@@ -223,7 +223,7 @@ fn test_binary(path: &std::path::Path, verbose: bool) -> Result<(), String> {
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 if !stdout.is_empty() {
                     // Just show first line
-                    if let Some(line) = stdout.lines().next() {
+                    if let Some(_line) = stdout.lines().next() {
                         return Ok(());
                     }
                 }

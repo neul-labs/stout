@@ -39,6 +39,7 @@ impl Default for VulnDatabaseConfig {
 /// Vulnerability database for querying package vulnerabilities
 pub struct VulnDatabase {
     conn: Connection,
+    #[allow(dead_code)]
     config: VulnDatabaseConfig,
 }
 
