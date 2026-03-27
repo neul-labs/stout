@@ -306,9 +306,10 @@ fn walkdir_recursive(dir: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
-            if path.is_dir() {
+            let ft = fs::symlink_metadata(&path)?.file_type();
+            if ft.is_dir() {
                 walkdir_recursive(&path, files)?;
-            } else {
+            } else if !ft.is_symlink() || !path.is_dir() {
                 files.push(path);
             }
         }

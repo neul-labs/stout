@@ -113,6 +113,13 @@ pub fn scan_cellar(cellar: &Path) -> Result<Vec<CellarPackage>> {
     for entry in entries {
         let entry = entry?;
         let path = entry.path();
+
+        // Skip symlinks to prevent directory traversal
+        if path.symlink_metadata()?.file_type().is_symlink() {
+            debug!("Skipping symlink in Cellar: {}", path.display());
+            continue;
+        }
+
         if !path.is_dir() {
             continue;
         }
@@ -170,7 +177,14 @@ fn scan_package_versions(pkg_dir: &Path, name: &str) -> Result<Option<CellarPack
     let entries = std::fs::read_dir(pkg_dir)?;
     for entry in entries {
         let entry = entry?;
-        if !entry.path().is_dir() {
+        let path = entry.path();
+
+        // Skip symlinks to prevent directory traversal
+        if path.symlink_metadata()?.file_type().is_symlink() {
+            continue;
+        }
+
+        if !path.is_dir() {
             continue;
         }
         if let Ok(v) = entry.file_name().into_string() {

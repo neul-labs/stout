@@ -223,15 +223,21 @@ pub fn unlink_package(
     Ok(unlinked)
 }
 
-/// Simple directory walker that yields files only
+/// Simple directory walker that yields files only.
+///
+/// Uses `symlink_metadata` to avoid following symlinks into directories,
+/// which could cause infinite loops on circular symlinks.
 fn walkdir(dir: &Path) -> Result<impl Iterator<Item = Result<PathBuf>>> {
     fn walk_recursive(dir: &Path, results: &mut Vec<PathBuf>) -> std::io::Result<()> {
         for entry in std::fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
-            if path.is_dir() {
+            let ft = path.symlink_metadata()?.file_type();
+            if ft.is_dir() {
                 walk_recursive(&path, results)?;
-            } else {
+            } else if !ft.is_symlink() || !path.is_dir() {
+                // Include regular files and symlinks to files, but not
+                // symlinks to directories (which could create cycles)
                 results.push(path);
             }
         }

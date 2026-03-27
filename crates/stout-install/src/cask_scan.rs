@@ -99,7 +99,7 @@ pub fn count_caskroom_casks(prefix: &Path) -> usize {
                 .filter_map(|e| e.ok())
                 .filter(|e| {
                     e.path().is_dir()
-                        && !e.file_type().map(|t| t.is_symlink()).unwrap_or(true)
+                        && !e.file_type().map(|t| t.is_symlink()).unwrap_or(false)
                         && e.file_name()
                             .to_str()
                             .map(|n| !n.starts_with('.'))
