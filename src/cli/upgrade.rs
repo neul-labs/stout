@@ -276,20 +276,82 @@ pub async fn run(args: Args) -> Result<()> {
     let mut bottle_specs: Vec<BottleSpec> = Vec::new();
     let mut failed_fetches: Vec<(String, String)> = Vec::new(); // (name, reason)
 
+    let mut index_refreshed = false;
+
     for candidate in upgradable {
         match sync.fetch_formula_cached(&candidate.name, None).await {
             Ok(formula) => {
                 // Verify formula version matches expected version from index
                 // This catches stale formula JSON that doesn't match the index
                 if formula.version != candidate.new_version {
-                    failed_fetches.push((
-                        candidate.name.clone(),
-                        format!(
-                            "formula version mismatch: index says {} but formula JSON has {}",
-                            candidate.new_version, formula.version
-                        ),
-                    ));
-                    continue;
+                    // Try auto-updating the index once
+                    if !index_refreshed {
+                        println!(
+                            "\n{} Version mismatch for {} (index: {}, formula: {}). Updating index...",
+                            style("!").yellow(),
+                            candidate.name,
+                            candidate.new_version,
+                            formula.version
+                        );
+                        match sync.sync_index(paths.index_db()).await {
+                            Ok(_) => {
+                                println!("  {} Index updated", style("✓").green());
+                                index_refreshed = true;
+                            }
+                            Err(e) => {
+                                failed_fetches.push((
+                                    candidate.name.clone(),
+                                    format!(
+                                        "formula version mismatch and auto-update failed: {}",
+                                        e
+                                    ),
+                                ));
+                                continue;
+                            }
+                        }
+                    }
+
+                    // Re-fetch with fresh data
+                    match sync.fetch_formula(&candidate.name).await {
+                        Ok(fresh) if fresh.version == candidate.new_version
+                            || fresh.version != formula.version =>
+                        {
+                            // Accept the fresh formula — proceed below
+                            // (version may have changed, use fresh.version)
+                            let fresh_version = fresh.version.clone();
+                            match fresh.bottle_for_platform(&platform) {
+                                Some(bottle) => {
+                                    bottle_specs.push(BottleSpec {
+                                        name: candidate.name.clone(),
+                                        version: fresh_version.clone(),
+                                        platform: platform.clone(),
+                                        url: bottle.url.clone(),
+                                        sha256: bottle.sha256.clone(),
+                                    });
+                                    let mut updated = candidate;
+                                    updated.new_version = fresh_version;
+                                    formulas_to_upgrade.push((updated, fresh));
+                                }
+                                None => {
+                                    failed_fetches.push((
+                                        candidate.name.clone(),
+                                        format!("no bottle for {}", platform),
+                                    ));
+                                }
+                            }
+                            continue;
+                        }
+                        _ => {
+                            failed_fetches.push((
+                                candidate.name.clone(),
+                                format!(
+                                    "formula version mismatch: index says {} but formula JSON has {}",
+                                    candidate.new_version, formula.version
+                                ),
+                            ));
+                            continue;
+                        }
+                    }
                 }
 
                 match formula.bottle_for_platform(&platform) {

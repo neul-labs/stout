@@ -235,16 +235,98 @@ pub async fn run(args: Args) -> Result<()> {
         // Verify formula version matches expected version from index
         // This catches stale formula JSON that doesn't match the index
         // Skip version check for HEAD builds since HEAD doesn't have a version
-        if !args.head {
-            if formula.version != step.version {
+        if !args.head && formula.version != step.version {
+            // Auto-update the index and retry
+            println!(
+                "\n{} Version mismatch for {} (index: {}, formula: {}). Updating index...",
+                style("!").yellow(),
+                step.name,
+                step.version,
+                formula.version
+            );
+
+            let update_sync = IndexSync::with_security_policy(
+                Some(&config.index.base_url),
+                &paths.stout_dir,
+                config.security.to_security_policy(),
+            )?;
+            update_sync
+                .sync_index(paths.index_db())
+                .await
+                .context("Auto-update failed. Try running 'stout update' manually.")?;
+
+            // Re-open the database with the fresh index
+            let fresh_db = Database::open(paths.index_db())
+                .context("Failed to re-open index after update")?;
+
+            // Re-fetch the formula — the cached JSON may also be stale
+            let fresh_formula = sync
+                .fetch_formula(&step.name)
+                .await
+                .context(format!("Failed to re-fetch formula {}", step.name))?;
+
+            if fresh_formula.version != fresh_db.get_formula(&step.name)?
+                .map(|i| i.version)
+                .unwrap_or_default()
+            {
                 bail!(
-                    "Formula version mismatch for {}: index says {} but formula JSON has {}. \
-                     Try running 'stout update' to refresh the index.",
+                    "Formula version mismatch persists for {} after update. \
+                     Index: {}, formula JSON: {}. This may be a transient issue — try again shortly.",
                     step.name,
                     step.version,
-                    formula.version
+                    fresh_formula.version
                 );
             }
+
+            println!(
+                "  {} Index updated. Continuing with {} {}",
+                style("✓").green(),
+                step.name,
+                fresh_formula.version
+            );
+
+            // Use the fresh formula for the rest of the flow —
+            // update step version and replace formula
+            // Note: step is cloned, so we rebuild it
+            let fresh_step = InstallStep {
+                name: step.name.clone(),
+                version: fresh_formula.version.clone(),
+                is_dependency: step.is_dependency,
+            };
+
+            // HEAD builds: only for explicitly requested packages (not dependencies)
+            if args.head && !fresh_step.is_dependency {
+                if fresh_formula.urls.head.is_none() {
+                    bail!(
+                        "No HEAD URL available for {}. Use -s for stable source builds.",
+                        fresh_step.name
+                    );
+                }
+                head_installs.push((fresh_step, fresh_formula));
+                continue;
+            }
+
+            let use_source = build_from_source || fresh_formula.bottle_for_platform(&platform).is_none();
+
+            if use_source {
+                if fresh_formula.urls.stable.is_none() {
+                    bail!("No source URL available for {}", fresh_step.name);
+                }
+                source_installs.push((fresh_step, fresh_formula));
+            } else {
+                let bottle = fresh_formula
+                    .bottle_for_platform(&platform)
+                    .expect("bottle_for_platform returned None after None check");
+                bottle_specs.push(BottleSpec {
+                    name: fresh_step.name.clone(),
+                    version: fresh_step.version.clone(),
+                    platform: platform.clone(),
+                    url: bottle.url.clone(),
+                    sha256: bottle.sha256.clone(),
+                });
+                bottle_installs.push((fresh_step, fresh_formula));
+            }
+            continue;
         }
 
         // HEAD builds: only for explicitly requested packages (not dependencies)
