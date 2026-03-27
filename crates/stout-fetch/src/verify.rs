@@ -20,7 +20,7 @@ pub fn verify_sha256(path: impl AsRef<Path>, expected: &str) -> Result<()> {
         hasher.update(&buffer[..n]);
     }
 
-    let actual = format!("{:x}", hasher.finalize());
+    let actual = hex::encode(hasher.finalize());
 
     if actual != expected {
         return Err(Error::ChecksumMismatch {
@@ -37,7 +37,7 @@ pub fn verify_sha256(path: impl AsRef<Path>, expected: &str) -> Result<()> {
 pub fn sha256_bytes(data: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(data);
-    format!("{:x}", hasher.finalize())
+    hex::encode(hasher.finalize())
 }
 
 #[cfg(test)]

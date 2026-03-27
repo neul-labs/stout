@@ -254,7 +254,7 @@ fn sha256_file(path: &Path) -> Result<String> {
     let bytes = std::fs::read(path)?;
     let mut hasher = Sha256::new();
     hasher.update(&bytes);
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(hex::encode(hasher.finalize()))
 }
 
 /// Get first character of a string (for directory structure)

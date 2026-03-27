@@ -87,7 +87,7 @@ pub fn create_bottle(
 
     let mut hasher = Sha256::new();
     hasher.update(&file_bytes);
-    let sha256 = format!("{:x}", hasher.finalize());
+    let sha256 = hex::encode(hasher.finalize());
 
     let size = file_bytes.len() as u64;
 
