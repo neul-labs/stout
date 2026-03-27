@@ -50,6 +50,7 @@ pub async fn run(args: Args) -> Result<()> {
 
     // Find upgradable packages
     let mut upgradable: Vec<UpgradeCandidate> = Vec::new();
+    let mut pinned_skipped: Vec<String> = Vec::new();
 
     let packages_to_check: Vec<_> = if args.formulas.is_empty() {
         installed.names().cloned().collect()
@@ -65,6 +66,17 @@ pub async fn run(args: Args) -> Result<()> {
 
         // Skip HEAD formulas - they are not upgraded to stable versions
         if pkg.is_head_install() {
+            continue;
+        }
+
+        // Skip pinned formulas unless explicitly requested by name
+        if pkg.pinned && args.formulas.is_empty() {
+            // Check if there's actually an update available before reporting
+            if let Some(info) = db.get_formula(&name)? {
+                if info.version != pkg.version {
+                    pinned_skipped.push(name.clone());
+                }
+            }
             continue;
         }
 
@@ -117,6 +129,15 @@ pub async fn run(args: Args) -> Result<()> {
                 }
             }
         }
+    }
+
+    if !pinned_skipped.is_empty() {
+        println!(
+            "\n{} {} pinned {} skipped (use 'stout unpin' to allow upgrades)",
+            style("!").yellow(),
+            pinned_skipped.len(),
+            if pinned_skipped.len() == 1 { "package" } else { "packages" }
+        );
     }
 
     if upgradable.is_empty() && head_updates.is_empty() {

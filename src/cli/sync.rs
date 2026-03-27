@@ -266,6 +266,17 @@ pub fn apply_changes(
                 ..
             } => {
                 if let Some(pkg) = installed.get(name).cloned() {
+                    if pkg.pinned {
+                        if !quiet {
+                            println!(
+                                "  {} Skipped {} (pinned at {})",
+                                style("!").yellow(),
+                                name,
+                                style(&pkg.version).dim()
+                            );
+                        }
+                        continue;
+                    }
                     let now = timestamp_now_iso();
                     installed.add_imported(
                         name,
