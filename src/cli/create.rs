@@ -295,7 +295,7 @@ async fn calculate_sha256(url: &str) -> Result<String> {
 
     let mut hasher = Sha256::new();
     hasher.update(&bytes);
-    let hash = format!("{:x}", hasher.finalize());
+    let hash = hex::encode(hasher.finalize());
 
     Ok(hash)
 }

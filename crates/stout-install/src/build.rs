@@ -120,7 +120,7 @@ impl SourceBuilder {
         // Verify checksum
         let mut hasher = Sha256::new();
         hasher.update(&bytes);
-        let hash = format!("{:x}", hasher.finalize());
+        let hash = hex::encode(hasher.finalize());
 
         if hash != self.config.sha256 {
             return Err(Error::Build(BuildError::DownloadFailed {

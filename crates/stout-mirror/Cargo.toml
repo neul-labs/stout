@@ -17,6 +17,7 @@ zstd.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+hex.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 dirs.workspace = true
@@ -24,5 +25,5 @@ tar.workspace = true
 humansize.workspace = true
 
 # HTTP server for mirror serve
-axum = "0.7"
-tower-http = { version = "0.5", features = ["fs", "compression-gzip"] }
+axum = "0.8"
+tower-http = { version = "0.6", features = ["fs", "compression-gzip"] }
