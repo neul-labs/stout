@@ -198,7 +198,7 @@ async fn run_verify(bottle: PathBuf) -> Result<()> {
     let file_bytes = std::fs::read(&bottle)?;
     let mut hasher = Sha256::new();
     hasher.update(&file_bytes);
-    let hash = format!("{:x}", hasher.finalize());
+    let hash = hex::encode(hasher.finalize());
 
     println!("  SHA256: {}", hash);
 

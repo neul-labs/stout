@@ -408,7 +408,7 @@ impl IndexSync {
         // Verify checksum
         let mut hasher = Sha256::new();
         hasher.update(&compressed);
-        let hash = format!("{:x}", hasher.finalize());
+        let hash = hex::encode(hasher.finalize());
 
         let expected_hash = manifest
             .formula_sha256()
@@ -533,7 +533,7 @@ impl IndexSync {
                 let cached = std::fs::read_to_string(&cache_path)?;
                 let mut hasher = Sha256::new();
                 hasher.update(cached.as_bytes());
-                let cached_hash = format!("{:x}", hasher.finalize());
+                let cached_hash = hex::encode(hasher.finalize());
 
                 if cached_hash == hash {
                     debug!("Using cached formula for {}", name);
@@ -601,7 +601,7 @@ impl IndexSync {
                 let cached = std::fs::read_to_string(&cache_path)?;
                 let mut hasher = Sha256::new();
                 hasher.update(cached.as_bytes());
-                let cached_hash = format!("{:x}", hasher.finalize());
+                let cached_hash = hex::encode(hasher.finalize());
 
                 if cached_hash == hash {
                     debug!("Using cached cask for {}", token);

@@ -17,7 +17,7 @@ version = "0.2.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/neul-labs/stout"
-rust-version = "1.75"
+rust-version = "1.85"
 
 [workspace.dependencies]
 # Internal crates
@@ -38,18 +38,18 @@ futures-util = "0.3"
 # CLI
 clap = { version = "4", features = ["derive", "env"] }
 clap_complete = "4"
-clap_mangen = "0.2"
+clap_mangen = { version = "0.3", features = ["env"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-toml = "0.8"
+toml = "1"
 
 # Database
-rusqlite = { version = "0.32", features = ["bundled", "backup"] }
+rusqlite = { version = "0.39", features = ["bundled", "backup"] }
 
 # HTTP
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "gzip", "json"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "stream", "gzip", "json"] }
 
 # Compression
 zstd = "0.13"
@@ -59,21 +59,21 @@ flate2 = "1"
 tar = "0.4"
 
 # Crypto
-sha2 = "0.10"
+sha2 = "0.11"
 ed25519-dalek = { version = "2", features = ["std", "rand_core"] }
 hex = "0.4"
 
 # Terminal UI
-indicatif = "0.17"
-console = "0.15"
-dialoguer = "0.11"
+indicatif = "0.18"
+console = "0.16"
+dialoguer = "0.12"
 
 # Formatting
 humansize = "2"
 humantime = "2"
 
 # Paths
-dirs = "5"
+dirs = "6"
 
 # Error handling
 thiserror = "2"
@@ -139,12 +139,13 @@ tracing-subscriber.workspace = true
 flate2.workspace = true
 tar.workspace = true
 sha2.workspace = true
+hex.workspace = true
 walkdir = "2"
 dirs.workspace = true
 
 [build-dependencies]
 clap = { version = "4", features = ["derive", "env"] }
-clap_mangen = "0.2"
+clap_mangen = { version = "0.3", features = ["env"] }
 
 [profile.release]
 lto = true

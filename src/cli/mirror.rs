@@ -18,7 +18,7 @@ fn verify_file_checksum(path: &Path, expected: &str) -> Result<()> {
     let data = std::fs::read(path)?;
     let mut hasher = Sha256::new();
     hasher.update(&data);
-    let actual = format!("{:x}", hasher.finalize());
+    let actual = hex::encode(hasher.finalize());
 
     if actual == expected {
         Ok(())
