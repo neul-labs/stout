@@ -1,9 +1,9 @@
 //! Tap command for managing custom formula repositories
 
-use anyhow::{bail, Context, Result};
-use stout_state::{Config, Paths, Tap, TapManager};
+use anyhow::{bail, Result};
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
+use stout_state::{Paths, Tap, TapManager};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -41,12 +41,8 @@ pub async fn run(args: Args) -> Result<()> {
         Some(TapCommand::Add { name, url }) => {
             add_tap(&mut tap_manager, &paths, &name, url.as_deref()).await
         }
-        Some(TapCommand::Remove { name }) => {
-            remove_tap(&mut tap_manager, &paths, &name)
-        }
-        Some(TapCommand::List) | None => {
-            list_taps(&tap_manager)
-        }
+        Some(TapCommand::Remove { name }) => remove_tap(&mut tap_manager, &paths, &name),
+        Some(TapCommand::List) | None => list_taps(&tap_manager),
     }
 }
 
@@ -84,11 +80,7 @@ async fn add_tap(
 
     // Check if already added
     if manager.get(&tap_name).is_some() {
-        println!(
-            "{} Tap '{}' is already added",
-            style("•").dim(),
-            tap_name
-        );
+        println!("{} Tap '{}' is already added", style("•").dim(), tap_name);
         return Ok(());
     }
 
@@ -111,11 +103,7 @@ async fn add_tap(
             manager.add(tap);
             manager.save(paths)?;
 
-            println!(
-                "\n{} Added tap '{}'",
-                style("✓").green(),
-                tap_name
-            );
+            println!("\n{} Added tap '{}'", style("✓").green(), tap_name);
             println!("  {}: {}", style("URL").dim(), url);
             println!(
                 "\n{}",

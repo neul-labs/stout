@@ -4,8 +4,9 @@ use anyhow::{bail, Context, Result};
 use stout_fetch::{BottleSpec, DownloadCache, DownloadClient, ProgressReporter};
 use stout_index::{Database, Formula, IndexSync};
 use stout_install::{
-    link_package, write_receipt, BottleInfo, BuildConfig, InstallReceipt,
-    ParallelInstaller, RuntimeDependency, SourceBuilder,
+    BottleInfo, BuildConfig, HeadBuildConfig, HeadBuilder, InstallReceipt,
+    ParallelInstaller, RuntimeDependency, SourceBuilder, link_package, scan_cellar_package,
+    write_receipt,
 };
 use stout_resolve::{DependencyGraph, InstallPlan, InstallStep};
 use stout_state::{Config, InstalledPackages, Paths};
@@ -31,6 +32,10 @@ pub struct Args {
     #[arg(long, short = 's')]
     pub build_from_source: bool,
 
+    /// Install from HEAD (latest git commit, implies --build-from-source)
+    #[arg(long = "HEAD", short = 'H')]
+    pub head: bool,
+
     /// Keep downloaded bottles after installation (don't cleanup)
     #[arg(long)]
     pub keep_bottles: bool,
@@ -46,6 +51,10 @@ pub struct Args {
     /// C++ compiler to use for source builds
     #[arg(long)]
     pub cxx: Option<String>,
+
+    /// Force download even if package already exists in Cellar
+    #[arg(long)]
+    pub force: bool,
 }
 
 pub async fn run(args: Args) -> Result<()> {
@@ -149,8 +158,52 @@ pub async fn run(args: Args) -> Result<()> {
         return Ok(());
     }
 
+    // Targeted Cellar pre-check: detect packages already in Cellar at target version
+    let mut cellar_registered: Vec<String> = Vec::new();
+    if !args.force {
+        for step in plan.new_packages() {
+            if let Some(cellar_pkg) = scan_cellar_package(&paths.cellar, &step.name)? {
+                if cellar_pkg.version == step.version {
+                    // Already in Cellar at target version — register without downloading
+                    // Preserve existing installed_by if already tracked (stout didn't do the install)
+                    if let Some(existing) = installed.get(&step.name) {
+                        let existing = existing.clone();
+                        installed.add_imported(
+                            &step.name,
+                            &step.version,
+                            0,
+                            !step.is_dependency,
+                            &existing.installed_by,
+                            &existing.installed_at,
+                            existing.dependencies.clone(),
+                        );
+                    } else {
+                        // Not tracked yet — mark as "brew" since stout didn't install it
+                        installed.add_imported(
+                            &step.name,
+                            &step.version,
+                            0,
+                            !step.is_dependency,
+                            "brew",
+                            &stout_install::cellar::timestamp_to_iso(0),
+                            Vec::new(),
+                        );
+                    }
+                    cellar_registered.push(step.name.clone());
+                    println!(
+                        "  {} {} {} {}",
+                        style("✓").green(),
+                        step.name,
+                        step.version,
+                        style("(already installed, registered in stout)").dim()
+                    );
+                }
+            }
+        }
+    }
+
     // Detect platform
-    let platform = detect_platform();
+    let platform = super::detect_platform();
 
     // Fetch full formula data and categorize by installation method
     println!("\n{}...", style("Fetching formula data").cyan());
@@ -162,16 +215,135 @@ pub async fn run(args: Args) -> Result<()> {
 
     let mut bottle_installs: Vec<(InstallStep, Formula)> = Vec::new();
     let mut source_installs: Vec<(InstallStep, Formula)> = Vec::new();
+    let mut head_installs: Vec<(InstallStep, Formula)> = Vec::new();
     let mut bottle_specs: Vec<BottleSpec> = Vec::new();
 
+    // HEAD implies build-from-source
+    let build_from_source = args.build_from_source || args.head;
+
     for step in plan.new_packages() {
+        // Skip packages already registered from Cellar pre-check
+        if cellar_registered.contains(&step.name) {
+            continue;
+        }
+
         let formula = sync
             .fetch_formula_cached(&step.name, None)
             .await
             .context(format!("Failed to fetch formula {}", step.name))?;
 
+        // Verify formula version matches expected version from index
+        // This catches stale formula JSON that doesn't match the index
+        // Skip version check for HEAD builds since HEAD doesn't have a version
+        if !args.head && formula.version != step.version {
+            // Auto-update the index and retry
+            println!(
+                "\n{} Version mismatch for {} (index: {}, formula: {}). Updating index...",
+                style("!").yellow(),
+                step.name,
+                step.version,
+                formula.version
+            );
+
+            let update_sync = IndexSync::with_security_policy(
+                Some(&config.index.base_url),
+                &paths.stout_dir,
+                config.security.to_security_policy(),
+            )?;
+            update_sync
+                .sync_index(paths.index_db())
+                .await
+                .context("Auto-update failed. Try running 'stout update' manually.")?;
+
+            // Re-open the database with the fresh index
+            let fresh_db = Database::open(paths.index_db())
+                .context("Failed to re-open index after update")?;
+
+            // Re-fetch the formula — the cached JSON may also be stale
+            let fresh_formula = sync
+                .fetch_formula(&step.name)
+                .await
+                .context(format!("Failed to re-fetch formula {}", step.name))?;
+
+            if fresh_formula.version != fresh_db.get_formula(&step.name)?
+                .map(|i| i.version)
+                .unwrap_or_default()
+            {
+                bail!(
+                    "Formula version mismatch persists for {} after update. \
+                     Index: {}, formula JSON: {}. This may be a transient issue — try again shortly.",
+                    step.name,
+                    step.version,
+                    fresh_formula.version
+                );
+            }
+
+            println!(
+                "  {} Index updated. Continuing with {} {}",
+                style("✓").green(),
+                step.name,
+                fresh_formula.version
+            );
+
+            // Use the fresh formula for the rest of the flow —
+            // update step version and replace formula
+            // Note: step is cloned, so we rebuild it
+            let fresh_step = InstallStep {
+                name: step.name.clone(),
+                version: fresh_formula.version.clone(),
+                is_dependency: step.is_dependency,
+            };
+
+            // HEAD builds: only for explicitly requested packages (not dependencies)
+            if args.head && !fresh_step.is_dependency {
+                if fresh_formula.urls.head.is_none() {
+                    bail!(
+                        "No HEAD URL available for {}. Use -s for stable source builds.",
+                        fresh_step.name
+                    );
+                }
+                head_installs.push((fresh_step, fresh_formula));
+                continue;
+            }
+
+            let use_source = build_from_source || fresh_formula.bottle_for_platform(&platform).is_none();
+
+            if use_source {
+                if fresh_formula.urls.stable.is_none() {
+                    bail!("No source URL available for {}", fresh_step.name);
+                }
+                source_installs.push((fresh_step, fresh_formula));
+            } else {
+                let bottle = fresh_formula
+                    .bottle_for_platform(&platform)
+                    .expect("bottle_for_platform returned None after None check");
+                bottle_specs.push(BottleSpec {
+                    name: fresh_step.name.clone(),
+                    version: fresh_step.version.clone(),
+                    platform: platform.clone(),
+                    url: bottle.url.clone(),
+                    sha256: bottle.sha256.clone(),
+                });
+                bottle_installs.push((fresh_step, fresh_formula));
+            }
+            continue;
+        }
+
+        // HEAD builds: only for explicitly requested packages (not dependencies)
+        if args.head && !step.is_dependency {
+            // Check if HEAD URL is available
+            if formula.urls.head.is_none() {
+                bail!(
+                    "No HEAD URL available for {}. Use -s for stable source builds.",
+                    step.name
+                );
+            }
+            head_installs.push((step.clone(), formula));
+            continue;
+        }
+
         // Check if we should build from source
-        let use_source = args.build_from_source || formula.bottle_for_platform(&platform).is_none();
+        let use_source = build_from_source || formula.bottle_for_platform(&platform).is_none();
 
         if use_source {
             // Check if source is available
@@ -188,7 +360,8 @@ pub async fn run(args: Args) -> Result<()> {
             }
             source_installs.push((step.clone(), formula));
         } else {
-            let bottle = formula.bottle_for_platform(&platform)
+            let bottle = formula
+                .bottle_for_platform(&platform)
                 .expect("bottle_for_platform returned None after None check");
             bottle_specs.push(BottleSpec {
                 name: step.name.clone(),
@@ -250,18 +423,27 @@ pub async fn run(args: Args) -> Result<()> {
                 .runtime_deps()
                 .iter()
                 .filter_map(|dep| {
-                    db.get_formula(dep).ok().flatten().map(|info| RuntimeDependency {
-                        full_name: dep.clone(),
-                        version: info.version,
-                        revision: Some(info.revision),
-                    })
+                    db.get_formula(dep)
+                        .ok()
+                        .flatten()
+                        .map(|info| RuntimeDependency {
+                            full_name: dep.clone(),
+                            version: info.version,
+                            revision: Some(info.revision),
+                        })
                 })
                 .collect();
 
-            let receipt = InstallReceipt::new_bottle(&formula.tap, !step.is_dependency, runtime_deps);
+            let receipt =
+                InstallReceipt::new_bottle(&formula.tap, !step.is_dependency, runtime_deps);
             write_receipt(&result.install_path, &receipt)?;
 
-            installed.add(&step.name, &step.version, formula.revision, !step.is_dependency);
+            installed.add(
+                &step.name,
+                &step.version,
+                formula.revision,
+                !step.is_dependency,
+            );
             println!(
                 "  {} {} {} ({} files linked)",
                 style("✓").green(),
@@ -277,7 +459,10 @@ pub async fn run(args: Args) -> Result<()> {
         println!("\n{}...", style("Building from source").cyan());
 
         for (step, formula) in &source_installs {
-            let source = formula.urls.stable.as_ref()
+            let source = formula
+                .urls
+                .stable
+                .as_ref()
                 .expect("stable URL should exist for source builds");
 
             println!(
@@ -289,7 +474,7 @@ pub async fn run(args: Args) -> Result<()> {
 
             let build_config = BuildConfig {
                 source_url: source.url.clone(),
-                sha256: source.sha256.clone(),
+                sha256: source.sha256.clone().unwrap_or_default(),
                 name: step.name.clone(),
                 version: step.version.clone(),
                 prefix: paths.prefix.clone(),
@@ -303,10 +488,10 @@ pub async fn run(args: Args) -> Result<()> {
             let work_dir = paths.stout_dir.join("build").join(&step.name);
             let builder = SourceBuilder::new(build_config, &work_dir);
 
-            let result = builder.build().await.context(format!(
-                "Failed to build {} from source",
-                step.name
-            ))?;
+            let result = builder
+                .build()
+                .await
+                .context(format!("Failed to build {} from source", step.name))?;
 
             // Link
             link_package(&result.install_path, &paths.prefix)?;
@@ -316,23 +501,108 @@ pub async fn run(args: Args) -> Result<()> {
                 .runtime_deps()
                 .iter()
                 .filter_map(|dep| {
-                    db.get_formula(dep).ok().flatten().map(|info| RuntimeDependency {
-                        full_name: dep.clone(),
-                        version: info.version,
-                        revision: Some(info.revision),
-                    })
+                    db.get_formula(dep)
+                        .ok()
+                        .flatten()
+                        .map(|info| RuntimeDependency {
+                            full_name: dep.clone(),
+                            version: info.version,
+                            revision: Some(info.revision),
+                        })
                 })
                 .collect();
 
-            let receipt = InstallReceipt::new_source(&formula.tap, !step.is_dependency, runtime_deps);
+            let receipt =
+                InstallReceipt::new_source(&formula.tap, !step.is_dependency, runtime_deps);
             write_receipt(&result.install_path, &receipt)?;
 
-            installed.add(&step.name, &step.version, formula.revision, !step.is_dependency);
+            installed.add(
+                &step.name,
+                &step.version,
+                formula.revision,
+                !step.is_dependency,
+            );
 
             // Cleanup build directory
             let _ = std::fs::remove_dir_all(&work_dir);
 
             println!("  {} {} {}", style("✓").green(), step.name, step.version);
+        }
+    }
+
+    // Build from HEAD
+    if !head_installs.is_empty() {
+        println!("\n{}...", style("Building from HEAD").cyan());
+
+        for (step, formula) in &head_installs {
+            let head_url = formula.urls.head.as_ref().expect("head URL should exist");
+
+            println!(
+                "  {} {} (from HEAD)",
+                style("Building").yellow(),
+                step.name
+            );
+
+            let head_config = HeadBuildConfig {
+                git_url: head_url.url.clone(),
+                branch: head_url.branch.clone().unwrap_or_else(|| "master".to_string()),
+                name: step.name.clone(),
+                prefix: paths.prefix.clone(),
+                cellar: paths.cellar.clone(),
+                jobs: args.jobs,
+                cc: args.cc.clone(),
+                cxx: args.cxx.clone(),
+            };
+
+            let work_dir = paths.stout_dir.join("build").join(&step.name);
+            let builder = HeadBuilder::new(head_config, &work_dir);
+
+            let result = builder
+                .build()
+                .await
+                .context(format!("Failed to build {} from HEAD", step.name))?;
+
+            // Link
+            link_package(&result.install_path, &paths.prefix)?;
+
+            // Write receipt
+            let runtime_deps: Vec<RuntimeDependency> = formula
+                .runtime_deps()
+                .iter()
+                .filter_map(|dep| {
+                    db.get_formula(dep)
+                        .ok()
+                        .flatten()
+                        .map(|info| RuntimeDependency {
+                            full_name: dep.clone(),
+                            version: info.version,
+                            revision: Some(info.revision),
+                        })
+                })
+                .collect();
+
+            let receipt =
+                InstallReceipt::new_source(&formula.tap, !step.is_dependency, runtime_deps);
+            write_receipt(&result.install_path, &receipt)?;
+
+            // Track with HEAD SHA
+            installed.add_head(
+                &step.name,
+                &result.short_sha,
+                &result.commit_sha,
+                !step.is_dependency,
+                formula.runtime_deps().to_vec(),
+            );
+
+            // Cleanup build directory
+            let _ = std::fs::remove_dir_all(&work_dir);
+
+            println!(
+                "  {} {} {}",
+                style("✓").green(),
+                step.name,
+                result.short_sha
+            );
         }
     }
 
@@ -373,7 +643,9 @@ pub async fn run(args: Args) -> Result<()> {
             println!(
                 "  {} {}",
                 style("⚠").yellow().bold(),
-                style("patchelf not found - binaries may not run correctly").yellow().bold()
+                style("patchelf not found - binaries may not run correctly")
+                    .yellow()
+                    .bold()
             );
             println!(
                 "    {}",
@@ -407,21 +679,5 @@ fn format_bytes(bytes: u64) -> String {
         format!("{:.1} KB", bytes as f64 / KB as f64)
     } else {
         format!("{} bytes", bytes)
-    }
-}
-
-fn detect_platform() -> String {
-    let arch = if cfg!(target_arch = "aarch64") {
-        "arm64"
-    } else {
-        "x86_64"
-    };
-
-    if cfg!(target_os = "macos") {
-        // Try to detect macOS version
-        // Default to sonoma for now
-        format!("{}_sonoma", arch)
-    } else {
-        format!("{}_linux", arch)
     }
 }

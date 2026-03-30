@@ -45,6 +45,7 @@ impl Default for ServeConfig {
 /// Shared state for the server
 struct ServerState {
     manifest: MirrorManifest,
+    #[allow(dead_code)]
     mirror_path: PathBuf,
 }
 

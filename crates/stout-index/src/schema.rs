@@ -126,8 +126,4 @@ CREATE INDEX IF NOT EXISTS idx_cask_dependencies_cask ON cask_dependencies(cask)
 /// Meta keys
 pub mod meta_keys {
     pub const VERSION: &str = "version";
-    pub const CREATED_AT: &str = "created_at";
-    pub const HOMEBREW_COMMIT: &str = "homebrew_commit";
-    pub const FORMULA_COUNT: &str = "formula_count";
-    pub const CASK_COUNT: &str = "cask_count";
 }

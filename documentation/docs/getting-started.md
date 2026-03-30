@@ -1,6 +1,19 @@
-# Installation
+# Getting Started
 
-This guide covers all the ways to install Stout on your system.
+This guide walks you through installing stout and getting started with package management.
+
+---
+
+## First Run
+
+When you run stout for the first time on a system with existing Homebrew packages, stout will detect untracked packages in the Cellar and prompt you to import them:
+
+```
+Found 42 packages in Homebrew not tracked by stout.
+Import them now? [Y/n]
+```
+
+Choose **Y** to import all packages, or **n** to skip. You can always import later with `stout import`.
 
 ---
 

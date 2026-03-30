@@ -1,11 +1,11 @@
 //! Home command - open the homepage of a package in the browser
 
 use anyhow::{bail, Context, Result};
-use stout_index::{Database, IndexSync};
-use stout_state::{Config, Paths};
 use clap::Args as ClapArgs;
 use console::style;
-use tracing::warn;
+use stout_index::{Database, IndexSync};
+use stout_state::{Config, Paths};
+
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -79,18 +79,11 @@ fn open_url(url: &str) -> Result<()> {
     #[cfg(target_os = "linux")]
     {
         // Try xdg-open first, then common browsers
-        if let Err(e) = std::process::Command::new("xdg-open")
-            .arg(url)
-            .spawn()
-        {
+        if let Err(e) = std::process::Command::new("xdg-open").arg(url).spawn() {
             warn!("Failed to open URL with xdg-open: {}", e);
             // Fallback to common browsers
             for browser in &["firefox", "chromium", "google-chrome", "brave"] {
-                if std::process::Command::new(browser)
-                    .arg(url)
-                    .spawn()
-                    .is_ok()
-                {
+                if std::process::Command::new(browser).arg(url).spawn().is_ok() {
                     return Ok(());
                 }
             }

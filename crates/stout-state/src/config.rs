@@ -3,7 +3,7 @@
 use crate::error::Result;
 use crate::paths::Paths;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+
 
 /// User configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,6 +18,8 @@ pub struct Config {
     pub analytics: AnalyticsConfig,
     #[serde(default)]
     pub security: SecurityConfig,
+    #[serde(default)]
+    pub sync: SyncConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -86,6 +88,21 @@ pub struct SecurityConfig {
     pub additional_trusted_keys: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncConfig {
+    /// Run full Cellar sync after `stout update`
+    #[serde(default = "default_true")]
+    pub sync_on_update: bool,
+}
+
+impl Default for SyncConfig {
+    fn default() -> Self {
+        Self {
+            sync_on_update: true,
+        }
+    }
+}
+
 // Defaults
 fn default_base_url() -> String {
     "https://raw.githubusercontent.com/neul-labs/stout-index/main".to_string()
@@ -117,7 +134,11 @@ fn default_prefix() -> String {
     {
         // Linux: use ~/.local/stout for user-level installs
         if let Some(home) = dirs::home_dir() {
-            return home.join(".local").join("stout").to_string_lossy().to_string();
+            return home
+                .join(".local")
+                .join("stout")
+                .to_string_lossy()
+                .to_string();
         }
         "/home/linuxbrew/.linuxbrew".to_string()
     }
@@ -227,6 +248,7 @@ impl Default for Config {
             cache: CacheConfig::default(),
             analytics: AnalyticsConfig::default(),
             security: SecurityConfig::default(),
+            sync: SyncConfig::default(),
         }
     }
 }

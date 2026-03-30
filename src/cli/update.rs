@@ -1,11 +1,11 @@
 //! Update command
 
 use anyhow::{Context, Result};
-use stout_index::IndexSync;
-use stout_state::{Config, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 use indicatif::{ProgressBar, ProgressStyle};
+use stout_index::IndexSync;
+use stout_state::{Config, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -26,7 +26,12 @@ pub async fn run(args: Args) -> Result<()> {
 
     // Use permissive security if --insecure flag is set (hidden, for dev only)
     let sync = if args.insecure {
-        eprintln!("{}", style("WARNING: Running without signature verification").yellow().bold());
+        eprintln!(
+            "{}",
+            style("WARNING: Running without signature verification")
+                .yellow()
+                .bold()
+        );
         IndexSync::permissive(Some(&config.index.base_url), &paths.stout_dir)?
     } else {
         IndexSync::with_security_policy(
@@ -82,6 +87,22 @@ pub async fn run(args: Args) -> Result<()> {
     // Save manifest locally
     let manifest_json = serde_json::to_string_pretty(&manifest)?;
     std::fs::write(paths.manifest(), manifest_json)?;
+
+    // Run Homebrew sync if configured
+    if config.sync.sync_on_update {
+        println!("\n{}...", style("Syncing with Homebrew").cyan());
+        match super::sync::run_auto_sync(&paths).await {
+            Ok(0) => {
+                println!("  {}", style("State is in sync with Homebrew.").dim());
+            }
+            Ok(n) => {
+                println!("  {} Synced {} changes", style("✓").green(), n);
+            }
+            Err(e) => {
+                eprintln!("  {} Homebrew sync failed: {}", style("⚠").yellow(), e);
+            }
+        }
+    }
 
     println!(
         "\n{}",

@@ -88,6 +88,15 @@ pub enum BuildError {
 
     #[error("compiler validation failed: {reason}")]
     CompilerValidationFailed { reason: String },
+
+    #[error("git clone failed for {package}: {reason}")]
+    GitCloneFailed { package: String, reason: String },
+
+    #[error("git operation failed for {package}: {reason}")]
+    GitFailed { package: String, reason: String },
+
+    #[error("no HEAD URL available for {package}")]
+    HeadUrlMissing { package: String },
 }
 
 impl BuildError {

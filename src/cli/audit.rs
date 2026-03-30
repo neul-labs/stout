@@ -174,15 +174,11 @@ fn print_text_report(report: &AuditReport, min_severity: Severity, show_unmapped
 
     // Print findings
     let findings = report.sorted_findings();
-    let mut printed = 0;
-
     for finding in findings {
         let severity = finding.severity.unwrap_or(Severity::Low);
         if severity < min_severity {
             continue;
         }
-
-        printed += 1;
 
         // Severity badge
         let sev_display = match severity {

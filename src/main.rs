@@ -12,10 +12,7 @@ use tracing_subscriber::EnvFilter;
 async fn main() -> Result<()> {
     // Initialize logging
     tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::from_default_env()
-                .add_directive("stout=info".parse().unwrap()),
-        )
+        .with_env_filter(EnvFilter::from_default_env().add_directive("stout=info".parse().unwrap()))
         .without_time()
         .init();
 
@@ -49,6 +46,7 @@ async fn main() -> Result<()> {
         Command::Link(args) => cli::link::run(args).await,
         Command::Unlink(args) => cli::unlink::run(args).await,
         Command::Home(args) => cli::home::run(args).await,
+        Command::Import(args) => cli::import::run(args).await,
         Command::Tap(args) => cli::tap::run(args).await,
         Command::Lock(args) => cli::lock::run(args).await,
         Command::Services(args) => cli::services::run(args).await,
@@ -58,6 +56,7 @@ async fn main() -> Result<()> {
         Command::Cask(args) => cli::cask::run(args).await,
         Command::Bundle(args) => cli::bundle::run(args).await,
         Command::Snapshot(args) => cli::snapshot::run(args).await,
+        Command::Sync(args) => cli::sync::run(args).await,
         Command::Audit(args) => cli::audit::run(args).await,
         Command::Mirror(args) => cli::mirror::run(args).await,
         Command::Bottle(args) => cli::bottle::run(args).await,
