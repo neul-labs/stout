@@ -28,11 +28,18 @@ pub fn version_affected(
 /// Compare two version strings
 ///
 /// Returns Ordering::Less if v1 < v2, Equal if v1 == v2, Greater if v1 > v2
+///
+/// Handles Homebrew revision syntax: `1.24.4_1` means version 1.24.4, revision 1.
 pub fn compare_versions(v1: &str, v2: &str) -> std::cmp::Ordering {
     use std::cmp::Ordering;
 
-    let parts1 = parse_version(v1);
-    let parts2 = parse_version(v2);
+    // Extract revisions first
+    let (base1, rev1) = split_revision(v1);
+    let (base2, rev2) = split_revision(v2);
+
+    // Parse and compare base versions
+    let parts1 = parse_version(&base1);
+    let parts2 = parse_version(&base2);
 
     for (p1, p2) in parts1.iter().zip(parts2.iter()) {
         match p1.cmp(p2) {
@@ -42,7 +49,6 @@ pub fn compare_versions(v1: &str, v2: &str) -> std::cmp::Ordering {
     }
 
     // Handle remaining parts after common prefix
-    // If one version has extra parts, check if they're pre-release indicators
     if parts1.len() != parts2.len() {
         let (longer, shorter_len, is_v1_longer) = if parts1.len() > parts2.len() {
             (&parts1, parts2.len(), true)
@@ -53,8 +59,6 @@ pub fn compare_versions(v1: &str, v2: &str) -> std::cmp::Ordering {
         // Check if the extra parts start with a pre-release
         if let Some(first_extra) = longer.get(shorter_len) {
             if matches!(first_extra, VersionPart::PreRelease(_)) {
-                // Pre-release version is less than release version
-                // e.g., 1.0-alpha < 1.0
                 return if is_v1_longer {
                     Ordering::Less
                 } else {
@@ -63,7 +67,6 @@ pub fn compare_versions(v1: &str, v2: &str) -> std::cmp::Ordering {
             }
         }
 
-        // Otherwise, longer version is greater (e.g., 1.0.1 > 1.0)
         return if is_v1_longer {
             Ordering::Greater
         } else {
@@ -71,18 +74,36 @@ pub fn compare_versions(v1: &str, v2: &str) -> std::cmp::Ordering {
         };
     }
 
-    Ordering::Equal
+    // Base versions are equal - compare revisions
+    rev1.cmp(&rev2)
 }
 
-/// Parse a version string into comparable parts
-fn parse_version(v: &str) -> Vec<VersionPart> {
-    let mut parts = Vec::new();
-
+/// Split a version string into (base_version, revision)
+///
+/// Homebrew uses `_N` suffix for revisions (e.g., `1.24.4_1` = version 1.24.4, revision 1).
+/// If no revision suffix, returns (version, 0).
+fn split_revision(v: &str) -> (String, u64) {
     // Remove common prefixes
     let v = v.trim_start_matches('v').trim_start_matches('V');
 
+    // Look for revision suffix: _N where N is purely numeric
+    if let Some(underscore_pos) = v.rfind('_') {
+        let base = &v[..underscore_pos];
+        let suffix = &v[underscore_pos + 1..];
+        if let Ok(rev) = suffix.parse::<u64>() {
+            return (base.to_string(), rev);
+        }
+    }
+
+    (v.to_string(), 0)
+}
+
+/// Parse a version string (without revision) into comparable parts
+fn parse_version(v: &str) -> Vec<VersionPart> {
+    let mut parts = Vec::new();
+
     // Split on common separators
-    for segment in v.split(|c: char| c == '.' || c == '-' || c == '_' || c == '+') {
+    for segment in v.split(|c: char| c == '.' || c == '-' || c == '_') {
         if segment.is_empty() {
             continue;
         }
@@ -95,7 +116,6 @@ fn parse_version(v: &str) -> Vec<VersionPart> {
             let lower = segment.to_lowercase();
             if lower.starts_with("alpha") || lower.starts_with("a") {
                 parts.push(VersionPart::PreRelease(PreRelease::Alpha));
-                // Extract trailing number if present
                 if let Some(num_str) = lower.strip_prefix("alpha") {
                     if let Ok(num) = num_str.parse::<u64>() {
                         parts.push(VersionPart::Number(num));
@@ -108,7 +128,6 @@ fn parse_version(v: &str) -> Vec<VersionPart> {
             } else if lower == "dev" || lower == "snapshot" {
                 parts.push(VersionPart::PreRelease(PreRelease::Dev));
             } else {
-                // Generic string part
                 parts.push(VersionPart::String(segment.to_string()));
             }
         }
@@ -271,5 +290,29 @@ mod tests {
 
         // Both specified - fixed takes precedence
         assert!(!version_affected("2.0", Some(">=1.0, <2.0"), Some("1.5")));
+    }
+
+    #[test]
+    fn test_homebrew_revisions() {
+        use std::cmp::Ordering::*;
+
+        // Same base version, different revisions
+        assert_eq!(compare_versions("1.24.4_1", "1.24.4"), Greater);
+        assert_eq!(compare_versions("1.24.4", "1.24.4_1"), Less);
+        assert_eq!(compare_versions("1.24.4_0", "1.24.4"), Equal);
+        assert_eq!(compare_versions("1.24.4", "1.24.4_0"), Equal);
+        assert_eq!(compare_versions("1.24.4_2", "1.24.4_1"), Greater);
+        assert_eq!(compare_versions("1.24.4_1", "1.24.4_2"), Less);
+        assert_eq!(compare_versions("1.24.4_1", "1.24.4_1"), Equal);
+
+        // Different base versions - revision doesn't override
+        assert_eq!(compare_versions("1.24.5", "1.24.4_1"), Greater);
+        assert_eq!(compare_versions("1.24.4_1", "1.24.5"), Less);
+        assert_eq!(compare_versions("1.24.4_99", "1.24.5"), Less);
+
+        // Complex version with revision
+        assert_eq!(compare_versions("1.9.2_1", "1.9.2"), Greater);
+        assert_eq!(compare_versions("1.20.1_5", "1.20.1"), Greater);
+        assert_eq!(compare_versions("25.8.1_1", "25.8.2"), Less);
     }
 }
