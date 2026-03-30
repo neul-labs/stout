@@ -1,12 +1,12 @@
 //! Why command - show why a package is installed (reverse dependency chain)
 
 use anyhow::{bail, Context, Result};
-use stout_index::{Database, IndexSync};
-use stout_state::{Config, InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet, VecDeque};
+use stout_index::Database;
+use stout_state::{Config, InstalledPackages, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -33,7 +33,7 @@ pub struct WhyJson {
 
 pub async fn run(args: Args) -> Result<()> {
     let paths = Paths::default();
-    let config = Config::load(&paths)?;
+    let _config = Config::load(&paths)?;
 
     let db = Database::open(paths.index_db())
         .context("Failed to open index. Run 'stout update' first.")?;
@@ -55,17 +55,18 @@ pub async fn run(args: Args) -> Result<()> {
             };
             println!("{}", serde_json::to_string_pretty(&output)?);
         } else {
-            println!(
-                "{} is not installed",
-                style(&args.formula).cyan()
-            );
+            println!("{} is not installed", style(&args.formula).cyan());
         }
         return Ok(());
     }
 
     // Check if it was explicitly requested
-    let pkg = installed.get(&args.formula)
-        .with_context(|| format!("package '{}' is installed but not found in state", args.formula))?;
+    let pkg = installed.get(&args.formula).with_context(|| {
+        format!(
+            "package '{}' is installed but not found in state",
+            args.formula
+        )
+    })?;
     if pkg.requested {
         if args.json {
             let output = WhyJson {
@@ -150,7 +151,8 @@ fn find_dependency_paths(
     queue.push_back(vec![target.to_string()]);
 
     while let Some(current_path) = queue.pop_front() {
-        let current = current_path.last()
+        let current = current_path
+            .last()
             .expect("current_path should always have at least one element");
 
         if visited.contains(current) && !find_all {

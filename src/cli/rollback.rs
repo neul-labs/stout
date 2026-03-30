@@ -1,10 +1,11 @@
 //! Rollback command - revert a package to its previous version
 
 use anyhow::{bail, Context, Result};
-use stout_index::{Database, IndexSync};
-use stout_state::{Config, InstalledPackages, PackageHistory, Paths};
 use clap::Args as ClapArgs;
 use console::style;
+
+
+use stout_state::{Config, InstalledPackages, PackageHistory, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -22,7 +23,7 @@ pub struct Args {
 
 pub async fn run(args: Args) -> Result<()> {
     let paths = Paths::default();
-    let config = Config::load(&paths)?;
+    let _config = Config::load(&paths)?;
     let installed = InstalledPackages::load(&paths)?;
     let history = PackageHistory::load(&paths)?;
 
@@ -31,8 +32,12 @@ pub async fn run(args: Args) -> Result<()> {
         bail!("{} is not installed", args.formula);
     }
 
-    let current = installed.get(&args.formula)
-        .with_context(|| format!("package '{}' is installed but not found in state", args.formula))?;
+    let current = installed.get(&args.formula).with_context(|| {
+        format!(
+            "package '{}' is installed but not found in state",
+            args.formula
+        )
+    })?;
     let current_version = &current.version;
 
     // Determine target version
@@ -40,11 +45,12 @@ pub async fn run(args: Args) -> Result<()> {
         v.clone()
     } else {
         // Get previous version from history
-        let prev = history.get_previous(&args.formula)
-            .ok_or_else(|| anyhow::anyhow!(
+        let prev = history.get_previous(&args.formula).ok_or_else(|| {
+            anyhow::anyhow!(
                 "No previous version found for {}. Use --version to specify a version.",
                 args.formula
-            ))?;
+            )
+        })?;
         prev.version.clone()
     };
 
@@ -85,8 +91,12 @@ pub async fn run(args: Args) -> Result<()> {
 
         // Update installed state
         let mut installed = InstalledPackages::load(&paths)?;
-        let pkg = installed.get(&args.formula)
-            .with_context(|| format!("package '{}' is installed but not found in state", args.formula))?;
+        let pkg = installed.get(&args.formula).with_context(|| {
+            format!(
+                "package '{}' is installed but not found in state",
+                args.formula
+            )
+        })?;
         let requested = pkg.requested;
         let deps = pkg.dependencies.clone();
         installed.add_with_deps(&args.formula, &target_version, 0, requested, deps);

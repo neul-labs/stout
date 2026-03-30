@@ -20,10 +20,32 @@ pub struct InstalledPackage {
     pub pinned: bool,
     #[serde(default)]
     pub dependencies: Vec<String>,
+    /// Full commit SHA for HEAD installations
+    #[serde(default)]
+    pub head_sha: Option<String>,
+    /// Quick flag for HEAD detection
+    #[serde(default)]
+    pub is_head: bool,
 }
 
 fn default_installed_by() -> String {
     "stout".to_string()
+}
+
+impl InstalledPackage {
+    /// Check if this is a HEAD installation
+    pub fn is_head_install(&self) -> bool {
+        self.is_head || self.version.starts_with("HEAD")
+    }
+
+    /// Get the short SHA for display (from version string)
+    pub fn short_sha(&self) -> Option<&str> {
+        if self.version.starts_with("HEAD-") {
+            Some(&self.version[5..])
+        } else {
+            None
+        }
+    }
 }
 
 /// Collection of installed packages
@@ -87,6 +109,65 @@ impl InstalledPackages {
                 requested,
                 pinned,
                 dependencies,
+                head_sha: None,
+                is_head: version.starts_with("HEAD"),
+            },
+        );
+    }
+
+    /// Add or update a package with full metadata (used by import/sync)
+    pub fn add_imported(
+        &mut self,
+        name: &str,
+        version: &str,
+        revision: u32,
+        requested: bool,
+        installed_by: &str,
+        installed_at: &str,
+        dependencies: Vec<String>,
+    ) {
+        // Preserve pinned status if updating existing package
+        let pinned = self.packages.get(name).map(|p| p.pinned).unwrap_or(false);
+        self.packages.insert(
+            name.to_string(),
+            InstalledPackage {
+                version: version.to_string(),
+                revision,
+                installed_at: installed_at.to_string(),
+                installed_by: installed_by.to_string(),
+                requested,
+                pinned,
+                dependencies,
+                head_sha: None,
+                is_head: version.starts_with("HEAD"),
+            },
+        );
+    }
+
+    /// Add a HEAD package with SHA tracking
+    pub fn add_head(
+        &mut self,
+        name: &str,
+        short_sha: &str,
+        full_sha: &str,
+        requested: bool,
+        dependencies: Vec<String>,
+    ) {
+        let now = chrono_lite_now();
+        // Preserve pinned status if updating existing package
+        let pinned = self.packages.get(name).map(|p| p.pinned).unwrap_or(false);
+        self.packages.insert(
+            name.to_string(),
+            InstalledPackage {
+                version: format!("HEAD-{}", short_sha),
+                revision: 0,
+                installed_at: now,
+                installed_by: "stout".to_string(),
+                requested,
+                pinned,
+                dependencies,
+                head_sha: Some(full_sha.to_string()),
+                is_head: true,
             },
         );
     }
@@ -170,31 +251,9 @@ impl InstalledPackages {
     }
 }
 
-/// Simple timestamp without pulling in chrono
+/// Current time as ISO 8601 UTC string.
 fn chrono_lite_now() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    let duration = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-
-    let secs = duration.as_secs();
-
-    // Simple ISO 8601 format
-    let days_since_epoch = secs / 86400;
-    let remaining_secs = secs % 86400;
-    let hours = remaining_secs / 3600;
-    let minutes = (remaining_secs % 3600) / 60;
-    let seconds = remaining_secs % 60;
-
-    // Approximate year calculation (doesn't account for leap years perfectly)
-    let years = 1970 + (days_since_epoch / 365);
-    let day_of_year = days_since_epoch % 365;
-    let month = (day_of_year / 30).min(11) + 1;
-    let day = (day_of_year % 30) + 1;
-
-    format!(
-        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
-        years, month, day, hours, minutes, seconds
-    )
+    jiff::Timestamp::now()
+        .strftime("%Y-%m-%dT%H:%M:%SZ")
+        .to_string()
 }

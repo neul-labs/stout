@@ -12,6 +12,7 @@ use tracing::{debug, info, warn};
 struct TempDirGuard(PathBuf);
 
 impl TempDirGuard {
+    #[allow(dead_code)]
     fn new(path: PathBuf) -> Self {
         Self(path)
     }
@@ -49,7 +50,7 @@ pub async fn install_artifact(
 
 /// Install from DMG
 async fn install_from_dmg(
-    cask: &Cask,
+    _cask: &Cask,
     dmg_path: &Path,
     options: &CaskInstallOptions,
 ) -> Result<PathBuf> {
@@ -94,7 +95,7 @@ async fn install_from_dmg(
 }
 
 /// Install from PKG
-async fn install_from_pkg(pkg_path: &Path, options: &CaskInstallOptions) -> Result<PathBuf> {
+async fn install_from_pkg(pkg_path: &Path, _options: &CaskInstallOptions) -> Result<PathBuf> {
     info!("Installing package {}...", pkg_path.display());
 
     // Security: Verify PKG file exists and is a regular file before running installer

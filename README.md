@@ -198,6 +198,9 @@ stout implements 35+ commands with full Homebrew CLI compatibility:
 |---------|-----------------|-------------|
 | `stout cleanup` | `brew cleanup` | Remove old downloads and cache files |
 | `stout doctor` | `brew doctor` | Check system health |
+| `stout doctor --fix` | - | Check and auto-fix issues |
+| `stout sync` | - | Sync state with Homebrew Cellar/Caskroom |
+| `stout import [pkg]` | - | Import Homebrew packages into stout |
 | `stout config` | `brew config` | Show stout configuration |
 | `stout services` | `brew services` | Manage background services |
 | `stout tap` | `brew tap` | Manage custom formula repositories |

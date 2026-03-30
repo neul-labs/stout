@@ -210,10 +210,17 @@ Arguments:
 stout list [OPTIONS]
 
 Options:
-  --requested  Show only explicitly installed packages
-  --deps       Show only packages installed as dependencies
-  --versions   Show version information
+  --requested       Show only explicitly installed packages
+  --deps            Show only packages installed as dependencies
+  --versions        Show version information
+  --source <SRC>    Filter by source: stout, brew, unknown
+  --pinned          Show only pinned packages
 ```
+
+The `--source` flag filters packages by who installed them:
+- `stout` - packages installed via stout
+- `brew` - packages installed via Homebrew (imported)
+- `unknown` - packages with no source recorded
 
 ### stout update
 
@@ -223,6 +230,42 @@ stout update [OPTIONS]
 Options:
   -f, --force  Force update even if recently updated
 ```
+
+### stout sync
+
+Synchronize stout state with Homebrew Cellar and Caskroom:
+
+```bash
+stout sync [OPTIONS]
+
+Options:
+  -n, --dry-run    Show what would change without modifying state
+  -y, --yes        Apply all changes without prompting
+  -v, --verbose    Show detailed output
+```
+
+stout sync detects drift between stout's tracked packages and what's actually in Homebrew's Cellar/Caskroom:
+- Packages in Homebrew but not tracked → added to state
+- Packages tracked but not in Homebrew → removed from state
+- Version changes → updated in state
+
+### stout import
+
+Import existing Homebrew packages into stout's tracking:
+
+```bash
+stout import [OPTIONS] [PACKAGES]...
+
+Arguments:
+  [PACKAGES]...  Specific packages to import (default: all untracked)
+
+Options:
+  -n, --dry-run     Show what would be imported without modifying state
+  --overwrite       Re-import packages already tracked by stout
+  -v, --verbose     Show detailed output for each package
+```
+
+When importing, stout also relocates Homebrew placeholders (paths like `/opt/homebrew/Cellar/...`) to work with stout's prefix.
 
 ### stout upgrade
 
@@ -239,10 +282,22 @@ Options:
 ### stout doctor
 
 ```bash
-stout doctor
+stout doctor [OPTIONS]
 
-Checks system health and configuration.
+Options:
+  --fix    Automatically fix issues that can be repaired
 ```
+
+Checks system health and configuration:
+- stout data directory
+- Configuration file
+- Formula index
+- Homebrew prefix and Cellar
+- Installed packages state
+- Homebrew drift (packages in Cellar/Caskroom not tracked by stout)
+- Unrelocated Homebrew placeholders
+
+Use `--fix` to automatically run sync and resolve drift.
 
 ### stout completions
 

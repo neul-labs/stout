@@ -19,7 +19,7 @@ mod tap;
 #[cfg(test)]
 mod tests;
 
-pub use config::Config;
+pub use config::{Config, SyncConfig};
 pub use error::{Error, Result};
 pub use history::{HistoryAction, HistoryEntry, PackageHistory};
 pub use installed::{InstalledPackage, InstalledPackages};

@@ -12,4 +12,4 @@ mod version;
 pub use database::{VulnDatabase, VulnDatabaseConfig};
 pub use error::{Error, Result};
 pub use report::{AuditReport, Finding, Severity};
-pub use version::version_affected;
+pub use version::{compare_versions, version_affected};

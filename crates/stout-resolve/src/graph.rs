@@ -1,9 +1,9 @@
 //! Dependency graph construction
 
 use crate::error::{Error, Result};
-use stout_index::{Database, DependencyType};
 use std::collections::{HashMap, HashSet, VecDeque};
-use tracing::debug;
+use stout_index::{Database, DependencyType};
+
 
 /// A dependency graph for resolution
 #[derive(Debug, Default)]
@@ -116,11 +116,7 @@ impl DependencyGraph {
     }
 
     /// Build a dependency graph from the database
-    pub fn build_from_db(
-        db: &Database,
-        roots: &[&str],
-        include_build_deps: bool,
-    ) -> Result<Self> {
+    pub fn build_from_db(db: &Database, roots: &[&str], include_build_deps: bool) -> Result<Self> {
         let mut graph = Self::new();
         let mut to_process: VecDeque<String> = roots.iter().map(|s| s.to_string()).collect();
         let mut seen: HashSet<String> = HashSet::new();

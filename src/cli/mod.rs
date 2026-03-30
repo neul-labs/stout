@@ -12,8 +12,10 @@ pub mod config;
 pub mod create;
 pub mod deps;
 pub mod doctor;
+pub mod first_run;
 pub mod history;
 pub mod home;
+pub mod import;
 pub mod info;
 pub mod install;
 pub mod link;
@@ -29,6 +31,7 @@ pub mod search;
 pub mod services;
 pub mod snapshot;
 pub mod switch;
+pub mod sync;
 pub mod tap;
 pub mod test;
 pub mod uninstall;
@@ -41,6 +44,48 @@ pub mod why;
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
+
+/// Detect the current platform string for bottle selection.
+pub fn detect_platform() -> String {
+    let arch = if cfg!(target_arch = "aarch64") {
+        "arm64"
+    } else {
+        "x86_64"
+    };
+
+    if cfg!(target_os = "macos") {
+        let codename = detect_macos_codename().unwrap_or("sonoma");
+        format!("{}_{}", arch, codename)
+    } else {
+        format!("{}_linux", arch)
+    }
+}
+
+/// Detect the macOS version codename from the kernel version.
+#[cfg(target_os = "macos")]
+fn detect_macos_codename() -> Option<&'static str> {
+    let output = std::process::Command::new("sw_vers")
+        .arg("-productVersion")
+        .output()
+        .ok()?;
+
+    let version = String::from_utf8_lossy(&output.stdout);
+    let major: u32 = version.trim().split('.').next()?.parse().ok()?;
+
+    Some(match major {
+        15 => "sequoia",
+        14 => "sonoma",
+        13 => "ventura",
+        12 => "monterey",
+        11 => "big_sur",
+        _ => return None,
+    })
+}
+
+#[cfg(not(target_os = "macos"))]
+fn detect_macos_codename() -> Option<&'static str> {
+    None
+}
 
 #[derive(Parser)]
 #[command(
@@ -134,6 +179,9 @@ pub enum Command {
     /// Open package homepage in browser
     Home(home::Args),
 
+    /// Import existing Homebrew packages into Stout tracking
+    Import(import::Args),
+
     /// Manage taps (custom formula repositories)
     Tap(tap::Args),
 
@@ -160,6 +208,9 @@ pub enum Command {
 
     /// Manage system snapshots
     Snapshot(snapshot::Args),
+
+    /// Reconcile Stout state with the Homebrew Cellar
+    Sync(sync::Args),
 
     /// Audit packages for known vulnerabilities
     Audit(audit::Args),

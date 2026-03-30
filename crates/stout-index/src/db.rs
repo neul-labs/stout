@@ -1,12 +1,12 @@
 //! Database operations
 
 use crate::cask::CaskInfo;
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::formula::{Dependency, DependencyType, FormulaInfo};
-use crate::schema::{self, meta_keys, CREATE_SCHEMA};
+use crate::schema::{meta_keys, CREATE_SCHEMA};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
-use tracing::{debug, info};
+use tracing::debug;
 
 /// SQLite database for formula index
 pub struct Database {
