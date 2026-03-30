@@ -3,6 +3,8 @@
 use anyhow::{Context, Result};
 use clap::Args as ClapArgs;
 use console::style;
+use std::cmp::Ordering;
+use stout_audit::compare_versions;
 use std::sync::Arc;
 use std::time::Instant;
 use stout_fetch::{BottleSpec, DownloadCache, DownloadClient, ProgressReporter};
@@ -85,7 +87,8 @@ pub async fn run(args: Args) -> Result<()> {
             None => continue,
         };
 
-        if info.version != pkg.version {
+        // Only mark as upgradable if installed version is strictly less than current
+        if compare_versions(&pkg.version, &info.version) == Ordering::Less {
             upgradable.push(UpgradeCandidate {
                 name: name.clone(),
                 old_version: pkg.version.clone(),
