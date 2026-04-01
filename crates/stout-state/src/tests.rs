@@ -2,7 +2,7 @@
 
 use crate::config::{CacheConfig, Config, IndexConfig, InstallConfig};
 use crate::error::Error;
-use crate::installed::{InstalledPackage, InstalledPackages};
+use crate::installed::InstalledPackages;
 use crate::paths::Paths;
 use tempfile::tempdir;
 

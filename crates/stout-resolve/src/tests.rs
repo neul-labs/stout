@@ -2,7 +2,7 @@
 
 use crate::error::Error;
 use crate::graph::DependencyGraph;
-use crate::plan::{InstallPlan, InstallStep};
+use crate::plan::InstallPlan;
 use std::collections::HashSet;
 use stout_index::FormulaInfo;
 
