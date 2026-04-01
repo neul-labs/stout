@@ -20,8 +20,11 @@ fn test_config_default() {
     assert_eq!(config.index.update_interval, 1800);
 
     assert_eq!(config.install.parallel_downloads, 4);
-    assert_eq!(config.install.prefix, "/opt/homebrew");
-    assert_eq!(config.install.cellar, "/opt/homebrew/Cellar");
+    assert_eq!(config.install.prefix, crate::config::default_prefix());
+    assert_eq!(
+        config.install.cellar,
+        format!("{}/Cellar", crate::config::default_prefix())
+    );
 
     assert_eq!(config.cache.max_size, "2GB");
     assert_eq!(config.cache.formula_ttl, 86400);

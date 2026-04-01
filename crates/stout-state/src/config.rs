@@ -119,7 +119,7 @@ fn default_cellar() -> String {
     format!("{}/Cellar", default_prefix())
 }
 
-fn default_prefix() -> String {
+pub(crate) fn default_prefix() -> String {
     // Use platform-appropriate defaults
     #[cfg(target_os = "macos")]
     {
