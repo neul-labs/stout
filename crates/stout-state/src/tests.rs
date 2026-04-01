@@ -20,8 +20,10 @@ fn test_config_default() {
     assert_eq!(config.index.update_interval, 1800);
 
     assert_eq!(config.install.parallel_downloads, 4);
-    assert_eq!(config.install.prefix, "/opt/homebrew");
-    assert_eq!(config.install.cellar, "/opt/homebrew/Cellar");
+    // Prefix and cellar are platform-dependent
+    assert!(!config.install.prefix.is_empty());
+    assert!(config.install.cellar.ends_with("/Cellar"));
+    assert!(config.install.cellar.starts_with(&config.install.prefix));
 
     assert_eq!(config.cache.max_size, "2GB");
     assert_eq!(config.cache.formula_ttl, 86400);
