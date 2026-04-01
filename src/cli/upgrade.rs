@@ -207,6 +207,25 @@ pub async fn run(args: Args) -> Result<()> {
         }
     } // end if !args.formula
 
+    // Check for cask upgrades
+    let mut cask_upgrades: Vec<(String, String, String)> = Vec::new(); // (token, old, new)
+    let cask_state_path = paths.stout_dir.join("casks.json");
+    if let Ok(installed_casks) = InstalledCasks::load(&cask_state_path) {
+        for (token, cask) in installed_casks.iter() {
+            // Skip if version is unknown
+            if cask.version == "unknown" {
+                continue;
+            }
+
+            // Check if there's a newer version in the index
+            if let Some(info) = db.get_cask(token)? {
+                if compare_versions(&cask.version, &info.version) == Ordering::Less {
+                    cask_upgrades.push((token.clone(), cask.version.clone(), info.version));
+                }
+            }
+        }
+    }
+
     if !pinned_skipped.is_empty() {
         println!(
             "\n{} {} pinned {} skipped (use 'stout unpin' to allow upgrades)",
