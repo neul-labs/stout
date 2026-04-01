@@ -4,6 +4,8 @@ use anyhow::Result;
 use clap::Args as ClapArgs;
 use console::style;
 use std::io::Write;
+#[cfg(target_os = "macos")]
+use std::path::Path;
 use stout_index::Database;
 use stout_install::cellar::scan_cellar;
 use stout_install::{relocate_bottle, scan_cellar_unrelocated};
@@ -283,6 +285,121 @@ pub async fn run(args: Args) -> Result<()> {
         println!("{}", style("skipped (no Cellar)").dim());
     }
 
+    // Check code signatures (macOS only)
+    #[cfg(target_os = "macos")]
+    {
+        use rayon::prelude::*;
+        use walkdir::WalkDir;
+        print!("  Checking code signatures... ");
+        std::io::stdout().flush().ok();
+        if let Some(ref cellar_packages) = cellar_packages {
+            let affected: Vec<(String, Vec<std::path::PathBuf>)> = cellar_packages
+                .par_iter()
+                .filter_map(|pkg| {
+                    let mut invalid_files = Vec::new();
+                    for entry in WalkDir::new(&pkg.path).into_iter().filter_entry(|e| {
+                        e.file_name().to_str().is_some_and(|n| !n.starts_with('.'))
+                    }) {
+                        let entry = match entry {
+                            Ok(e) => e,
+                            Err(_) => continue,
+                        };
+
+                        let metadata = match std::fs::symlink_metadata(entry.path()) {
+                            Ok(m) => m,
+                            Err(_) => continue,
+                        };
+
+                        if !metadata.is_file() {
+                            continue;
+                        }
+
+                        if !is_macho_file(entry.path()) {
+                            continue;
+                        }
+
+                        if !verify_codesign(entry.path()) {
+                            invalid_files.push(entry.path().to_path_buf());
+                        }
+                    }
+
+                    if invalid_files.is_empty() {
+                        None
+                    } else {
+                        Some((pkg.name.clone(), invalid_files))
+                    }
+                })
+                .collect();
+
+            if affected.is_empty() {
+                println!("{}", style("✓").green());
+            } else if args.fix {
+                println!();
+                let all_files: Vec<&Path> =
+                    affected.iter().flat_map(|(_, files): &(_, Vec<_>)| files.iter().map(|f| f.as_path())).collect();
+                let (fixed, failed): (usize, usize) = all_files
+                    .par_iter()
+                    .fold(
+                        || (0usize, 0usize),
+                        |(mut ok, mut fail), file| {
+                            if resign_file(file) {
+                                ok += 1;
+                            } else {
+                                fail += 1;
+                            }
+                            (ok, fail)
+                        },
+                    )
+                    .reduce(
+                        || (0, 0),
+                        |(ok1, fail1), (ok2, fail2)| (ok1 + ok2, fail1 + fail2),
+                    );
+                if fixed > 0 {
+                    println!(
+                        "    {} Re-signed {} files across {} packages",
+                        style("✓").green(),
+                        fixed,
+                        affected.len()
+                    );
+                }
+                if failed > 0 {
+                    println!(
+                        "    {} Failed to re-sign {} files",
+                        style("✗").red(),
+                        failed
+                    );
+                    issues += 1;
+                }
+            } else {
+                let total_files: usize = affected.iter().map(|(_, f): &(_, Vec<_>)| f.len()).sum();
+                println!(
+                    "{}",
+                    style(format!(
+                        "{} files in {} packages",
+                        total_files,
+                        affected.len()
+                    ))
+                    .yellow()
+                );
+                for (name, files) in &affected {
+                    println!(
+                        "    {} {} ({} files with invalid signatures)",
+                        style("⚠").yellow(),
+                        name,
+                        files.len()
+                    );
+                }
+                println!(
+                    "    {}",
+                    style("Run 'stout doctor --fix' to re-sign").dim()
+                );
+                issues += 1;
+            }
+        } else {
+            println!("{}", style("skipped (no Cellar)").dim());
+        }
+    }
+
     // Summary
     println!();
     if issues == 0 {
@@ -296,4 +413,46 @@ pub async fn run(args: Args) -> Result<()> {
     println!();
 
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn is_macho_file(path: &Path) -> bool {
+    let Ok(mut file) = std::fs::File::open(path) else {
+        return false;
+    };
+    let mut buf = [0u8; 4];
+    if std::io::Read::read_exact(&mut file, &mut buf).is_err() {
+        return false;
+    }
+    let magic = u32::from_be_bytes(buf);
+    // Mach-O magic numbers (both endianness covered by BE read):
+    // 0xFEEDFACE - 32-bit
+    // 0xFEEDFACF - 64-bit
+    // 0xCEFAEDFE - 32-bit little-endian (shows as 0xCEFAEDFE in BE)
+    // 0xCFFAEDFE - 64-bit little-endian (shows as 0xCFFAEDFE in BE)
+    matches!(magic, 0xFEEDFACE | 0xFEEDFACF | 0xCEFAEDFE | 0xCFFAEDFE)
+}
+
+#[cfg(target_os = "macos")]
+fn verify_codesign(path: &Path) -> bool {
+    std::process::Command::new("codesign")
+        .arg("-v")
+        .arg(path)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
+#[cfg(target_os = "macos")]
+fn resign_file(path: &Path) -> bool {
+    std::process::Command::new("codesign")
+        .arg("--force")
+        .arg("--sign")
+        .arg("-")
+        .arg(path)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
 }
