@@ -75,6 +75,11 @@ impl InstalledCasks {
         self.casks.get(token)
     }
 
+    /// Get a mutable reference to an installed cask
+    pub fn get_mut(&mut self, token: &str) -> Option<&mut InstalledCask> {
+        self.casks.get_mut(token)
+    }
+
     /// Check if a cask is installed
     pub fn is_installed(&self, token: &str) -> bool {
         self.casks.contains_key(token)

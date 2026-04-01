@@ -1,12 +1,12 @@
 //! Cask installation logic
 
-use crate::detect_artifact_type;
+use crate::detect_artifact_type_from_cask;
 use crate::download::{download_cask_artifact, ArtifactType};
 use crate::error::{Error, Result};
 use crate::state::{now_timestamp, InstalledCask, InstalledCasks};
 use std::path::{Path, PathBuf};
 use stout_index::Cask;
-use tracing::{info, warn};
+use tracing::{debug, warn};
 
 /// Options for cask installation
 #[derive(Debug, Clone, Default)]
@@ -44,8 +44,8 @@ pub async fn install_cask(
         .download_url()
         .ok_or_else(|| Error::InstallFailed(format!("No download URL for cask {}", token)))?;
 
-    // Detect artifact type
-    let artifact_type = detect_artifact_type(url);
+    // Detect artifact type from cask metadata (preferred) or URL fallback
+    let artifact_type = detect_artifact_type_from_cask(cask, url);
 
     // Get expected checksum
     let sha256 = if options.no_verify {
@@ -54,7 +54,7 @@ pub async fn install_cask(
         cask.sha256.as_str()
     };
 
-    info!("Downloading {}...", token);
+    debug!("Downloading {}...", token);
 
     // Warn if verification is disabled
     if options.no_verify {
@@ -62,8 +62,8 @@ pub async fn install_cask(
     }
 
     if options.dry_run {
-        info!("[dry-run] Would download {} from {}", token, url);
-        info!("[dry-run] Would install to /Applications");
+        debug!("[dry-run] Would download {} from {}", token, url);
+        debug!("[dry-run] Would install to /Applications");
         return Ok(PathBuf::from("/Applications"));
     }
 
@@ -86,7 +86,7 @@ pub async fn install_cask(
     installed_casks.add(token, installed);
     installed_casks.save(state_path)?;
 
-    info!("Installed {} to {}", token, install_result.display());
+    debug!("Installed {} to {}", token, install_result.display());
     Ok(install_result)
 }
 
@@ -126,7 +126,7 @@ pub async fn uninstall_cask(token: &str, state_path: &Path, zap: bool) -> Result
     // Remove the installed artifact
     if artifact_path.exists() {
         if artifact_path.is_dir() {
-            info!("Removing {}", artifact_path.display());
+            debug!("Removing {}", artifact_path.display());
             std::fs::remove_dir_all(&artifact_path).map_err(|e| {
                 Error::UninstallFailed(format!(
                     "Failed to remove {}: {}",
@@ -135,7 +135,7 @@ pub async fn uninstall_cask(token: &str, state_path: &Path, zap: bool) -> Result
                 ))
             })?;
         } else if artifact_path.is_file() {
-            info!("Removing {}", artifact_path.display());
+            debug!("Removing {}", artifact_path.display());
             std::fs::remove_file(&artifact_path).map_err(|e| {
                 Error::UninstallFailed(format!(
                     "Failed to remove {}: {}",
@@ -153,11 +153,71 @@ pub async fn uninstall_cask(token: &str, state_path: &Path, zap: bool) -> Result
     installed_casks.save(state_path)?;
 
     if zap {
-        info!("Zap requested - note: full zap (preferences, caches, support files) not yet implemented");
+        debug!("Zap requested - note: full zap (preferences, caches, support files) not yet implemented");
         // TODO: Implement zap - would require tracking additional file locations
         // Typical locations: ~/Library/Preferences/, ~/Library/Caches/, ~/Application Support/
     }
 
-    info!("Uninstalled {}", token);
+    debug!("Uninstalled {}", token);
     Ok(())
+}
+
+/// Install only the artifact (no state management) - for parallel installation
+/// Returns the installed path
+pub async fn install_artifact_only(
+    cask: &Cask,
+    artifact_path: &Path,
+    artifact_type: ArtifactType,
+    options: &CaskInstallOptions,
+) -> Result<PathBuf> {
+    if options.dry_run {
+        debug!("[dry-run] Would install {} to /Applications", cask.token);
+        return Ok(PathBuf::from("/Applications"));
+    }
+
+    // Install based on platform and artifact type
+    let install_result = install_artifact(cask, artifact_path, artifact_type, options).await?;
+
+    debug!("Installed {} to {}", cask.token, install_result.display());
+    Ok(install_result)
+}
+
+/// Synchronous version of install_artifact_only for use with spawn_blocking
+/// This is more efficient than spawn_blocking + block_on
+#[cfg(target_os = "macos")]
+pub fn install_artifact_sync(
+    cask: &Cask,
+    artifact_path: &Path,
+    artifact_type: ArtifactType,
+    options: &CaskInstallOptions,
+) -> Result<PathBuf> {
+    if options.dry_run {
+        debug!("[dry-run] Would install {} to /Applications", cask.token);
+        return Ok(PathBuf::from("/Applications"));
+    }
+
+    let install_result =
+        crate::macos::install_artifact_sync(cask, artifact_path, artifact_type, options)?;
+
+    debug!("Installed {} to {}", cask.token, install_result.display());
+    Ok(install_result)
+}
+
+#[cfg(target_os = "linux")]
+pub fn install_artifact_sync(
+    cask: &Cask,
+    artifact_path: &Path,
+    artifact_type: ArtifactType,
+    options: &CaskInstallOptions,
+) -> Result<PathBuf> {
+    if options.dry_run {
+        debug!("[dry-run] Would install {} to /Applications", cask.token);
+        return Ok(PathBuf::from("/Applications"));
+    }
+
+    let install_result =
+        crate::linux::install_artifact_sync(cask, artifact_path, artifact_type, options)?;
+
+    debug!("Installed {} to {}", cask.token, install_result.display());
+    Ok(install_result)
 }
