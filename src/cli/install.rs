@@ -5,6 +5,8 @@ use clap::Args as ClapArgs;
 use console::style;
 use std::sync::Arc;
 use std::time::Instant;
+
+const CASK_INSTALL_TIMEOUT_SECS: u64 = 300;
 use stout_fetch::{BottleSpec, DownloadCache, DownloadClient, ProgressReporter};
 use stout_index::{Database, Formula, IndexSync};
 use stout_install::{
@@ -16,7 +18,8 @@ use stout_state::{Config, InstalledPackages, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
-    /// Formulas to install
+    /// Packages to install (formulas or casks)
+    #[arg(value_name = "PACKAGES")]
     pub formulas: Vec<String>,
 
     /// Don't install dependencies
@@ -54,13 +57,29 @@ pub struct Args {
     /// Force download even if package already exists in Cellar
     #[arg(long)]
     pub force: bool,
+
+    /// Treat all packages as casks
+    #[arg(long)]
+    pub cask: bool,
+
+    /// Treat all packages as formulas
+    #[arg(long, conflicts_with = "cask")]
+    pub formula: bool,
+
+    /// Skip checksum verification for casks
+    #[arg(long)]
+    pub no_verify: bool,
+
+    /// Custom application directory for casks
+    #[arg(long)]
+    pub appdir: Option<String>,
 }
 
 pub async fn run(args: Args) -> Result<()> {
     let start = Instant::now();
 
     if args.formulas.is_empty() {
-        bail!("No formulas specified");
+        bail!("No packages specified");
     }
 
     let paths = Paths::default();
@@ -80,33 +99,146 @@ pub async fn run(args: Args) -> Result<()> {
         std::process::exit(1);
     }
 
-    // Verify all formulas exist
+    // Categorize packages as formulas or casks
+    let mut formulas: Vec<String> = Vec::new();
+    let mut casks: Vec<String> = Vec::new();
+
     for name in &args.formulas {
-        if db.get_formula(name)?.is_none() {
-            let suggestions = db.find_similar(name, 3)?;
-            eprintln!(
-                "\n{} formula '{}' not found",
-                style("error:").red().bold(),
-                name
-            );
-            if !suggestions.is_empty() {
-                eprintln!("\n{}:", style("Did you mean?").yellow());
-                for s in suggestions {
-                    eprintln!("  {} {}", style("•").dim(), s);
+        if args.cask {
+            // Explicitly marked as cask
+            if db.get_cask(name)?.is_none() {
+                let suggestions = db.find_similar_casks(name, 3)?;
+                eprintln!(
+                    "\n{} cask '{}' not found",
+                    style("error:").red().bold(),
+                    name
+                );
+                if !suggestions.is_empty() {
+                    eprintln!("\n{}:", style("Did you mean?").yellow());
+                    for s in suggestions {
+                        eprintln!("  {} {}", style("•").dim(), s);
+                    }
+                }
+                std::process::exit(1);
+            }
+            casks.push(name.clone());
+        } else if args.formula {
+            // Explicitly marked as formula
+            if db.get_formula(name)?.is_none() {
+                let suggestions = db.find_similar(name, 3)?;
+                eprintln!(
+                    "\n{} formula '{}' not found",
+                    style("error:").red().bold(),
+                    name
+                );
+                if !suggestions.is_empty() {
+                    eprintln!("\n{}:", style("Did you mean?").yellow());
+                    for s in suggestions {
+                        eprintln!("  {} {}", style("•").dim(), s);
+                    }
+                }
+                std::process::exit(1);
+            }
+            formulas.push(name.clone());
+        } else {
+            let is_formula = db.get_formula(name)?.is_some();
+            let is_cask = db.get_cask(name)?.is_some();
+
+            match (is_formula, is_cask) {
+                (true, true) => {
+                    // Name conflict - ask user
+                    eprintln!(
+                        "\n{} '{}' exists as both a formula and a cask.",
+                        style("!").yellow(),
+                        name
+                    );
+                    eprintln!(
+                        "  {} Use '--cask' to install the cask, or specify explicitly:",
+                        style("Tip:").dim()
+                    );
+                    eprintln!(
+                        "    {} stout install {}       # formula (default)",
+                        style("$").dim(),
+                        name
+                    );
+                    eprintln!(
+                        "    {} stout install --cask {} # cask",
+                        style("$").dim(),
+                        name
+                    );
+                    std::process::exit(1);
+                }
+                (true, false) => formulas.push(name.clone()),
+                (false, true) => casks.push(name.clone()),
+                (false, false) => {
+                    // Try to find suggestions in both formulas and casks
+                    let formula_suggestions = db.find_similar(name, 3)?;
+                    let cask_suggestions = db.find_similar_casks(name, 3)?;
+
+                    eprintln!(
+                        "\n{} package '{}' not found",
+                        style("error:").red().bold(),
+                        name
+                    );
+
+                    if !formula_suggestions.is_empty() {
+                        eprintln!("\n{} (formulas):", style("Did you mean?").yellow());
+                        for s in &formula_suggestions {
+                            eprintln!("  {} {}", style("•").dim(), s);
+                        }
+                    }
+
+                    if !cask_suggestions.is_empty() {
+                        eprintln!("\n{} (casks):", style("Did you mean?").yellow());
+                        for s in &cask_suggestions {
+                            eprintln!("  {} {}", style("•").dim(), s);
+                        }
+                    }
+                    std::process::exit(1);
                 }
             }
-            std::process::exit(1);
         }
     }
 
+    // Install formulas
+    if !formulas.is_empty() {
+        install_formulas(&args, &formulas, &db, &config, &paths).await?;
+    }
+
+    // Install casks
+    if !casks.is_empty() {
+        install_casks(&args, &casks, &db, &config, &paths).await?;
+    }
+
+    let elapsed = start.elapsed();
+    let total = formulas.len() + casks.len();
+    println!(
+        "\n{} {} {} in {:.1}s",
+        style("Installed").green().bold(),
+        total,
+        if total == 1 { "package" } else { "packages" },
+        elapsed.as_secs_f64()
+    );
+
+    Ok(())
+}
+
+async fn install_formulas(
+    args: &Args,
+    formulas: &[String],
+    db: &Database,
+    config: &Config,
+    paths: &Paths,
+) -> Result<()> {
+    let formula_refs: Vec<&str> = formulas.iter().map(|s| s.as_str()).collect();
+
     // Load installed packages
-    let mut installed = InstalledPackages::load(&paths)?;
+    let mut installed = InstalledPackages::load(paths)?;
 
     // Build dependency graph
     println!("\n{}...", style("Resolving dependencies").cyan());
 
-    let formula_refs: Vec<&str> = args.formulas.iter().map(|s| s.as_str()).collect();
-    let graph = DependencyGraph::build_from_db(&db, &formula_refs, false)?;
+    let graph = DependencyGraph::build_from_db(db, &formula_refs, false)?;
 
     // Create install plan
     let plan = InstallPlan::from_graph(
@@ -148,7 +280,6 @@ pub async fn run(args: Args) -> Result<()> {
     }
 
     if plan.is_empty() {
-        println!("\n{}", style("Nothing to install.").dim());
         return Ok(());
     }
 
@@ -163,8 +294,8 @@ pub async fn run(args: Args) -> Result<()> {
         for step in plan.new_packages() {
             if let Some(cellar_pkg) = scan_cellar_package(&paths.cellar, &step.name)? {
                 if cellar_pkg.version == step.version {
-                    // Already in Cellar at target version — register without downloading
-                    // Preserve existing installed_by if already tracked (stout didn't do the install)
+                    // Already in Cellar at target version — register without downloading.
+                    // Preserve existing installed_by if already tracked (stout didn't do the install).
                     if let Some(existing) = installed.get(&step.name) {
                         let existing = existing.clone();
                         installed.add_imported(
@@ -232,8 +363,9 @@ pub async fn run(args: Args) -> Result<()> {
             .context(format!("Failed to fetch formula {}", step.name))?;
 
         // Verify formula version matches expected version from index
-        // This catches stale formula JSON that doesn't match the index
-        // Skip version check for HEAD builds since HEAD doesn't have a version
+        // Verify formula version matches expected version from index.
+        // This catches stale formula JSON that doesn't match the index.
+        // Skip version check for HEAD builds since HEAD doesn't have a version.
         if !args.head && formula.version != step.version {
             // Auto-update the index and retry
             println!(
@@ -287,15 +419,14 @@ pub async fn run(args: Args) -> Result<()> {
             );
 
             // Use the fresh formula for the rest of the flow —
-            // update step version and replace formula
-            // Note: step is cloned, so we rebuild it
+            // update step version and replace formula.
+            // Note: step is cloned, so we rebuild it.
             let fresh_step = InstallStep {
                 name: step.name.clone(),
                 version: fresh_formula.version.clone(),
                 is_dependency: step.is_dependency,
             };
 
-            // HEAD builds: only for explicitly requested packages (not dependencies)
             if args.head && !fresh_step.is_dependency {
                 if fresh_formula.urls.head.is_none() {
                     bail!(
@@ -333,7 +464,6 @@ pub async fn run(args: Args) -> Result<()> {
 
         // HEAD builds: only for explicitly requested packages (not dependencies)
         if args.head && !step.is_dependency {
-            // Check if HEAD URL is available
             if formula.urls.head.is_none() {
                 bail!(
                     "No HEAD URL available for {}. Use -s for stable source builds.",
@@ -344,11 +474,9 @@ pub async fn run(args: Args) -> Result<()> {
             continue;
         }
 
-        // Check if we should build from source
         let use_source = build_from_source || formula.bottle_for_platform(&platform).is_none();
 
         if use_source {
-            // Check if source is available
             if formula.urls.stable.is_none() {
                 if !args.build_from_source {
                     bail!(
@@ -402,7 +530,6 @@ pub async fn run(args: Args) -> Result<()> {
             style("Extracting and linking bottles").cyan()
         );
 
-        // Prepare bottle info for parallel extraction
         let bottle_infos: Vec<BottleInfo> = bottle_installs
             .iter()
             .zip(bottle_paths.iter())
@@ -412,7 +539,6 @@ pub async fn run(args: Args) -> Result<()> {
             })
             .collect();
 
-        // Run parallel installation
         let installer = ParallelInstaller::new();
         let install_results = installer
             .install_bottles(bottle_infos, &paths.cellar, &paths.prefix)
@@ -495,10 +621,8 @@ pub async fn run(args: Args) -> Result<()> {
                 .await
                 .context(format!("Failed to build {} from source", step.name))?;
 
-            // Link
             link_package(&result.install_path, &paths.prefix)?;
 
-            // Write receipt
             let runtime_deps: Vec<RuntimeDependency> = formula
                 .runtime_deps()
                 .iter()
@@ -525,7 +649,6 @@ pub async fn run(args: Args) -> Result<()> {
                 !step.is_dependency,
             );
 
-            // Cleanup build directory
             let _ = std::fs::remove_dir_all(&work_dir);
 
             println!("  {} {} {}", style("✓").green(), step.name, step.version);
@@ -563,10 +686,8 @@ pub async fn run(args: Args) -> Result<()> {
                 .await
                 .context(format!("Failed to build {} from HEAD", step.name))?;
 
-            // Link
             link_package(&result.install_path, &paths.prefix)?;
 
-            // Write receipt
             let runtime_deps: Vec<RuntimeDependency> = formula
                 .runtime_deps()
                 .iter()
@@ -586,7 +707,6 @@ pub async fn run(args: Args) -> Result<()> {
                 InstallReceipt::new_source(&formula.tap, !step.is_dependency, runtime_deps);
             write_receipt(&result.install_path, &receipt)?;
 
-            // Track with HEAD SHA
             installed.add_head(
                 &step.name,
                 &result.short_sha,
@@ -595,7 +715,6 @@ pub async fn run(args: Args) -> Result<()> {
                 formula.runtime_deps().to_vec(),
             );
 
-            // Cleanup build directory
             let _ = std::fs::remove_dir_all(&work_dir);
 
             println!(
@@ -659,15 +778,394 @@ pub async fn run(args: Args) -> Result<()> {
         }
     }
 
-    let elapsed = start.elapsed();
+    Ok(())
+}
+
+async fn install_casks(
+    args: &Args,
+    casks: &[String],
+    db: &Database,
+    config: &Config,
+    paths: &Paths,
+) -> Result<()> {
     println!(
-        "\n{} {} packages in {:.1}s",
-        style("Installed").green().bold(),
-        plan.total_packages(),
-        elapsed.as_secs_f64()
+        "\n{} {} {}...",
+        style("Installing").cyan(),
+        casks.len(),
+        if casks.len() == 1 { "cask" } else { "casks" }
     );
 
+    let cask_cache_dir = paths.stout_dir.join("cache").join("casks");
+    let cask_state_path = paths.stout_dir.join("casks.json");
+
+    // Phase 1: Download all artifacts in parallel
+    let downloads = download_casks(
+        casks,
+        db,
+        &cask_cache_dir,
+        config,
+        paths,
+        args.force,
+        args.dry_run,
+    )
+    .await;
+    let mut errors = collect_download_errors(&downloads);
+
+    if args.dry_run {
+        for dl in &downloads {
+            if dl.error.is_none() {
+                println!("  {} {} [dry-run]", style("✓").green(), dl.token);
+            }
+        }
+        if !errors.is_empty() {
+            for (token, e) in &errors {
+                eprintln!(
+                    "  {} {} - {}",
+                    style("✗").red(),
+                    style(token).yellow(),
+                    style(e).dim()
+                );
+            }
+            bail!("Failed to download {} cask(s)", errors.len());
+        }
+        return Ok(());
+    }
+
+    // Phase 2: Install all casks sequentially (terminal access for sudo, etc.)
+    let mut installed_casks = match stout_cask::InstalledCasks::load(&cask_state_path) {
+        Ok(c) => c,
+        Err(_) => stout_cask::InstalledCasks::default(),
+    };
+
+    for dl in downloads {
+        if let Some(e) = &dl.error {
+            println!(
+                "  {} {} - {}",
+                style("✗").red(),
+                style(&dl.token).yellow(),
+                style(e).dim()
+            );
+            errors.push((dl.token, e.clone()));
+            continue;
+        }
+
+        println!(
+            "  {} {} {}{}",
+            style("→").cyan(),
+            dl.token,
+            style(format!("({})", dl.artifact_type.extension())).dim(),
+            if dl.artifact_type == stout_cask::ArtifactType::Dmg {
+                format!(" {}", style("— check for license/security dialogs").dim())
+            } else {
+                String::new()
+            }
+        );
+        use std::io::Write;
+        let _ = std::io::stdout().flush();
+        let _ = std::io::stderr().flush();
+
+        let install_options = stout_cask::CaskInstallOptions {
+            force: args.force,
+            no_verify: args.no_verify,
+            appdir: args.appdir.as_deref().map(std::path::PathBuf::from),
+            dry_run: false,
+        };
+
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(CASK_INSTALL_TIMEOUT_SECS),
+            tokio::task::spawn_blocking(move || {
+                stout_cask::install_artifact_sync(
+                    &dl.cask.unwrap(),
+                    &dl.artifact_path,
+                    dl.artifact_type,
+                    &install_options,
+                )
+            }),
+        )
+        .await;
+
+        match result {
+            Err(_elapsed) => {
+                println!(
+                    "  {} {} - {}",
+                    style("✗").red(),
+                    style(&dl.token).yellow(),
+                    style(format!(
+                        "install timed out after {}s",
+                        CASK_INSTALL_TIMEOUT_SECS
+                    ))
+                    .dim()
+                );
+                errors.push((
+                    dl.token,
+                    format!("install timed out after {}s", CASK_INSTALL_TIMEOUT_SECS),
+                ));
+            }
+            Ok(Ok(Ok(install_path))) => {
+                let version = db
+                    .get_cask(&dl.token)
+                    .ok()
+                    .flatten()
+                    .map(|i| i.version)
+                    .unwrap_or_else(|| "unknown".to_string());
+
+                let installed = stout_cask::InstalledCask {
+                    version: version.clone(),
+                    installed_at: stout_cask::now_timestamp(),
+                    artifact_path: install_path,
+                    auto_updates: false,
+                    artifacts: vec![],
+                };
+                installed_casks.add(&dl.token, installed);
+
+                println!("  {} {}", style("✓").green(), dl.token);
+            }
+            Ok(Ok(Err(e))) => {
+                println!(
+                    "  {} {} - {}",
+                    style("✗").red(),
+                    style(&dl.token).yellow(),
+                    style(&e).dim()
+                );
+                errors.push((dl.token, format!("install failed: {}", e)));
+            }
+            Ok(Err(e)) => {
+                println!(
+                    "  {} {} - {}",
+                    style("✗").red(),
+                    style(&dl.token).yellow(),
+                    style(&e).dim()
+                );
+                errors.push((dl.token, format!("spawn error: {}", e)));
+            }
+        }
+    }
+
+    // Save state once
+    if let Err(e) = installed_casks.save(&cask_state_path) {
+        tracing::warn!("Failed to save cask state: {}", e);
+    }
+
+    if !errors.is_empty() {
+        bail!("Failed to install {} cask(s)", errors.len());
+    }
+
     Ok(())
+}
+
+/// Result of downloading a single cask artifact.
+pub(crate) struct CaskDownload {
+    pub token: String,
+    pub cask: Option<stout_index::Cask>,
+    pub artifact_path: std::path::PathBuf,
+    pub artifact_type: stout_cask::ArtifactType,
+    pub error: Option<String>,
+}
+
+/// Download cask artifacts in parallel. Returns results in original order.
+/// Skips the install step — the caller handles installation sequentially.
+pub(crate) async fn download_casks(
+    tokens: &[String],
+    db: &Database,
+    cache_dir: &std::path::Path,
+    config: &Config,
+    paths: &Paths,
+    _force: bool,
+    _dry_run: bool,
+) -> Vec<CaskDownload> {
+    use futures_util::stream::{FuturesUnordered, StreamExt};
+    use stout_cask;
+
+    let index_base_url = config.index.base_url.clone();
+    let security_policy = config.security.to_security_policy();
+    let stout_dir = paths.stout_dir.clone();
+    let cache_dir = cache_dir.to_path_buf();
+
+    let mut futures: FuturesUnordered<_> = tokens
+        .iter()
+        .enumerate()
+        .map(|(idx, token)| {
+            let token = token.to_string();
+            let cache_dir = cache_dir.clone();
+            let index_base_url = index_base_url.clone();
+            let stout_dir = stout_dir.clone();
+            let security_policy = security_policy.clone();
+
+            async move {
+                // Verify cask exists in database
+                match db.get_cask(&token) {
+                    Ok(Some(_)) => {}
+                    Ok(None) => {
+                        return (
+                            idx,
+                            CaskDownload {
+                                token: token.clone(),
+                                cask: None,
+                                artifact_path: std::path::PathBuf::new(),
+                                artifact_type: stout_cask::ArtifactType::Dmg,
+                                error: Some("cask not found in database".to_string()),
+                            },
+                        )
+                    }
+                    Err(e) => {
+                        return (
+                            idx,
+                            CaskDownload {
+                                token: token.clone(),
+                                cask: None,
+                                artifact_path: std::path::PathBuf::new(),
+                                artifact_type: stout_cask::ArtifactType::Dmg,
+                                error: Some(format!("database error: {}", e)),
+                            },
+                        )
+                    }
+                }
+
+                let sync = match IndexSync::with_security_policy(
+                    Some(&index_base_url),
+                    &stout_dir,
+                    security_policy,
+                ) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        return (
+                            idx,
+                            CaskDownload {
+                                token: token.clone(),
+                                cask: None,
+                                artifact_path: std::path::PathBuf::new(),
+                                artifact_type: stout_cask::ArtifactType::Dmg,
+                                error: Some(format!("failed to create sync: {}", e)),
+                            },
+                        )
+                    }
+                };
+
+                let cask = match sync.fetch_cask_cached(&token, None).await {
+                    Ok(c) => c,
+                    Err(e) => {
+                        return (
+                            idx,
+                            CaskDownload {
+                                token: token.clone(),
+                                cask: None,
+                                artifact_path: std::path::PathBuf::new(),
+                                artifact_type: stout_cask::ArtifactType::Dmg,
+                                error: Some(format!("failed to fetch cask: {}", e)),
+                            },
+                        )
+                    }
+                };
+
+                let url = match cask.download_url() {
+                    Some(u) => u.to_string(),
+                    None => {
+                        return (
+                            idx,
+                            CaskDownload {
+                                token: token.clone(),
+                                cask: None,
+                                artifact_path: std::path::PathBuf::new(),
+                                artifact_type: stout_cask::ArtifactType::Dmg,
+                                error: Some("no download URL".to_string()),
+                            },
+                        )
+                    }
+                };
+
+                let mut artifact_type = stout_cask::detect_artifact_type_from_cask(&cask, &url);
+                let sha256 = cask.sha256.as_str();
+
+                let mut artifact_path = match stout_cask::download_cask_artifact(
+                    &url,
+                    &cache_dir,
+                    &token,
+                    sha256,
+                    artifact_type,
+                )
+                .await
+                {
+                    Ok(p) => p,
+                    Err(e) => {
+                        return (
+                            idx,
+                            CaskDownload {
+                                token: token.clone(),
+                                cask: Some(cask),
+                                artifact_path: std::path::PathBuf::new(),
+                                artifact_type,
+                                error: Some(format!("download failed: {}", e)),
+                            },
+                        )
+                    }
+                };
+
+                // Re-check actual file type via magic bytes
+                if let Some(real_type) = stout_cask::detect_artifact_type_from_magic(&artifact_path)
+                {
+                    if real_type != artifact_type {
+                        let correct_path = artifact_path
+                            .parent()
+                            .unwrap_or(&artifact_path)
+                            .join(format!("{}.{}", token, real_type.extension()));
+                        if let Err(e) = std::fs::rename(&artifact_path, &correct_path) {
+                            tracing::warn!(
+                                "Could not rename {} to {}: {}",
+                                artifact_path.display(),
+                                correct_path.display(),
+                                e
+                            );
+                        } else {
+                            tracing::debug!(
+                                "Corrected artifact type for {} from {} to {}",
+                                token,
+                                artifact_type.extension(),
+                                real_type.extension()
+                            );
+                            artifact_path = correct_path;
+                            artifact_type = real_type;
+                        }
+                    }
+                }
+
+                (
+                    idx,
+                    CaskDownload {
+                        token,
+                        cask: Some(cask),
+                        artifact_path,
+                        artifact_type,
+                        error: None,
+                    },
+                )
+            }
+        })
+        .collect();
+
+    // Collect results preserving original order
+    let mut results: Vec<CaskDownload> = (0..tokens.len())
+        .map(|i| CaskDownload {
+            token: tokens[i].clone(),
+            cask: None,
+            artifact_path: std::path::PathBuf::new(),
+            artifact_type: stout_cask::ArtifactType::Dmg,
+            error: Some("download not completed".to_string()),
+        })
+        .collect();
+
+    while let Some((idx, dl)) = futures.next().await {
+        results[idx] = dl;
+    }
+
+    results
+}
+
+/// Collect errors from download results for reporting.
+pub(crate) fn collect_download_errors(downloads: &[CaskDownload]) -> Vec<(String, String)> {
+    downloads
+        .iter()
+        .filter_map(|dl| dl.error.as_ref().map(|e| (dl.token.clone(), e.clone())))
+        .collect()
 }
 
 fn format_bytes(bytes: u64) -> String {
