@@ -454,13 +454,27 @@ fn is_macho_file(path: &Path) -> bool {
 
 #[cfg(target_os = "macos")]
 fn verify_codesign(path: &Path) -> bool {
-    std::process::Command::new("codesign")
+    let Ok(output) = std::process::Command::new("codesign")
         .arg("-v")
         .arg(path)
         .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success())
+        .stderr(std::process::Stdio::piped())
+        .output()
+    else {
+        return true; // can't check, assume OK
+    };
+
+    if output.status.success() {
+        return true;
+    }
+
+    // "not signed at all" is normal for object files, scripts, etc.
+    // Only flag if the binary HAS a signature that is actually invalid.
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if stderr.contains("code object is not signed at all") {
+        return true; // unsigned is fine
+    }
+    false // signature present but invalid
 }
 
 #[cfg(target_os = "macos")]
