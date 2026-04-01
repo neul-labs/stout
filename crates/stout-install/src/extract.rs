@@ -408,6 +408,7 @@ fn replace_bytes(haystack: &[u8], needle: &[u8], replacement: &[u8]) -> Vec<u8> 
     result
 }
 
+#[cfg(target_os = "macos")]
 fn replace_bytes_padded(haystack: &[u8], needle: &[u8], replacement: &[u8]) -> Option<Vec<u8>> {
     if needle.is_empty() {
         return Some(haystack.to_vec());
@@ -469,6 +470,7 @@ fn should_skip_scan(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+#[cfg(target_os = "macos")]
 fn parse_macho_load_commands(path: &Path) -> Result<Vec<MachLoadCommand>> {
     let output = std::process::Command::new("otool")
         .arg("-l")
@@ -542,6 +544,7 @@ impl Drop for WriteGuard<'_> {
 
 const PH_CELLAR: &[u8] = b"@@HOMEBREW_CELLAR@@";
 
+#[cfg(target_os = "macos")]
 enum MachLoadCommand {
     /// LC_ID_DYLIB — the dylib's own identifier
     DylibId(String),
@@ -579,6 +582,7 @@ fn atomic_write(path: &Path, contents: &[u8]) -> Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
 fn replace_homebrew_placeholders(s: &str, prefix: &str, cellar: &str) -> String {
     let library = format!("{}/Library", prefix);
     s.replace("@@HOMEBREW_PREFIX@@", prefix)
@@ -587,6 +591,7 @@ fn replace_homebrew_placeholders(s: &str, prefix: &str, cellar: &str) -> String 
         .replace("@@HOMEBREW_REPOSITORY@@", prefix)
 }
 
+#[cfg(target_os = "macos")]
 fn relocate_macho_binary(path: &Path, prefix: &str, cellar: &str) -> Result<bool> {
     let _guard = match WriteGuard::acquire(path) {
         Ok(g) => g,

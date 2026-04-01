@@ -28,12 +28,6 @@ fn validate_token(token: &str) -> Result<()> {
 /// RAII guard for temporary directory cleanup
 struct TempDirGuard(PathBuf);
 
-impl TempDirGuard {
-    fn new(path: PathBuf) -> Self {
-        Self(path)
-    }
-}
-
 impl Drop for TempDirGuard {
     fn drop(&mut self) {
         if self.0.exists() {
@@ -169,7 +163,7 @@ async fn install_from_archive(
             .output()
     } else {
         Command::new("tar")
-            .args(&extract_args)
+            .args(extract_args)
             .arg(archive_path)
             .args(["-C"])
             .arg(&temp_dir)
@@ -256,10 +250,8 @@ fn find_executable(dir: &Path, preferred_name: &str) -> Result<Option<PathBuf>> 
 
         if path.is_file() {
             let name = path.file_name().unwrap().to_string_lossy();
-            if name.to_lowercase() == preferred_name.to_lowercase() {
-                if is_executable(&path) {
-                    return Ok(Some(path));
-                }
+            if name.to_lowercase() == preferred_name.to_lowercase() && is_executable(&path) {
+                return Ok(Some(path));
             }
         } else if path.is_dir() {
             if let Some(found) = find_executable(&path, preferred_name)? {
@@ -315,7 +307,7 @@ fn extract_desktop_file(appimage_path: &Path, token: &str) -> Result<()> {
 
     let output = Command::new(appimage_path)
         .args(["--appimage-extract", "*.desktop"])
-        .current_dir(&std::env::temp_dir())
+        .current_dir(std::env::temp_dir())
         .env("APPDIR", &temp_dir)
         .output();
 
@@ -336,6 +328,7 @@ fn extract_desktop_file(appimage_path: &Path, token: &str) -> Result<()> {
 }
 
 /// Install via Flatpak (if available)
+#[allow(dead_code)]
 pub async fn install_flatpak(app_id: &str, remote: &str) -> Result<PathBuf> {
     info!("Installing {} via Flatpak...", app_id);
 
@@ -360,6 +353,7 @@ pub async fn install_flatpak(app_id: &str, remote: &str) -> Result<PathBuf> {
 }
 
 /// Uninstall a Flatpak app
+#[allow(dead_code)]
 pub async fn uninstall_flatpak(app_id: &str) -> Result<()> {
     info!("Uninstalling {} via Flatpak...", app_id);
 
