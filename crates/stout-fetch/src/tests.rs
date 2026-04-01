@@ -5,7 +5,6 @@ use crate::client::BottleSpec;
 use crate::error::Error;
 use crate::progress::ProgressReporter;
 use crate::verify::{sha256_bytes, verify_sha256};
-use std::io::Write;
 use tempfile::tempdir;
 
 // ============================================================================

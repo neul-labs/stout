@@ -274,7 +274,6 @@ pub struct BottleSpec {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
     use tempfile::tempdir;
 
     #[tokio::test]
@@ -292,7 +291,7 @@ mod tests {
 
         // Store a fake bottle
         let data = b"test bottle content";
-        let hash = sha256_bytes(data);
+        let _hash = sha256_bytes(data);
         cache
             .store_bottle("test", "1.0.0", "x86_64_linux", data)
             .unwrap();
