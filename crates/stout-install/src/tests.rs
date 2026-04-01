@@ -4,7 +4,6 @@ use crate::error::Error;
 use crate::extract::remove_package;
 use crate::link::{link_package, unlink_package};
 use crate::receipt::{read_receipt, write_receipt, InstallReceipt, RuntimeDependency};
-use std::os::unix::fs::symlink;
 use tempfile::tempdir;
 
 // ============================================================================
