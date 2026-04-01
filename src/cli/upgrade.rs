@@ -7,13 +7,18 @@ use std::cmp::Ordering;
 use std::sync::Arc;
 use std::time::Instant;
 use stout_audit::compare_versions;
+use stout_cask::InstalledCasks;
 use stout_fetch::{BottleSpec, DownloadCache, DownloadClient, ProgressReporter};
 use stout_index::{Database, Formula, IndexSync};
 use stout_install::{
-    extract_bottle, link_package, remove_package, scan_cellar_package, unlink_package,
-    write_receipt, InstallReceipt, RuntimeDependency,
+    extract_bottle, link_package, relocate_bottle, remove_package, scan_cellar_package,
+    unlink_package, write_receipt, InstallReceipt, RuntimeDependency,
 };
 use stout_state::{Config, InstalledPackages, Paths};
+use tracing::warn;
+
+// 5-minute timeout per cask install (covers large app bundles like Handbrake/Raycast)
+const CASK_INSTALL_TIMEOUT_SECS: u64 = 300;
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -43,8 +48,35 @@ pub async fn run(args: Args) -> Result<()> {
 
     let config = Config::load(&paths)?;
 
+    // Auto-update index if needed (unless --no-update flag is set)
+    let sync = IndexSync::with_security_policy(
+        Some(&config.index.base_url),
+        &paths.stout_dir,
+        config.security.to_security_policy(),
+    )?;
+
     let db = Database::open(paths.index_db())
         .context("Failed to open index. Run 'stout update' first.")?;
+
+    // Check if index is outdated and auto-update
+    if let Ok(Some(manifest)) = sync.check_update(&db).await {
+        let current_version = db
+            .version()
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "unknown".to_string());
+        println!(
+            "{} Index is outdated ({} → {}). Updating...",
+            style("!").yellow(),
+            current_version,
+            manifest.version
+        );
+        sync.sync_index(paths.index_db()).await?;
+        println!("  {} Index updated", style("✓").green());
+    }
+
+    // Reopen database after potential update
+    let db = Database::open(paths.index_db()).context("Failed to open index after update")?;
 
     let mut installed = InstalledPackages::load(&paths)?;
 
@@ -138,6 +170,25 @@ pub async fn run(args: Args) -> Result<()> {
         }
     }
 
+    // Check for cask upgrades
+    let mut cask_upgrades: Vec<(String, String, String)> = Vec::new(); // (token, old, new)
+    let cask_state_path = paths.stout_dir.join("casks.json");
+    if let Ok(installed_casks) = InstalledCasks::load(&cask_state_path) {
+        for (token, cask) in installed_casks.iter() {
+            // Skip if version is unknown
+            if cask.version == "unknown" {
+                continue;
+            }
+
+            // Check if there's a newer version in the index
+            if let Some(info) = db.get_cask(token)? {
+                if compare_versions(&cask.version, &info.version) == Ordering::Less {
+                    cask_upgrades.push((token.clone(), cask.version.clone(), info.version));
+                }
+            }
+        }
+    }
+
     if !pinned_skipped.is_empty() {
         println!(
             "\n{} {} pinned {} skipped (use 'stout unpin' to allow upgrades)",
@@ -151,44 +202,103 @@ pub async fn run(args: Args) -> Result<()> {
         );
     }
 
-    if upgradable.is_empty() && head_updates.is_empty() {
+    if upgradable.is_empty() && head_updates.is_empty() && cask_upgrades.is_empty() {
         println!("\n{}", style("All packages are up to date.").green());
         return Ok(());
     }
 
-    // Show upgradable
-    println!("\n{} packages can be upgraded:\n", upgradable.len());
-
-    let max_name = upgradable.iter().map(|u| u.name.len()).max().unwrap_or(0);
-    let max_old = upgradable
-        .iter()
-        .map(|u| u.old_version.len())
-        .max()
-        .unwrap_or(0);
-
-    println!(
-        "  {:<name_w$}  {:<old_w$}     {}",
-        style("Package").dim(),
-        style("Current").dim(),
-        style("Latest").dim(),
-        name_w = max_name,
-        old_w = max_old,
-    );
-    println!(
-        "  {:<name_w$}",
-        style("─".repeat(max_name + max_old + 15)).dim(),
-        name_w = 0,
-    );
-
-    for candidate in &upgradable {
+    // Show upgradable formulas
+    if !upgradable.is_empty() {
         println!(
-            "  {:<name_w$}  {:<old_w$}  →  {}",
-            style(&candidate.name).green(),
-            &candidate.old_version,
-            style(&candidate.new_version).cyan(),
+            "\n{} {} can be upgraded:\n",
+            upgradable.len(),
+            if upgradable.len() == 1 {
+                "formula"
+            } else {
+                "formulas"
+            }
+        );
+
+        let max_name = upgradable.iter().map(|u| u.name.len()).max().unwrap_or(0);
+        let max_old = upgradable
+            .iter()
+            .map(|u| u.old_version.len())
+            .max()
+            .unwrap_or(0);
+
+        println!(
+            "  {:<name_w$}  {:<old_w$}     {}",
+            style("Package").dim(),
+            style("Current").dim(),
+            style("Latest").dim(),
             name_w = max_name,
             old_w = max_old,
         );
+        println!(
+            "  {:<name_w$}",
+            style("─".repeat(max_name + max_old + 15)).dim(),
+            name_w = 0,
+        );
+
+        for candidate in &upgradable {
+            println!(
+                "  {:<name_w$}  {:<old_w$}  →  {}",
+                style(&candidate.name).green(),
+                &candidate.old_version,
+                style(&candidate.new_version).cyan(),
+                name_w = max_name,
+                old_w = max_old,
+            );
+        }
+    }
+
+    // Show cask upgrades if any
+    if !cask_upgrades.is_empty() {
+        println!(
+            "\n{} {} can be upgraded:\n",
+            cask_upgrades.len(),
+            if cask_upgrades.len() == 1 {
+                "cask"
+            } else {
+                "casks"
+            }
+        );
+
+        let max_token = cask_upgrades
+            .iter()
+            .map(|(t, _, _)| t.len())
+            .max()
+            .unwrap_or(0);
+        let max_old = cask_upgrades
+            .iter()
+            .map(|(_, o, _)| o.len())
+            .max()
+            .unwrap_or(0);
+
+        println!(
+            "  {:<token_w$}  {:<old_w$}     {}",
+            style("Cask").dim(),
+            style("Current").dim(),
+            style("Latest").dim(),
+            token_w = max_token,
+            old_w = max_old,
+        );
+        println!(
+            "  {:<token_w$}",
+            style("─".repeat(max_token + max_old + 15)).dim(),
+            token_w = 0,
+        );
+
+        for (token, old, new) in &cask_upgrades {
+            println!(
+                "  {:<token_w$}  {:<old_w$}  →  {}",
+                style(token).magenta(),
+                old,
+                style(new).cyan(),
+                token_w = max_token,
+                old_w = max_old,
+            );
+        }
     }
 
     // Show HEAD updates if any
@@ -276,7 +386,7 @@ pub async fn run(args: Args) -> Result<()> {
     let platform = super::detect_platform();
 
     // Fetch formula data and prepare bottle specs
-    println!("\n{}...", style("Fetching formula data").cyan());
+    println!("\n{}...", style("Fetching package data").cyan());
     let sync = IndexSync::with_security_policy(
         Some(&config.index.base_url),
         &paths.stout_dir,
@@ -445,19 +555,55 @@ pub async fn run(args: Args) -> Result<()> {
     // Upgrade all packages
     println!("\n{}...", style("Upgrading").cyan());
 
+    let mut upgrade_errors: Vec<(String, String)> = Vec::new();
+
     for ((candidate, formula), bottle_path) in formulas_to_upgrade.iter().zip(bottle_paths.iter()) {
-        // First, unlink old version
-        let old_install_path = paths.package_path(&candidate.name, &candidate.old_version);
-        if old_install_path.exists() {
-            unlink_package(&old_install_path, &paths.prefix)?;
-            remove_package(&paths.cellar, &candidate.name, &candidate.old_version)?;
+        // Extract NEW version FIRST (before removing old)
+        // This ensures we don't break the system if extraction fails
+        let install_path = match extract_bottle(bottle_path, &paths.cellar) {
+            Ok(path) => path,
+            Err(e) => {
+                upgrade_errors.push((candidate.name.clone(), format!("extraction failed: {}", e)));
+                continue;
+            }
+        };
+
+        // Relocate Homebrew placeholders to actual paths
+        if let Err(e) = relocate_bottle(&install_path, &paths.prefix) {
+            // Non-fatal - package may still work, but log the issue
+            warn!(
+                "Failed to relocate placeholders in {}: {}",
+                candidate.name, e
+            );
         }
 
-        // Extract new version
-        let install_path = extract_bottle(bottle_path, &paths.cellar)?;
+        // Now that extraction succeeded, unlink and remove OLD version
+        let old_install_path = paths.package_path(&candidate.name, &candidate.old_version);
+        if old_install_path.exists() {
+            if let Err(e) = unlink_package(&old_install_path, &paths.prefix) {
+                upgrade_errors.push((
+                    candidate.name.clone(),
+                    format!("unlink old version failed: {}", e),
+                ));
+                // Try to clean up the newly extracted version
+                let _ = remove_package(&paths.cellar, &candidate.name, &candidate.new_version);
+                continue;
+            }
+            if let Err(e) = remove_package(&paths.cellar, &candidate.name, &candidate.old_version) {
+                // Non-fatal - old files remain but new version is installed
+                warn!(
+                    "Failed to remove old version {} of {}: {}",
+                    candidate.old_version, candidate.name, e
+                );
+            }
+        }
 
         // Link new version
-        link_package(&install_path, &paths.prefix)?;
+        if let Err(e) = link_package(&install_path, &paths.prefix) {
+            upgrade_errors.push((candidate.name.clone(), format!("link failed: {}", e)));
+            // Package is extracted but not linked - user can manually fix
+            continue;
+        }
 
         // Write receipt
         let runtime_deps: Vec<RuntimeDependency> = formula
@@ -477,7 +623,9 @@ pub async fn run(args: Args) -> Result<()> {
 
         let receipt =
             InstallReceipt::new_bottle(&formula.tap, candidate.explicitly_requested, runtime_deps);
-        write_receipt(&install_path, &receipt)?;
+        if let Err(e) = write_receipt(&install_path, &receipt) {
+            warn!("Failed to write receipt for {}: {}", candidate.name, e);
+        }
 
         // Update state - remove old, add new
         installed.remove(&candidate.name);
@@ -500,8 +648,142 @@ pub async fn run(args: Args) -> Result<()> {
     // Save state
     installed.save(&paths)?;
 
+    // Upgrade casks if any
+    let mut casks_upgraded = 0usize;
+    if !cask_upgrades.is_empty() {
+        println!("\n{}...", style("Upgrading casks").cyan());
+
+        let cask_cache_dir = paths.stout_dir.join("cache").join("casks");
+        let tokens: Vec<String> = cask_upgrades.iter().map(|(t, _, _)| t.clone()).collect();
+        let version_map: std::collections::HashMap<String, (String, String)> = cask_upgrades
+            .iter()
+            .map(|(t, old, new)| (t.clone(), (old.clone(), new.clone())))
+            .collect();
+
+        // Phase 1: Download all artifacts in parallel
+        let downloads = crate::cli::install::download_casks(
+            &tokens,
+            &db,
+            &cask_cache_dir,
+            &config,
+            &paths,
+            true,
+            false,
+        )
+        .await;
+
+        // Report download errors
+        for dl in &downloads {
+            if let Some(e) = &dl.error {
+                println!(
+                    "  {} {} - {}",
+                    style("✗").red(),
+                    style(&dl.token).yellow(),
+                    style(e).dim()
+                );
+                upgrade_errors.push((dl.token.clone(), e.clone()));
+            }
+        }
+
+        // Phase 2: Install all casks sequentially
+        let mut installed_casks = match stout_cask::InstalledCasks::load(&cask_state_path) {
+            Ok(c) => c,
+            Err(_) => stout_cask::InstalledCasks::default(),
+        };
+
+        for dl in downloads {
+            if dl.error.is_some() {
+                continue;
+            }
+
+            let (old_version, new_version) = version_map
+                .get(&dl.token)
+                .cloned()
+                .unwrap_or_else(|| ("unknown".to_string(), "unknown".to_string()));
+
+            let install_options = stout_cask::CaskInstallOptions {
+                force: true,
+                dry_run: false,
+                ..Default::default()
+            };
+
+            let result = tokio::time::timeout(
+                std::time::Duration::from_secs(CASK_INSTALL_TIMEOUT_SECS),
+                tokio::task::spawn_blocking(move || {
+                    stout_cask::install_artifact_sync(
+                        &dl.cask.unwrap(),
+                        &dl.artifact_path,
+                        dl.artifact_type,
+                        &install_options,
+                    )
+                }),
+            )
+            .await;
+
+            match result {
+                Err(_elapsed) => {
+                    upgrade_errors.push((
+                        dl.token,
+                        format!("install timed out after {}s", CASK_INSTALL_TIMEOUT_SECS),
+                    ));
+                }
+                Ok(Ok(Ok(install_path))) => {
+                    casks_upgraded += 1;
+                    let installed = stout_cask::InstalledCask {
+                        version: new_version.clone(),
+                        installed_at: stout_cask::now_timestamp(),
+                        artifact_path: install_path,
+                        auto_updates: false,
+                        artifacts: vec![],
+                    };
+                    installed_casks.add(&dl.token, installed);
+                    println!(
+                        "  {} {} {} → {}",
+                        style("✓").green(),
+                        dl.token,
+                        style(&old_version).dim(),
+                        style(&new_version).cyan()
+                    );
+                }
+                Ok(Ok(Err(e))) => {
+                    upgrade_errors.push((dl.token, format!("install failed: {}", e)));
+                }
+                Ok(Err(e)) => {
+                    upgrade_errors.push((dl.token, format!("spawn error: {}", e)));
+                }
+            }
+        }
+
+        // Save state once
+        if let Err(e) = installed_casks.save(&cask_state_path) {
+            warn!("Failed to save cask state: {}", e);
+        }
+    }
+
+    // Report any upgrade errors
+    if !upgrade_errors.is_empty() {
+        println!(
+            "\n{} {} {} failed:",
+            style("!").yellow(),
+            upgrade_errors.len(),
+            if upgrade_errors.len() == 1 {
+                "package"
+            } else {
+                "packages"
+            }
+        );
+        for (name, reason) in &upgrade_errors {
+            println!(
+                "  {} {} - {}",
+                style("✗").red(),
+                style(name).yellow(),
+                style(reason).dim()
+            );
+        }
+    }
+
     let elapsed = start.elapsed();
-    let total = formulas_to_upgrade.len() + already_upgraded.len();
+    let total = formulas_to_upgrade.len() + casks_upgraded + already_upgraded.len();
     print!(
         "\n{} {} {} in {:.1}s",
         style("Upgraded").green().bold(),
@@ -509,11 +791,12 @@ pub async fn run(args: Args) -> Result<()> {
         if total == 1 { "package" } else { "packages" },
         elapsed.as_secs_f64()
     );
-    if !failed_fetches.is_empty() {
+    if !failed_fetches.is_empty() || !upgrade_errors.is_empty() {
+        let total_failed = failed_fetches.len() + upgrade_errors.len();
         print!(
-            ", {} {} skipped",
-            style(failed_fetches.len()).yellow(),
-            if failed_fetches.len() == 1 {
+            ", {} {} failed",
+            style(total_failed).yellow(),
+            if total_failed == 1 {
                 "package"
             } else {
                 "packages"

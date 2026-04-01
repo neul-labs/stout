@@ -850,15 +850,10 @@ async fn install_casks(
         }
 
         println!(
-            "  {} {} {}{}",
+            "  {} {} {}",
             style("→").cyan(),
             dl.token,
             style(format!("({})", dl.artifact_type.extension())).dim(),
-            if dl.artifact_type == stout_cask::ArtifactType::Dmg {
-                format!(" {}", style("— check for license/security dialogs").dim())
-            } else {
-                String::new()
-            }
         );
         use std::io::Write;
         let _ = std::io::stdout().flush();

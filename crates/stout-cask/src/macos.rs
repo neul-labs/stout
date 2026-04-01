@@ -438,10 +438,10 @@ fn mount_dmg(dmg_path: &Path) -> Result<PathBuf> {
         .stderr(std::process::Stdio::null())
         .output();
 
-    // Inherit stdin/stdout so embedded SLA (Software License Agreement) prompts
-    // are visible and the user can accept them. Some DMGs (e.g. calhash) embed
-    // an SLA that hdiutil prints to stdout and waits for input.
-    // Inherit stderr for diagnostic output.
+    // Inherit stdin so embedded SLA (Software License Agreement) prompts
+    // can accept user input. Some DMGs (e.g. calhash) embed an SLA that
+    // hdiutil prints to stdout and waits for input.
+    // Capture stdout/stderr to suppress the disk/partition table output.
     let mut child = Command::new("hdiutil")
         .args([
             "attach",
@@ -453,8 +453,8 @@ fn mount_dmg(dmg_path: &Path) -> Result<PathBuf> {
         .arg(&mount_point)
         .arg(dmg_path)
         .stdin(std::process::Stdio::inherit())
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
         .spawn()
         .map_err(|e| Error::CommandFailed {
             cmd: "hdiutil attach".to_string(),
