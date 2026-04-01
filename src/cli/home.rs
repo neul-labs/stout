@@ -5,6 +5,8 @@ use clap::Args as ClapArgs;
 use console::style;
 use stout_index::{Database, IndexSync};
 use stout_state::{Config, Paths};
+#[cfg(target_os = "linux")]
+use tracing::warn;
 
 #[derive(ClapArgs)]
 pub struct Args {

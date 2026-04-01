@@ -388,6 +388,7 @@ fn get_service_status(name: &str) -> ServiceStatus {
 
     #[cfg(not(target_os = "macos"))]
     {
+        let _ = name;
         ServiceStatus::Unknown
     }
 }
