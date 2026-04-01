@@ -1,6 +1,9 @@
 //! Reinstall command - uninstall and reinstall a package
 
 use anyhow::{bail, Context, Result};
+use clap::Args as ClapArgs;
+use console::style;
+use std::sync::Arc;
 use stout_fetch::{BottleSpec, DownloadCache, DownloadClient, ProgressReporter};
 use stout_index::{Database, IndexSync};
 use stout_install::{
@@ -8,9 +11,6 @@ use stout_install::{
     HeadBuilder, InstallReceipt, RuntimeDependency, SourceBuilder,
 };
 use stout_state::{Config, InstalledPackages, Paths};
-use clap::Args as ClapArgs;
-use console::style;
-use std::sync::Arc;
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -58,9 +58,9 @@ pub async fn run(args: Args) -> Result<()> {
 
     for name in &args.formulas {
         // Check if installed
-        let old_pkg = installed.get(name)
-            .cloned()
-            .ok_or_else(|| anyhow::anyhow!("{} is not installed, use 'stout install' instead", name))?;
+        let old_pkg = installed.get(name).cloned().ok_or_else(|| {
+            anyhow::anyhow!("{} is not installed, use 'stout install' instead", name)
+        })?;
 
         println!(
             "\n{} Reinstalling {} {}",
@@ -86,8 +86,7 @@ pub async fn run(args: Args) -> Result<()> {
         }
 
         // Determine reinstall type
-        let reinstall_as_head =
-            args.head || (old_pkg.is_head_install() && !args.build_from_source);
+        let reinstall_as_head = args.head || (old_pkg.is_head_install() && !args.build_from_source);
 
         // Unlink old version
         let old_install_path = paths.cellar.join(name).join(&old_pkg.version);
@@ -105,14 +104,14 @@ pub async fn run(args: Args) -> Result<()> {
                 )
             })?;
 
-            println!(
-                "  {} Building from HEAD...",
-                style("•").dim()
-            );
+            println!("  {} Building from HEAD...", style("•").dim());
 
             let head_config = HeadBuildConfig {
                 git_url: head_url.url.clone(),
-                branch: head_url.branch.clone().unwrap_or_else(|| "master".to_string()),
+                branch: head_url
+                    .branch
+                    .clone()
+                    .unwrap_or_else(|| "master".to_string()),
                 name: name.clone(),
                 prefix: paths.prefix.clone(),
                 cellar: paths.cellar.clone(),
@@ -124,10 +123,10 @@ pub async fn run(args: Args) -> Result<()> {
             let work_dir = paths.stout_dir.join("build").join(name);
             let builder = HeadBuilder::new(head_config, &work_dir);
 
-            let result = builder.build().await.context(format!(
-                "Failed to build {} from HEAD",
-                name
-            ))?;
+            let result = builder
+                .build()
+                .await
+                .context(format!("Failed to build {} from HEAD", name))?;
 
             // Cleanup build directory
             let _ = std::fs::remove_dir_all(&work_dir);
@@ -162,9 +161,11 @@ pub async fn run(args: Args) -> Result<()> {
             result.install_path
         } else if args.build_from_source || formula.bottle_for_platform(&platform).is_none() {
             // Build from source
-            let source = formula.urls.stable.as_ref().ok_or_else(|| {
-                anyhow::anyhow!("No source URL available for {}", name)
-            })?;
+            let source = formula
+                .urls
+                .stable
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("No source URL available for {}", name))?;
 
             println!("  {} Building from source...", style("•").dim());
 
@@ -184,10 +185,10 @@ pub async fn run(args: Args) -> Result<()> {
             let work_dir = paths.stout_dir.join("build").join(name);
             let builder = SourceBuilder::new(build_config, &work_dir);
 
-            let result = builder.build().await.context(format!(
-                "Failed to build {} from source",
-                name
-            ))?;
+            let result = builder
+                .build()
+                .await
+                .context(format!("Failed to build {} from source", name))?;
 
             // Cleanup build directory
             let _ = std::fs::remove_dir_all(&work_dir);
@@ -195,7 +196,8 @@ pub async fn run(args: Args) -> Result<()> {
             result.install_path
         } else {
             // Download and extract bottle
-            let bottle = formula.bottle_for_platform(&platform)
+            let bottle = formula
+                .bottle_for_platform(&platform)
                 .expect("bottle_for_platform returned None after None check");
 
             println!("  {} Downloading bottle...", style("•").dim());
@@ -247,17 +249,21 @@ pub async fn run(args: Args) -> Result<()> {
             .runtime_deps()
             .iter()
             .filter_map(|dep| {
-                db.get_formula(dep).ok().flatten().map(|info| RuntimeDependency {
-                    full_name: dep.clone(),
-                    version: info.version,
-                    revision: Some(info.revision),
-                })
+                db.get_formula(dep)
+                    .ok()
+                    .flatten()
+                    .map(|info| RuntimeDependency {
+                        full_name: dep.clone(),
+                        version: info.version,
+                        revision: Some(info.revision),
+                    })
             })
             .collect();
 
-        let receipt = if reinstall_as_head {
-            InstallReceipt::new_source(&formula.tap, old_pkg.requested, runtime_deps)
-        } else if args.build_from_source || formula.bottle_for_platform(&platform).is_none() {
+        let receipt = if reinstall_as_head
+            || args.build_from_source
+            || formula.bottle_for_platform(&platform).is_none()
+        {
             InstallReceipt::new_source(&formula.tap, old_pkg.requested, runtime_deps)
         } else {
             InstallReceipt::new_bottle(&formula.tap, old_pkg.requested, runtime_deps)
@@ -270,7 +276,12 @@ pub async fn run(args: Args) -> Result<()> {
         } else {
             // Stable install - preserve requested status
             // Use installed_version which includes revision suffix
-            installed.add(name, &installed_version, formula.revision, old_pkg.requested);
+            installed.add(
+                name,
+                &installed_version,
+                formula.revision,
+                old_pkg.requested,
+            );
         }
 
         // Remove old version from cellar if different
@@ -280,11 +291,7 @@ pub async fn run(args: Args) -> Result<()> {
 
         // Print success message
         if reinstall_as_head {
-            println!(
-                "{} Reinstalled {} (HEAD)",
-                style("✓").green(),
-                name,
-            );
+            println!("{} Reinstalled {} (HEAD)", style("✓").green(), name,);
         } else {
             println!(
                 "{} Reinstalled {} {}",
@@ -300,4 +307,3 @@ pub async fn run(args: Args) -> Result<()> {
 
     Ok(())
 }
-

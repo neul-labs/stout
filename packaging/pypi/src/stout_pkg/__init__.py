@@ -4,7 +4,7 @@ stout - A fast, Rust-based Homebrew-compatible package manager
 This package provides a Python wrapper that downloads and runs the native stout binary.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.1"
 
 import os
 import platform

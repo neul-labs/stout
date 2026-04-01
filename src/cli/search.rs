@@ -1,10 +1,10 @@
 //! Search command
 
 use anyhow::{Context, Result};
-use stout_index::Database;
-use stout_state::Paths;
 use clap::Args as ClapArgs;
 use console::style;
+use stout_index::Database;
+use stout_state::Paths;
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -50,11 +50,7 @@ pub async fn run(args: Args) -> Result<()> {
 
         if !results.is_empty() {
             found_any = true;
-            println!(
-                "\n{} {} formulas:\n",
-                style("Found").cyan(),
-                results.len()
-            );
+            println!("\n{} {} formulas:\n", style("Found").cyan(), results.len());
 
             let max_name_len = results.iter().map(|f| f.name.len()).max().unwrap_or(0);
             let max_ver_len = results.iter().map(|f| f.version.len()).max().unwrap_or(0);
@@ -91,8 +87,16 @@ pub async fn run(args: Args) -> Result<()> {
                 cask_results.len()
             );
 
-            let max_token_len = cask_results.iter().map(|c| c.token.len()).max().unwrap_or(0);
-            let max_ver_len = cask_results.iter().map(|c| c.version.len()).max().unwrap_or(0);
+            let max_token_len = cask_results
+                .iter()
+                .map(|c| c.token.len())
+                .max()
+                .unwrap_or(0);
+            let max_ver_len = cask_results
+                .iter()
+                .map(|c| c.version.len())
+                .max()
+                .unwrap_or(0);
 
             for cask in &cask_results {
                 let desc = cask.desc.as_deref().unwrap_or("");
@@ -121,10 +125,7 @@ pub async fn run(args: Args) -> Result<()> {
             args.query
         );
     } else {
-        println!(
-            "\n{}\n",
-            style("Use 'stout info <name>' for details").dim()
-        );
+        println!("\n{}\n", style("Use 'stout info <name>' for details").dim());
     }
 
     Ok(())

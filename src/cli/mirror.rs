@@ -1,17 +1,16 @@
 //! Mirror command - create and serve offline mirrors
 
 use anyhow::{bail, Context, Result};
-use sha2::{Digest, Sha256};
-use stout_index::Database;
-use stout_mirror::{
-    create_mirror, detect_platform, serve_mirror, MirrorConfig,
-    MirrorManifest, ServeConfig,
-};
-use stout_state::Paths;
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
 use humansize::{format_size, BINARY};
+use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
+use stout_index::Database;
+use stout_mirror::{
+    create_mirror, detect_platform, serve_mirror, MirrorConfig, MirrorManifest, ServeConfig,
+};
+use stout_state::Paths;
 
 /// Verify SHA256 checksum of a file
 fn verify_file_checksum(path: &Path, expected: &str) -> Result<()> {
@@ -221,6 +220,7 @@ pub async fn run(args: Args) -> Result<()> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_create(
     output: PathBuf,
     packages: Vec<String>,
@@ -308,14 +308,8 @@ async fn run_create(
 
     println!();
     println!("{}", style("Mirror created successfully!").green().bold());
-    println!(
-        "  {} formulas",
-        manifest.formulas.count
-    );
-    println!(
-        "  {} total size",
-        format_size(manifest.total_size, BINARY)
-    );
+    println!("  {} formulas", manifest.formulas.count);
+    println!("  {} total size", format_size(manifest.total_size, BINARY));
 
     Ok(())
 }
@@ -327,7 +321,10 @@ async fn run_serve(path: PathBuf, port: u16, bind: String, log_access: bool) -> 
 
     let manifest_path = path.join("manifest.json");
     if !manifest_path.exists() {
-        bail!("Invalid mirror: missing manifest.json at {}", path.display());
+        bail!(
+            "Invalid mirror: missing manifest.json at {}",
+            path.display()
+        );
     }
 
     println!(
@@ -369,10 +366,7 @@ async fn run_info(path: PathBuf, json: bool) -> Result<()> {
         println!("  Linux apps: {}", manifest.linux_apps.count);
         println!();
         println!("  Platforms: {:?}", manifest.platforms);
-        println!(
-            "  Total size: {}",
-            format_size(manifest.total_size, BINARY)
-        );
+        println!("  Total size: {}", format_size(manifest.total_size, BINARY));
         println!();
     }
 
@@ -483,7 +477,7 @@ async fn run_update(
     for name in &packages_to_update {
         if let Some(current_info) = manifest.formulas.packages.get(*name) {
             // Get latest from index
-            let latest = db.get_formula(*name)?;
+            let latest = db.get_formula(name)?;
 
             match latest {
                 Some(latest_formula) => {
@@ -512,7 +506,11 @@ async fn run_update(
                     }
                 }
                 None => {
-                    println!("  {} {} (removed from upstream)", style(name).white().bold(), current_info.version);
+                    println!(
+                        "  {} {} (removed from upstream)",
+                        style(name).white().bold(),
+                        current_info.version
+                    );
                     skipped += 1;
                 }
             }
@@ -526,10 +524,23 @@ async fn run_update(
 
     println!();
     if dry_run {
-        println!("{} Would update {} packages, skip {}", style("DRY RUN:").yellow(), updated, skipped);
+        println!(
+            "{} Would update {} packages, skip {}",
+            style("DRY RUN:").yellow(),
+            updated,
+            skipped
+        );
     } else {
-        println!("{} {} packages updated, {} skipped", style("✓").green(), updated, skipped);
-        println!("{}", style("Note: Package download not yet implemented").yellow());
+        println!(
+            "{} {} packages updated, {} skipped",
+            style("✓").green(),
+            updated,
+            skipped
+        );
+        println!(
+            "{}",
+            style("Note: Package download not yet implemented").yellow()
+        );
     }
 
     Ok(())
@@ -586,7 +597,11 @@ async fn run_prune(path: PathBuf, keep: usize, dry_run: bool) -> Result<()> {
     if formulas_dir.exists() {
         for entry in std::fs::read_dir(&formulas_dir)? {
             let entry = entry?;
-            let rel_path = entry.path().strip_prefix(&path)?.to_string_lossy().to_string();
+            let rel_path = entry
+                .path()
+                .strip_prefix(&path)?
+                .to_string_lossy()
+                .to_string();
             if !referenced_files.contains(&rel_path) {
                 orphaned.push(entry.path());
             }
@@ -598,7 +613,11 @@ async fn run_prune(path: PathBuf, keep: usize, dry_run: bool) -> Result<()> {
     if bottles_dir.exists() {
         for entry in std::fs::read_dir(&bottles_dir)? {
             let entry = entry?;
-            let rel_path = entry.path().strip_prefix(&path)?.to_string_lossy().to_string();
+            let rel_path = entry
+                .path()
+                .strip_prefix(&path)?
+                .to_string_lossy()
+                .to_string();
             if !referenced_files.contains(&rel_path) {
                 orphaned.push(entry.path());
             }
@@ -610,7 +629,11 @@ async fn run_prune(path: PathBuf, keep: usize, dry_run: bool) -> Result<()> {
     if casks_dir.exists() {
         for entry in std::fs::read_dir(&casks_dir)? {
             let entry = entry?;
-            let rel_path = entry.path().strip_prefix(&path)?.to_string_lossy().to_string();
+            let rel_path = entry
+                .path()
+                .strip_prefix(&path)?
+                .to_string_lossy()
+                .to_string();
             if !referenced_files.contains(&rel_path) {
                 orphaned.push(entry.path());
             }
@@ -622,7 +645,11 @@ async fn run_prune(path: PathBuf, keep: usize, dry_run: bool) -> Result<()> {
     if artifacts_dir.exists() {
         for entry in std::fs::read_dir(&artifacts_dir)? {
             let entry = entry?;
-            let rel_path = entry.path().strip_prefix(&path)?.to_string_lossy().to_string();
+            let rel_path = entry
+                .path()
+                .strip_prefix(&path)?
+                .to_string_lossy()
+                .to_string();
             if !referenced_files.contains(&rel_path) {
                 orphaned.push(entry.path());
             }
@@ -643,11 +670,20 @@ async fn run_prune(path: PathBuf, keep: usize, dry_run: bool) -> Result<()> {
         }
     }
 
-    println!("  Found {} orphaned file{} ({})", orphaned.len(), if orphaned.len() == 1 { "" } else { "s" }, humansize::format_size(total_size, BINARY));
+    println!(
+        "  Found {} orphaned file{} ({})",
+        orphaned.len(),
+        if orphaned.len() == 1 { "" } else { "s" },
+        humansize::format_size(total_size, BINARY)
+    );
     println!();
 
     if dry_run {
-        println!("{} Would remove {} orphaned files:", style("DRY RUN:").yellow(), orphaned.len());
+        println!(
+            "{} Would remove {} orphaned files:",
+            style("DRY RUN:").yellow(),
+            orphaned.len()
+        );
         for p in &orphaned {
             println!("    {}", p.display());
         }
@@ -664,7 +700,12 @@ async fn run_prune(path: PathBuf, keep: usize, dry_run: bool) -> Result<()> {
                     removed += 1;
                 }
                 Err(e) => {
-                    println!("  {} Failed to remove {}: {}", style("✗").red(), p.display(), e);
+                    println!(
+                        "  {} Failed to remove {}: {}",
+                        style("✗").red(),
+                        p.display(),
+                        e
+                    );
                     failed += 1;
                 }
             }
@@ -674,7 +715,12 @@ async fn run_prune(path: PathBuf, keep: usize, dry_run: bool) -> Result<()> {
         if failed == 0 {
             println!("{} Removed {} orphaned files", style("✓").green(), removed);
         } else {
-            println!("{} Removed {}, {} failed", style("!").yellow(), removed, failed);
+            println!(
+                "{} Removed {}, {} failed",
+                style("!").yellow(),
+                removed,
+                failed
+            );
         }
     }
 
@@ -743,11 +789,7 @@ async fn run_verify(path: PathBuf, packages: Vec<String>, verbose: bool) -> Resu
 
     println!();
     if errors == 0 {
-        println!(
-            "{} {} files verified",
-            style("✓").green(),
-            verified
-        );
+        println!("{} {} files verified", style("✓").green(), verified);
     } else {
         println!(
             "{} {} files verified, {} errors",

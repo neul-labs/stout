@@ -29,7 +29,9 @@ impl Default for VulnDatabaseConfig {
             .join("vuln");
 
         Self {
-            base_url: "https://raw.githubusercontent.com/neul-labs/stout-index/main/vulnerabilities".to_string(),
+            base_url:
+                "https://raw.githubusercontent.com/neul-labs/stout-index/main/vulnerabilities"
+                    .to_string(),
             cache_dir,
             auto_update: true,
         }
@@ -132,8 +134,8 @@ impl VulnDatabase {
         let compressed = response.bytes().await?;
 
         // Decompress
-        let decompressed = zstd::decode_all(compressed.as_ref())
-            .map_err(|e| Error::Decompress(e.to_string()))?;
+        let decompressed =
+            zstd::decode_all(compressed.as_ref()).map_err(|e| Error::Decompress(e.to_string()))?;
 
         std::fs::write(&db_path, decompressed)?;
 
@@ -147,27 +149,25 @@ impl VulnDatabase {
 
     /// Get database version
     pub fn version(&self) -> Result<String> {
-        let version: String = self.conn.query_row(
-            "SELECT value FROM meta WHERE key = 'version'",
-            [],
-            |row| row.get(0),
-        )?;
+        let version: String =
+            self.conn
+                .query_row("SELECT value FROM meta WHERE key = 'version'", [], |row| {
+                    row.get(0)
+                })?;
         Ok(version)
     }
 
     /// Get database statistics
     pub fn stats(&self) -> Result<DatabaseStats> {
-        let vuln_count: i64 = self
-            .conn
-            .query_row("SELECT COUNT(*) FROM vulnerabilities", [], |row| {
-                row.get(0)
-            })?;
+        let vuln_count: i64 =
+            self.conn
+                .query_row("SELECT COUNT(*) FROM vulnerabilities", [], |row| row.get(0))?;
 
-        let affected_count: i64 = self
-            .conn
-            .query_row("SELECT COUNT(*) FROM affected_packages", [], |row| {
-                row.get(0)
-            })?;
+        let affected_count: i64 =
+            self.conn
+                .query_row("SELECT COUNT(*) FROM affected_packages", [], |row| {
+                    row.get(0)
+                })?;
 
         let formula_count: i64 = self.conn.query_row(
             "SELECT COUNT(DISTINCT formula) FROM affected_packages",
@@ -206,7 +206,10 @@ impl VulnDatabase {
     }
 
     /// Get vulnerabilities for a specific formula
-    pub fn get_vulnerabilities(&self, formula: &str) -> Result<Vec<(Vulnerability, AffectedPackage)>> {
+    pub fn get_vulnerabilities(
+        &self,
+        formula: &str,
+    ) -> Result<Vec<(Vulnerability, AffectedPackage)>> {
         let mut stmt = self.conn.prepare(
             "SELECT v.id, v.summary, v.details, v.severity, v.published, v.modified, v.references_json,
                     a.formula, a.ecosystem, a.package, a.affected_versions, a.fixed_version
@@ -223,7 +226,7 @@ impl VulnDatabase {
                     .unwrap_or_default();
 
                 let severity_str: Option<String> = row.get(3)?;
-                let severity = severity_str.as_deref().and_then(Severity::from_str);
+                let severity = severity_str.as_deref().and_then(Severity::parse_severity);
 
                 let vuln = Vulnerability {
                     id: row.get(0)?,
@@ -252,11 +255,7 @@ impl VulnDatabase {
     }
 
     /// Audit a single formula with its installed version
-    pub fn audit_formula(
-        &self,
-        formula: &str,
-        installed_version: &str,
-    ) -> Result<Vec<Finding>> {
+    pub fn audit_formula(&self, formula: &str, installed_version: &str) -> Result<Vec<Finding>> {
         let vulns = self.get_vulnerabilities(formula)?;
         let mut findings = Vec::new();
 

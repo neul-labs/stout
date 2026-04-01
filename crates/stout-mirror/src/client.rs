@@ -252,10 +252,7 @@ impl MirrorClient {
         match self.config.fallback {
             Fallback::Error => Err(Error::PackageNotFound(name.to_string())),
             Fallback::Warn => {
-                eprintln!(
-                    "Warning: '{}' not in mirror, trying upstream...",
-                    name
-                );
+                eprintln!("Warning: '{}' not in mirror, trying upstream...", name);
                 Ok(())
             }
             Fallback::Silent => Ok(()),

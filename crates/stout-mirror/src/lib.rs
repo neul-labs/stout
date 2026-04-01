@@ -14,5 +14,5 @@ mod serve;
 pub use client::{MirrorClient, MirrorClientConfig};
 pub use create::{create_mirror, detect_platform, MirrorConfig};
 pub use error::{Error, Result};
-pub use manifest::{MirrorManifest, PackageInfo, BottleInfo};
+pub use manifest::{BottleInfo, MirrorManifest, PackageInfo};
 pub use serve::{serve_mirror, ServeConfig};

@@ -1,12 +1,12 @@
 //! Outdated command - list packages with available updates
 
 use anyhow::{Context, Result};
-use stout_audit::compare_versions;
-use stout_index::Database;
-use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 use std::cmp::Ordering;
+use stout_audit::compare_versions;
+use stout_index::{Database, IndexSync};
+use stout_state::{Config, InstalledPackages, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {

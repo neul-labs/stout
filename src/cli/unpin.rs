@@ -1,9 +1,9 @@
 //! Unpin command - allow packages to be upgraded again
 
 use anyhow::{bail, Result};
-use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
+use stout_state::{InstalledPackages, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -23,11 +23,7 @@ pub async fn run(args: Args) -> Result<()> {
 
     for name in &args.formulas {
         if !installed.is_installed(name) {
-            eprintln!(
-                "{} {} is not installed",
-                style("Warning:").yellow(),
-                name
-            );
+            eprintln!("{} {} is not installed", style("Warning:").yellow(), name);
             continue;
         }
 

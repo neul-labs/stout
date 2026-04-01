@@ -4,11 +4,11 @@
 //! downloads, and removes old versions of installed packages.
 
 use anyhow::{Context, Result};
-use stout_fetch::DownloadCache;
-use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 use std::path::Path;
+use stout_fetch::DownloadCache;
+use stout_state::{InstalledPackages, Paths};
 
 /// Default cleanup age in days (same as Homebrew's HOMEBREW_CLEANUP_MAX_AGE_DAYS)
 const DEFAULT_CLEANUP_DAYS: u64 = 120;
@@ -337,11 +337,7 @@ fn prune_prefix_only(paths: &Paths, dry_run: bool) -> Result<(u64, usize)> {
     }
 
     if count > 0 && !dry_run {
-        println!(
-            "  {} Pruned {} broken symlinks",
-            style("✓").green(),
-            count
-        );
+        println!("  {} Pruned {} broken symlinks", style("✓").green(), count);
     }
 
     Ok((total_size, count))

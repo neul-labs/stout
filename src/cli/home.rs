@@ -6,7 +6,6 @@ use console::style;
 use stout_index::{Database, IndexSync};
 use stout_state::{Config, Paths};
 
-
 #[derive(ClapArgs)]
 pub struct Args {
     /// Formula or cask to open homepage for

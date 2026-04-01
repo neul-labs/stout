@@ -129,7 +129,7 @@ impl SourceBuilder {
         if !self.config.sha256.is_empty() {
             let mut hasher = Sha256::new();
             hasher.update(&bytes);
-            let hash = format!("{:x}", hasher.finalize());
+            let hash = hex::encode(hasher.finalize());
 
             if hash != self.config.sha256 {
                 return Err(Error::Build(BuildError::DownloadFailed {
@@ -230,7 +230,9 @@ fn validate_compiler_path(path: &str) -> Result<()> {
     }
 
     // Reject shell metacharacters and injection vectors
-    let forbidden = ['!', '$', '`', '|', ';', '&', '(', ')', '{', '}', '\n', '\r', '\0'];
+    let forbidden = [
+        '!', '$', '`', '|', ';', '&', '(', ')', '{', '}', '\n', '\r', '\0',
+    ];
     for ch in forbidden {
         if path.contains(ch) {
             return Err(Error::Build(BuildError::CompilerValidationFailed {
@@ -245,10 +247,7 @@ fn validate_compiler_path(path: &str) -> Result<()> {
     // Check for path traversal
     if path.contains("..") {
         return Err(Error::Build(BuildError::CompilerValidationFailed {
-            reason: format!(
-                "Invalid compiler path '{}': contains path traversal",
-                path
-            ),
+            reason: format!("Invalid compiler path '{}': contains path traversal", path),
         }));
     }
 
@@ -298,11 +297,7 @@ fn apply_compiler_env(cmd: &mut Command, params: &BuildParams) -> Result<()> {
 }
 
 /// Detect the build system and run the appropriate build steps.
-fn detect_and_build(
-    params: &BuildParams,
-    source_dir: &Path,
-    install_path: &Path,
-) -> Result<()> {
+fn detect_and_build(params: &BuildParams, source_dir: &Path, install_path: &Path) -> Result<()> {
     if source_dir.join("CMakeLists.txt").exists() {
         build_cmake(params, source_dir, install_path)
     } else if source_dir.join("configure").exists() {
@@ -336,11 +331,7 @@ fn run_autogen(params: &BuildParams, source_dir: &Path) -> Result<()> {
 }
 
 /// Build using autotools (configure/make/make install).
-fn build_autotools(
-    params: &BuildParams,
-    source_dir: &Path,
-    install_path: &Path,
-) -> Result<()> {
+fn build_autotools(params: &BuildParams, source_dir: &Path, install_path: &Path) -> Result<()> {
     info!("Using autotools build system");
 
     let mut configure_cmd = Command::new("./configure");
@@ -379,11 +370,7 @@ fn build_autotools(
 }
 
 /// Build using CMake.
-fn build_cmake(
-    params: &BuildParams,
-    source_dir: &Path,
-    install_path: &Path,
-) -> Result<()> {
+fn build_cmake(params: &BuildParams, source_dir: &Path, install_path: &Path) -> Result<()> {
     info!("Using CMake build system");
 
     let build_dir = source_dir.join("build");
@@ -441,11 +428,7 @@ fn build_cmake(
 }
 
 /// Build using plain Makefile.
-fn build_make(
-    params: &BuildParams,
-    source_dir: &Path,
-    install_path: &Path,
-) -> Result<()> {
+fn build_make(params: &BuildParams, source_dir: &Path, install_path: &Path) -> Result<()> {
     info!("Using Makefile build system");
 
     let mut make_cmd = Command::new("make");
@@ -474,11 +457,7 @@ fn build_make(
 }
 
 /// Build using Meson.
-fn build_meson(
-    params: &BuildParams,
-    source_dir: &Path,
-    install_path: &Path,
-) -> Result<()> {
+fn build_meson(params: &BuildParams, source_dir: &Path, install_path: &Path) -> Result<()> {
     info!("Using Meson build system");
 
     let build_dir = source_dir.join("build");
@@ -527,11 +506,7 @@ fn build_meson(
 }
 
 /// Build using Cargo (Rust).
-fn build_cargo(
-    params: &BuildParams,
-    source_dir: &Path,
-    install_path: &Path,
-) -> Result<()> {
+fn build_cargo(params: &BuildParams, source_dir: &Path, install_path: &Path) -> Result<()> {
     info!("Using Cargo build system");
 
     let build_status = Command::new("cargo")
@@ -681,13 +656,12 @@ impl HeadBuilder {
 
         args.extend_from_slice(&[&self.config.git_url, repo_dir.to_str().unwrap()]);
 
-        let status = Command::new("git")
-            .args(&args)
-            .status()
-            .map_err(|e| Error::Build(BuildError::GitCloneFailed {
+        let status = Command::new("git").args(&args).status().map_err(|e| {
+            Error::Build(BuildError::GitCloneFailed {
                 package: self.config.name.clone(),
                 reason: e.to_string(),
-            }))?;
+            })
+        })?;
 
         if !status.success() {
             return Err(Error::Build(BuildError::GitCloneFailed {
@@ -703,13 +677,15 @@ impl HeadBuilder {
     /// Get the current commit SHA from the cloned repository
     fn get_commit_sha(&self, repo_dir: &Path) -> Result<(String, String)> {
         let output = Command::new("git")
-            .args(&["rev-parse", "HEAD"])
+            .args(["rev-parse", "HEAD"])
             .current_dir(repo_dir)
             .output()
-            .map_err(|e| Error::Build(BuildError::GitFailed {
-                package: self.config.name.clone(),
-                reason: e.to_string(),
-            }))?;
+            .map_err(|e| {
+                Error::Build(BuildError::GitFailed {
+                    package: self.config.name.clone(),
+                    reason: e.to_string(),
+                })
+            })?;
 
         if !output.status.success() {
             return Err(Error::Build(BuildError::GitFailed {
@@ -747,9 +723,7 @@ impl HeadBuilder {
         };
 
         // HEAD builds also check for autogen.sh before configure
-        if source_dir.join("autogen.sh").exists()
-            && !source_dir.join("configure").exists()
-        {
+        if source_dir.join("autogen.sh").exists() && !source_dir.join("configure").exists() {
             run_autogen(&params, source_dir)?;
         }
 

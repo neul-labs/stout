@@ -331,14 +331,22 @@ fn relocate_file(path: &Path, prefix: &str, cellar: &str) -> Result<bool> {
     let mut file = match File::open(path) {
         Ok(f) => f,
         Err(e) => {
-            warn!("Could not open file for relocation: {}: {}", path.display(), e);
+            warn!(
+                "Could not open file for relocation: {}: {}",
+                path.display(),
+                e
+            );
             return Ok(false);
         }
     };
 
     let mut contents = Vec::new();
     if let Err(e) = file.read_to_end(&mut contents) {
-        warn!("Could not read file for relocation: {}: {}", path.display(), e);
+        warn!(
+            "Could not read file for relocation: {}: {}",
+            path.display(),
+            e
+        );
         return Ok(false);
     }
     drop(file);
@@ -400,11 +408,7 @@ fn replace_bytes(haystack: &[u8], needle: &[u8], replacement: &[u8]) -> Vec<u8> 
     result
 }
 
-fn replace_bytes_padded(
-    haystack: &[u8],
-    needle: &[u8],
-    replacement: &[u8],
-) -> Option<Vec<u8>> {
+fn replace_bytes_padded(haystack: &[u8], needle: &[u8], replacement: &[u8]) -> Option<Vec<u8>> {
     if needle.is_empty() {
         return Some(haystack.to_vec());
     }
@@ -470,7 +474,7 @@ fn parse_macho_load_commands(path: &Path) -> Result<Vec<MachLoadCommand>> {
         .arg("-l")
         .arg(path)
         .output()
-        .map_err(|e| Error::Io(e))?;
+        .map_err(Error::Io)?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut commands = Vec::new();
@@ -587,7 +591,11 @@ fn relocate_macho_binary(path: &Path, prefix: &str, cellar: &str) -> Result<bool
     let _guard = match WriteGuard::acquire(path) {
         Ok(g) => g,
         Err(e) => {
-            warn!("Could not make Mach-O binary writable: {}: {}", path.display(), e);
+            warn!(
+                "Could not make Mach-O binary writable: {}: {}",
+                path.display(),
+                e
+            );
             return Ok(false);
         }
     };
@@ -631,12 +639,10 @@ fn relocate_macho_binary(path: &Path, prefix: &str, cellar: &str) -> Result<bool
                 let new_path = replace_homebrew_placeholders(old_path, prefix, cellar);
 
                 let result = match lc {
-                    MachLoadCommand::DylibId(_) => {
-                        std::process::Command::new("install_name_tool")
-                            .args(["-id", &new_path])
-                            .arg(path)
-                            .output()
-                    }
+                    MachLoadCommand::DylibId(_) => std::process::Command::new("install_name_tool")
+                        .args(["-id", &new_path])
+                        .arg(path)
+                        .output(),
                     MachLoadCommand::LoadDylib(_) => {
                         std::process::Command::new("install_name_tool")
                             .args(["-change", old_path, &new_path])
@@ -679,7 +685,11 @@ fn relocate_macho_binary(path: &Path, prefix: &str, cellar: &str) -> Result<bool
             }
         }
         Err(e) => {
-            warn!("Could not parse load commands for {}: {}", path.display(), e);
+            warn!(
+                "Could not parse load commands for {}: {}",
+                path.display(),
+                e
+            );
         }
     }
 

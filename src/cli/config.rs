@@ -1,9 +1,9 @@
 //! Config command - show stout configuration
 
 use anyhow::Result;
-use stout_state::{Config, Paths};
 use clap::Args as ClapArgs;
 use console::style;
+use stout_state::{Config, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {}
@@ -16,7 +16,7 @@ pub async fn run(_args: Args) -> Result<()> {
     println!("  {}", env!("CARGO_PKG_VERSION"));
 
     println!("\n{}", style("ORIGIN").green().bold());
-    println!("  {}", "https://github.com/neul-labs/stout");
+    println!("  https://github.com/neul-labs/stout");
 
     println!("\n{}", style("HOMEBREW_PREFIX").green().bold());
     println!("  {}", paths.prefix.display());
@@ -89,16 +89,23 @@ pub async fn run(_args: Args) -> Result<()> {
     println!("  {}", sig_status);
 
     if config.security.allow_unsigned {
-        println!("  {} {}", style("⚠").yellow(), style("Unsigned indexes allowed").yellow());
+        println!(
+            "  {} {}",
+            style("⚠").yellow(),
+            style("Unsigned indexes allowed").yellow()
+        );
     } else {
-        println!("  {} {}", style("✓").green(), "Unsigned indexes blocked");
+        println!("  {} Unsigned indexes blocked", style("✓").green());
     }
 
     let max_age_days = config.security.max_signature_age / (24 * 60 * 60);
     println!("  Max signature age: {} days", max_age_days);
 
     if !config.security.additional_trusted_keys.is_empty() {
-        println!("  {} additional trusted keys configured", config.security.additional_trusted_keys.len());
+        println!(
+            "  {} additional trusted keys configured",
+            config.security.additional_trusted_keys.len()
+        );
     }
 
     Ok(())

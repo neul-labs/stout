@@ -1,12 +1,12 @@
 //! Snapshot command - Save and restore system state
 
 use anyhow::{bail, Result};
-use stout_bundle::{Snapshot, SnapshotManager};
-use stout_cask::InstalledCasks;
-use stout_state::{InstalledPackages, Paths};
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
 use std::io::{self, Read, Write};
+use stout_bundle::{Snapshot, SnapshotManager};
+use stout_cask::InstalledCasks;
+use stout_state::{InstalledPackages, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -195,14 +195,10 @@ async fn run_list(args: ListArgs) -> Result<()> {
     println!("{} snapshot(s):\n", snapshots.len());
 
     for snap in snapshots {
-        print!(
-            "{} ",
-            style(&snap.name).green().bold()
-        );
+        print!("{} ", style(&snap.name).green().bold());
         print!(
             "({} formulas, {} casks)",
-            snap.formula_count,
-            snap.cask_count
+            snap.formula_count, snap.cask_count
         );
         println!(" {}", style(&snap.created_at).dim());
 
@@ -260,24 +256,21 @@ async fn run_show(args: ShowArgs) -> Result<()> {
 
     // Casks
     if !snapshot.casks.is_empty() {
-        println!(
-            "{} ({}):",
-            style("Casks").bold(),
-            snapshot.casks.len()
-        );
+        println!("{} ({}):", style("Casks").bold(), snapshot.casks.len());
         for c in &snapshot.casks {
-            println!("  {} {} {}", style("●").dim(), c.token, style(&c.version).dim());
+            println!(
+                "  {} {} {}",
+                style("●").dim(),
+                c.token,
+                style(&c.version).dim()
+            );
         }
         println!();
     }
 
     // Pinned
     if !snapshot.pinned.is_empty() {
-        println!(
-            "{} ({}):",
-            style("Pinned").bold(),
-            snapshot.pinned.len()
-        );
+        println!("{} ({}):", style("Pinned").bold(), snapshot.pinned.len());
         for name in &snapshot.pinned {
             println!("  {} {}", style("📌").dim(), name);
         }
@@ -292,11 +285,7 @@ async fn run_restore(args: RestoreArgs) -> Result<()> {
 
     let snapshot = manager.load(&args.name)?;
 
-    println!(
-        "{} '{}'...",
-        style("Restoring snapshot").cyan(),
-        args.name
-    );
+    println!("{} '{}'...", style("Restoring snapshot").cyan(), args.name);
 
     let installed = InstalledPackages::load(&paths)?;
     let state_path = paths.stout_dir.join("casks.json");
@@ -368,10 +357,7 @@ async fn run_delete(args: DeleteArgs) -> Result<()> {
     }
 
     if !args.force {
-        print!(
-            "Delete snapshot '{}'? [y/N] ",
-            args.name
-        );
+        print!("Delete snapshot '{}'? [y/N] ", args.name);
         io::stdout().flush()?;
 
         let mut input = String::new();
@@ -384,11 +370,7 @@ async fn run_delete(args: DeleteArgs) -> Result<()> {
     }
 
     manager.delete(&args.name)?;
-    println!(
-        "{} Deleted snapshot '{}'",
-        style("✓").green(),
-        args.name
-    );
+    println!("{} Deleted snapshot '{}'", style("✓").green(), args.name);
 
     Ok(())
 }

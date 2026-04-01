@@ -96,29 +96,27 @@ pub async fn run(args: Args) -> Result<()> {
             paths: dep_paths.clone(),
         };
         println!("{}", serde_json::to_string_pretty(&output)?);
+    } else if dep_paths.is_empty() {
+        println!(
+            "{} is installed but no dependency path found (orphan)",
+            style(&args.formula).cyan()
+        );
+        println!(
+            "  {} Consider running 'stout autoremove' to clean up",
+            style("Hint:").yellow()
+        );
     } else {
-        if dep_paths.is_empty() {
-            println!(
-                "{} is installed but no dependency path found (orphan)",
-                style(&args.formula).cyan()
-            );
-            println!(
-                "  {} Consider running 'stout autoremove' to clean up",
-                style("Hint:").yellow()
-            );
-        } else {
-            println!(
-                "{} is installed because:",
-                style(&args.formula).cyan().bold()
-            );
-            println!();
+        println!(
+            "{} is installed because:",
+            style(&args.formula).cyan().bold()
+        );
+        println!();
 
-            for (i, path) in dep_paths.iter().enumerate() {
-                if i > 0 {
-                    println!();
-                }
-                print_dependency_path(path);
+        for (i, path) in dep_paths.iter().enumerate() {
+            if i > 0 {
+                println!();
             }
+            print_dependency_path(path);
         }
     }
 

@@ -115,7 +115,10 @@ pub fn check_first_run_import(installed: &mut InstalledPackages, paths: &Paths) 
         for cask in &untracked_casks {
             let timestamp = crate::cli::import::timestamp_now_iso();
             let imported_cask = stout_cask::InstalledCask {
-                version: cask.version.clone().unwrap_or_else(|| "unknown".to_string()),
+                version: cask
+                    .version
+                    .clone()
+                    .unwrap_or_else(|| "unknown".to_string()),
                 installed_at: timestamp,
                 artifact_path: std::path::PathBuf::from(""),
                 auto_updates: false,
@@ -134,4 +137,3 @@ pub fn check_first_run_import(installed: &mut InstalledPackages, paths: &Paths) 
 
     Ok(true)
 }
-

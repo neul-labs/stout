@@ -1,13 +1,13 @@
 //! Bundle command - Brewfile management
 
 use anyhow::{bail, Context, Result};
-use stout_bundle::{Brewfile, BrewEntry, CaskEntry, TapEntry};
+use clap::{Args as ClapArgs, Subcommand};
+use console::style;
+use std::path::{Path, PathBuf};
+use stout_bundle::{BrewEntry, Brewfile, CaskEntry, TapEntry};
 use stout_cask::{install_cask, CaskInstallOptions, InstalledCasks};
 use stout_index::{Database, IndexSync};
 use stout_state::{Config, InstalledPackages, Paths};
-use clap::{Args as ClapArgs, Subcommand};
-use console::style;
-use std::path::PathBuf;
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -134,12 +134,8 @@ pub async fn run(args: Args) -> Result<()> {
     }
 }
 
-async fn run_install(brewfile_path: &PathBuf, args: InstallArgs) -> Result<()> {
-    println!(
-        "{} {}...",
-        style("Parsing").cyan(),
-        brewfile_path.display()
-    );
+async fn run_install(brewfile_path: &Path, args: InstallArgs) -> Result<()> {
+    println!("{} {}...", style("Parsing").cyan(), brewfile_path.display());
 
     let brewfile = Brewfile::parse(brewfile_path)
         .context(format!("Failed to parse {}", brewfile_path.display()))?;
@@ -245,11 +241,7 @@ async fn run_install(brewfile_path: &PathBuf, args: InstallArgs) -> Result<()> {
             let formula = match db.get_formula(&brew.name)? {
                 Some(f) => f,
                 None => {
-                    eprintln!(
-                        "  {} Formula '{}' not found",
-                        style("✗").red(),
-                        brew.name
-                    );
+                    eprintln!("  {} Formula '{}' not found", style("✗").red(), brew.name);
                     continue;
                 }
             };
@@ -325,7 +317,7 @@ async fn run_install(brewfile_path: &PathBuf, args: InstallArgs) -> Result<()> {
     Ok(())
 }
 
-async fn run_dump(brewfile_path: &PathBuf, args: DumpArgs) -> Result<()> {
+async fn run_dump(brewfile_path: &Path, args: DumpArgs) -> Result<()> {
     if brewfile_path.exists() && !args.force && !args.stdout {
         bail!(
             "{} already exists. Use --force to overwrite.",
@@ -354,17 +346,13 @@ async fn run_dump(brewfile_path: &PathBuf, args: DumpArgs) -> Result<()> {
         print!("{}", content);
     } else {
         std::fs::write(brewfile_path, &content)?;
-        println!(
-            "{} {}",
-            style("Created").green(),
-            brewfile_path.display()
-        );
+        println!("{} {}", style("Created").green(), brewfile_path.display());
     }
 
     Ok(())
 }
 
-async fn run_check(brewfile_path: &PathBuf, args: CheckArgs) -> Result<()> {
+async fn run_check(brewfile_path: &Path, args: CheckArgs) -> Result<()> {
     let brewfile = Brewfile::parse(brewfile_path)?;
 
     let paths = Paths::default();
@@ -390,28 +378,21 @@ async fn run_check(brewfile_path: &PathBuf, args: CheckArgs) -> Result<()> {
     }
 
     if missing_formulas.is_empty() && missing_casks.is_empty() {
-        println!(
-            "{} All dependencies are satisfied.",
-            style("✓").green()
-        );
+        println!("{} All dependencies are satisfied.", style("✓").green());
         return Ok(());
     }
 
-    if args.verbose || !missing_formulas.is_empty() {
-        if !missing_formulas.is_empty() {
-            println!("{}:", style("Missing formulas").yellow());
-            for name in &missing_formulas {
-                println!("  {} {}", style("•").dim(), name);
-            }
+    if (args.verbose || !missing_formulas.is_empty()) && !missing_formulas.is_empty() {
+        println!("{}:", style("Missing formulas").yellow());
+        for name in &missing_formulas {
+            println!("  {} {}", style("•").dim(), name);
         }
     }
 
-    if args.verbose || !missing_casks.is_empty() {
-        if !missing_casks.is_empty() {
-            println!("{}:", style("Missing casks").yellow());
-            for name in &missing_casks {
-                println!("  {} {}", style("•").dim(), name);
-            }
+    if (args.verbose || !missing_casks.is_empty()) && !missing_casks.is_empty() {
+        println!("{}:", style("Missing casks").yellow());
+        for name in &missing_casks {
+            println!("  {} {}", style("•").dim(), name);
         }
     }
 
@@ -426,7 +407,7 @@ async fn run_check(brewfile_path: &PathBuf, args: CheckArgs) -> Result<()> {
     std::process::exit(1);
 }
 
-async fn run_list(brewfile_path: &PathBuf, args: ListArgs) -> Result<()> {
+async fn run_list(brewfile_path: &Path, args: ListArgs) -> Result<()> {
     let brewfile = Brewfile::parse(brewfile_path)?;
 
     if args.json {
@@ -437,50 +418,42 @@ async fn run_list(brewfile_path: &PathBuf, args: ListArgs) -> Result<()> {
     let show_all = args.r#type.is_none();
     let filter_type = args.r#type.as_deref();
 
-    if show_all || filter_type == Some("tap") {
-        if !brewfile.taps.is_empty() {
-            println!("{}:", style("Taps").bold());
-            for tap in &brewfile.taps {
-                println!("  {}", tap.name);
-            }
-            println!();
+    if (show_all || filter_type == Some("tap")) && !brewfile.taps.is_empty() {
+        println!("{}:", style("Taps").bold());
+        for tap in &brewfile.taps {
+            println!("  {}", tap.name);
         }
+        println!();
     }
 
-    if show_all || filter_type == Some("brew") {
-        if !brewfile.brews.is_empty() {
-            println!("{}:", style("Formulas").bold());
-            for brew in &brewfile.brews {
-                println!("  {}", brew.name);
-            }
-            println!();
+    if (show_all || filter_type == Some("brew")) && !brewfile.brews.is_empty() {
+        println!("{}:", style("Formulas").bold());
+        for brew in &brewfile.brews {
+            println!("  {}", brew.name);
         }
+        println!();
     }
 
-    if show_all || filter_type == Some("cask") {
-        if !brewfile.casks.is_empty() {
-            println!("{}:", style("Casks").bold());
-            for cask in &brewfile.casks {
-                println!("  {}", cask.name);
-            }
-            println!();
+    if (show_all || filter_type == Some("cask")) && !brewfile.casks.is_empty() {
+        println!("{}:", style("Casks").bold());
+        for cask in &brewfile.casks {
+            println!("  {}", cask.name);
         }
+        println!();
     }
 
-    if show_all || filter_type == Some("mas") {
-        if !brewfile.mas.is_empty() {
-            println!("{}:", style("Mac App Store").bold());
-            for mas in &brewfile.mas {
-                println!("  {} ({})", mas.name, mas.id);
-            }
-            println!();
+    if (show_all || filter_type == Some("mas")) && !brewfile.mas.is_empty() {
+        println!("{}:", style("Mac App Store").bold());
+        for mas in &brewfile.mas {
+            println!("  {} ({})", mas.name, mas.id);
         }
+        println!();
     }
 
     Ok(())
 }
 
-async fn run_cleanup(brewfile_path: &PathBuf, args: CleanupArgs) -> Result<()> {
+async fn run_cleanup(brewfile_path: &Path, args: CleanupArgs) -> Result<()> {
     let brewfile = Brewfile::parse(brewfile_path)?;
 
     let paths = Paths::default();
@@ -509,10 +482,7 @@ async fn run_cleanup(brewfile_path: &PathBuf, args: CleanupArgs) -> Result<()> {
         .collect();
 
     if extra_formulas.is_empty() && extra_casks.is_empty() {
-        println!(
-            "{} No extra packages to remove.",
-            style("✓").green()
-        );
+        println!("{} No extra packages to remove.", style("✓").green());
         return Ok(());
     }
 

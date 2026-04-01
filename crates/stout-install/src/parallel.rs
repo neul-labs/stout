@@ -101,7 +101,9 @@ impl ParallelInstaller {
 
             join_set.spawn(async move {
                 // Acquire semaphore permit
-                let _permit = semaphore.acquire().await
+                let _permit = semaphore
+                    .acquire()
+                    .await
                     .map_err(|e| crate::error::Error::Other(format!("Semaphore error: {}", e)))?;
 
                 // Run blocking extraction in a spawn_blocking
@@ -130,12 +132,7 @@ impl ParallelInstaller {
             match result {
                 Ok(Ok(item)) => results.push(item),
                 Ok(Err(e)) => return Err(e),
-                Err(e) => {
-                    return Err(crate::error::Error::Other(format!(
-                        "Task panic: {}",
-                        e
-                    )))
-                }
+                Err(e) => return Err(crate::error::Error::Other(format!("Task panic: {}", e))),
             }
         }
 
@@ -177,18 +174,21 @@ impl ParallelInstaller {
             let semaphore = Arc::clone(&semaphore);
 
             join_set.spawn(async move {
-                let _permit = semaphore.acquire().await
+                let _permit = semaphore
+                    .acquire()
+                    .await
                     .map_err(|e| crate::error::Error::Other(format!("Semaphore error: {}", e)))?;
 
                 let name = pkg.name.clone();
                 let install_path = pkg.install_path.clone();
                 let prefix_clone = prefix.clone();
 
-                let linked = tokio::task::spawn_blocking(move || {
-                    link_package(&install_path, &prefix_clone)
-                })
-                .await
-                .map_err(|e| crate::error::Error::Other(format!("Task join error: {}", e)))??;
+                let linked =
+                    tokio::task::spawn_blocking(move || link_package(&install_path, &prefix_clone))
+                        .await
+                        .map_err(|e| {
+                            crate::error::Error::Other(format!("Task join error: {}", e))
+                        })??;
 
                 debug!("Linked {} ({} files)", name, linked.len());
                 Ok::<_, crate::error::Error>((name, linked))
@@ -200,12 +200,7 @@ impl ParallelInstaller {
             match result {
                 Ok(Ok(item)) => results.push(item),
                 Ok(Err(e)) => return Err(e),
-                Err(e) => {
-                    return Err(crate::error::Error::Other(format!(
-                        "Task panic: {}",
-                        e
-                    )))
-                }
+                Err(e) => return Err(crate::error::Error::Other(format!("Task panic: {}", e))),
             }
         }
 
@@ -249,11 +244,13 @@ impl ParallelInstaller {
         let results: Vec<PackageInstallResult> = extracted
             .into_iter()
             .zip(linked.into_iter())
-            .map(|((name, install_path), (_, linked_files))| PackageInstallResult {
-                name,
-                install_path,
-                linked_files,
-            })
+            .map(
+                |((name, install_path), (_, linked_files))| PackageInstallResult {
+                    name,
+                    install_path,
+                    linked_files,
+                },
+            )
             .collect();
 
         Ok(results)

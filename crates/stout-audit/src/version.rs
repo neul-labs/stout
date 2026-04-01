@@ -103,7 +103,7 @@ fn parse_version(v: &str) -> Vec<VersionPart> {
     let mut parts = Vec::new();
 
     // Split on common separators
-    for segment in v.split(|c: char| c == '.' || c == '-' || c == '_') {
+    for segment in v.split(['.', '-', '_']) {
         if segment.is_empty() {
             continue;
         }
@@ -145,10 +145,10 @@ enum VersionPart {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum PreRelease {
-    Dev,    // dev, snapshot (lowest)
-    Alpha,  // alpha, a
-    Beta,   // beta, b
-    RC,     // rc, pre
+    Dev,   // dev, snapshot (lowest)
+    Alpha, // alpha, a
+    Beta,  // beta, b
+    RC,    // rc, pre
 }
 
 impl PartialOrd for VersionPart {
@@ -193,7 +193,7 @@ fn version_in_range(version: &str, range: &str) -> bool {
     // - "<= 1.5"
 
     let constraints: Vec<&str> = range
-        .split(|c| c == ',' || c == ';')
+        .split([',', ';'])
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
         .collect();
@@ -209,9 +209,9 @@ fn version_in_range(version: &str, range: &str) -> bool {
 
     if !has_operators {
         // Explicit version list - check if our version matches any
-        return constraints.iter().any(|c| {
-            compare_versions(version, c) == std::cmp::Ordering::Equal
-        });
+        return constraints
+            .iter()
+            .any(|c| compare_versions(version, c) == std::cmp::Ordering::Equal);
     }
 
     // Range constraints - all must be satisfied

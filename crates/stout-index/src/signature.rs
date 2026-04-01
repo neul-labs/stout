@@ -98,13 +98,11 @@ impl SignatureVerifier {
         debug!("Verifying signature for manifest");
 
         // Parse the signature
-        let signature_bytes = hex::decode(&manifest.signature).map_err(|e| {
-            Error::SignatureInvalid(format!("Invalid signature hex: {}", e))
-        })?;
+        let signature_bytes = hex::decode(&manifest.signature)
+            .map_err(|e| Error::SignatureInvalid(format!("Invalid signature hex: {}", e)))?;
 
-        let signature = Signature::from_slice(&signature_bytes).map_err(|e| {
-            Error::SignatureInvalid(format!("Invalid signature format: {}", e))
-        })?;
+        let signature = Signature::from_slice(&signature_bytes)
+            .map_err(|e| Error::SignatureInvalid(format!("Invalid signature format: {}", e)))?;
 
         // Try each public key
         for key in &self.public_keys {
@@ -185,9 +183,8 @@ impl VerificationResult {
 
 /// Parse a hex-encoded public key
 fn parse_public_key(hex_key: &str) -> Result<VerifyingKey> {
-    let key_bytes = hex::decode(hex_key).map_err(|e| {
-        Error::SignatureInvalid(format!("Invalid public key hex: {}", e))
-    })?;
+    let key_bytes = hex::decode(hex_key)
+        .map_err(|e| Error::SignatureInvalid(format!("Invalid public key hex: {}", e)))?;
 
     if key_bytes.len() != 32 {
         return Err(Error::SignatureInvalid(format!(
@@ -199,9 +196,8 @@ fn parse_public_key(hex_key: &str) -> Result<VerifyingKey> {
     let mut key_array = [0u8; 32];
     key_array.copy_from_slice(&key_bytes);
 
-    VerifyingKey::from_bytes(&key_array).map_err(|e| {
-        Error::SignatureInvalid(format!("Invalid public key: {}", e))
-    })
+    VerifyingKey::from_bytes(&key_array)
+        .map_err(|e| Error::SignatureInvalid(format!("Invalid public key: {}", e)))
 }
 
 /// Compute SHA-256 hash of a file

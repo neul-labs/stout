@@ -3,16 +3,18 @@
 use crate::download::ArtifactType;
 use crate::error::{Error, Result};
 use crate::install::CaskInstallOptions;
-use stout_index::Cask;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use stout_index::Cask;
 use tracing::{debug, info, warn};
 
 /// Validate a cask token for safe use in file paths
 fn validate_token(token: &str) -> Result<()> {
     if token.is_empty() {
-        return Err(Error::InvalidInput("cask token cannot be empty".to_string()));
+        return Err(Error::InvalidInput(
+            "cask token cannot be empty".to_string(),
+        ));
     }
     if token.contains("..") || token.contains('/') || token.contains('\0') {
         return Err(Error::InvalidInput(format!(
@@ -36,7 +38,11 @@ impl Drop for TempDirGuard {
     fn drop(&mut self) {
         if self.0.exists() {
             if let Err(e) = std::fs::remove_dir_all(&self.0) {
-                warn!("Failed to clean up temp directory {}: {}", self.0.display(), e);
+                warn!(
+                    "Failed to clean up temp directory {}: {}",
+                    self.0.display(),
+                    e
+                );
             }
         }
     }
@@ -104,7 +110,11 @@ async fn install_appimage(
     }
     std::os::unix::fs::symlink(&dest, &bin_link)?;
 
-    info!("Created symlink {} -> {}", bin_link.display(), dest.display());
+    info!(
+        "Created symlink {} -> {}",
+        bin_link.display(),
+        dest.display()
+    );
 
     // Try to extract .desktop file
     if let Err(e) = extract_desktop_file(&dest, token) {
@@ -137,7 +147,11 @@ async fn install_from_archive(
         ArtifactType::Zip => vec!["-xf"],
         ArtifactType::TarGz => vec!["-xzf"],
         ArtifactType::TarBz2 => vec!["-xjf"],
-        _ => return Err(Error::UnsupportedPlatform("Unknown archive type".to_string())),
+        _ => {
+            return Err(Error::UnsupportedPlatform(
+                "Unknown archive type".to_string(),
+            ))
+        }
     };
 
     let cmd = if artifact_type == ArtifactType::Zip {

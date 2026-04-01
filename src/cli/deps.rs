@@ -254,7 +254,7 @@ async fn build_graph(
 
         // Recursively add subdependencies
         if let Ok(formula) = sync.fetch_formula_cached(dep, None).await {
-            let subdeps: Vec<String> = formula.runtime_deps().iter().cloned().collect();
+            let subdeps: Vec<String> = formula.runtime_deps().to_vec();
             if !subdeps.is_empty() {
                 Box::pin(build_graph(dep, &subdeps, sync, nodes, edges, visited)).await?;
             }
@@ -337,7 +337,7 @@ async fn print_dep_tree(
             visited.insert(dep.clone());
 
             if let Ok(formula) = sync.fetch_formula_cached(dep, None).await {
-                let subdeps: Vec<String> = formula.runtime_deps().iter().cloned().collect();
+                let subdeps: Vec<String> = formula.runtime_deps().to_vec();
                 if !subdeps.is_empty() {
                     let child_indent = if is_last { "    " } else { "│   " };
                     let new_indent = format!("{}{}", indent, child_indent);
@@ -373,7 +373,7 @@ async fn print_dep_tree_with_indent(
             visited.insert(dep.clone());
 
             if let Ok(formula) = sync.fetch_formula_cached(dep, None).await {
-                let subdeps: Vec<String> = formula.runtime_deps().iter().cloned().collect();
+                let subdeps: Vec<String> = formula.runtime_deps().to_vec();
                 if !subdeps.is_empty() {
                     let child_indent = if is_last { "    " } else { "│   " };
                     let new_indent = format!("{}{}", base_indent, child_indent);

@@ -2,10 +2,10 @@
 
 use crate::error::{Error, Result};
 use crate::manifest::{BottleInfo, MirrorManifest, PackageInfo};
-use stout_index::{Database, FormulaInfo};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use stout_index::{Database, FormulaInfo};
 use tracing::{debug, info};
 
 /// Configuration for creating a mirror
@@ -107,10 +107,8 @@ pub async fn create_mirror(config: MirrorConfig, db: &Database) -> Result<Mirror
             for platform in &config.platforms {
                 // Construct bottle URL from Homebrew's CDN
                 let bottle_url = construct_bottle_url(package, &formula.version, platform);
-                let bottle_filename = format!(
-                    "{}-{}.{}.bottle.tar.gz",
-                    package, formula.version, platform
-                );
+                let bottle_filename =
+                    format!("{}-{}.{}.bottle.tar.gz", package, formula.version, platform);
                 let bottle_path = format!("formulas/bottles/{}", bottle_filename);
                 let bottle_dest = config.output.join(&bottle_path);
 
@@ -133,7 +131,10 @@ pub async fn create_mirror(config: MirrorConfig, db: &Database) -> Result<Mirror
                         manifest.total_size += size;
                     }
                     Err(e) => {
-                        debug!("Failed to download bottle for {}/{}: {}", package, platform, e);
+                        debug!(
+                            "Failed to download bottle for {}/{}: {}",
+                            package, platform, e
+                        );
                     }
                 }
             }
@@ -238,9 +239,7 @@ async fn download_bottle(url: &str, dest: &Path) -> Result<u64> {
     let response = client.get(url).send().await?;
 
     if !response.status().is_success() {
-        return Err(Error::Network(
-            response.error_for_status().unwrap_err()
-        ));
+        return Err(Error::Network(response.error_for_status().unwrap_err()));
     }
 
     let bytes = response.bytes().await?;

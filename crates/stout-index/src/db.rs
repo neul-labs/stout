@@ -193,9 +193,9 @@ impl Database {
 
     /// Get dependencies for a formula
     pub fn get_dependencies(&self, formula: &str) -> Result<Vec<Dependency>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT dep_name, dep_type FROM dependencies WHERE formula = ?",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT dep_name, dep_type FROM dependencies WHERE formula = ?")?;
 
         let deps = stmt
             .query_map([formula], |row| {
@@ -251,7 +251,12 @@ impl Database {
 
         let names = stmt
             .query_map(
-                params![pattern_prefix, pattern_contains, pattern_prefix, limit as i64],
+                params![
+                    pattern_prefix,
+                    pattern_contains,
+                    pattern_prefix,
+                    limit as i64
+                ],
                 |row| row.get(0),
             )?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -387,7 +392,13 @@ impl Database {
 
         let tokens = stmt
             .query_map(
-                params![pattern_prefix, pattern_contains, pattern_contains, pattern_prefix, limit as i64],
+                params![
+                    pattern_prefix,
+                    pattern_contains,
+                    pattern_contains,
+                    pattern_prefix,
+                    limit as i64
+                ],
                 |row| row.get(0),
             )?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -396,7 +407,11 @@ impl Database {
     }
 
     /// Search both formulas and casks
-    pub fn search_all(&self, query: &str, limit: usize) -> Result<(Vec<FormulaInfo>, Vec<CaskInfo>)> {
+    pub fn search_all(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> Result<(Vec<FormulaInfo>, Vec<CaskInfo>)> {
         let formulas = self.search(query, limit)?;
         let casks = self.search_casks(query, limit)?;
         Ok((formulas, casks))
@@ -442,7 +457,12 @@ impl<'a> Transaction<'a> {
     }
 
     /// Insert a dependency
-    pub fn insert_dependency(&self, formula: &str, dep_name: &str, dep_type: DependencyType) -> Result<()> {
+    pub fn insert_dependency(
+        &self,
+        formula: &str,
+        dep_name: &str,
+        dep_type: DependencyType,
+    ) -> Result<()> {
         self.tx.execute(
             "INSERT OR IGNORE INTO dependencies (formula, dep_name, dep_type) VALUES (?, ?, ?)",
             params![formula, dep_name, dep_type.as_str()],

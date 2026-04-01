@@ -111,7 +111,10 @@ async fn create_formula(args: Args) -> Result<()> {
     println!("{}", style("Next steps:").bold());
     println!("  1. Edit the formula to add build instructions");
     println!("  2. Test with: stout test {}", name);
-    println!("  3. Audit with: stout audit --formula {}", output_path.display());
+    println!(
+        "  3. Audit with: stout audit --formula {}",
+        output_path.display()
+    );
 
     Ok(())
 }
@@ -175,7 +178,10 @@ async fn create_cask(args: Args) -> Result<()> {
 
     println!("{}", style("Next steps:").bold());
     println!("  1. Edit the cask to specify artifacts (app, pkg, binary, etc.)");
-    println!("  2. Audit with: stout audit --cask {}", output_path.display());
+    println!(
+        "  2. Audit with: stout audit --cask {}",
+        output_path.display()
+    );
 
     Ok(())
 }
@@ -211,9 +217,14 @@ fn extract_name_from_url(url: &str) -> Result<String> {
         .trim_end_matches(".pkg");
 
     // Remove version suffix (e.g., -1.0.0 or _1.0.0)
-    let name = if let Some(idx) = name.rfind(|c: char| c == '-' || c == '_') {
+    let name = if let Some(idx) = name.rfind(['-', '_']) {
         let suffix = &name[idx + 1..];
-        if suffix.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+        if suffix
+            .chars()
+            .next()
+            .map(|c| c.is_ascii_digit())
+            .unwrap_or(false)
+        {
             &name[..idx]
         } else {
             name
@@ -245,7 +256,12 @@ fn extract_version_from_url(url: &str) -> Option<String> {
                 .trim_end_matches(".tar.xz")
                 .trim_end_matches(".tar.bz2");
             let cleaned = stripped.trim_start_matches('v');
-            if cleaned.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+            if cleaned
+                .chars()
+                .next()
+                .map(|c| c.is_ascii_digit())
+                .unwrap_or(false)
+            {
                 // Check if it looks like a version
                 let has_dots = cleaned.contains('.');
                 let all_valid = cleaned.chars().all(|c| c.is_ascii_digit() || c == '.');
@@ -268,7 +284,12 @@ fn extract_version_from_url(url: &str) -> Option<String> {
                 .trim_end_matches(".zip")
                 .trim_end_matches(".dmg");
 
-            if version.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+            if version
+                .chars()
+                .next()
+                .map(|c| c.is_ascii_digit())
+                .unwrap_or(false)
+            {
                 return Some(version.to_string());
             }
         }
@@ -278,11 +299,10 @@ fn extract_version_from_url(url: &str) -> Option<String> {
 }
 
 async fn calculate_sha256(url: &str) -> Result<String> {
-    let client = Client::builder()
-        .user_agent("stout/0.1.0")
-        .build()?;
+    let client = Client::builder().user_agent("stout/0.1.0").build()?;
 
-    let response = client.get(url)
+    let response = client
+        .get(url)
         .send()
         .await
         .context("Failed to download file")?;
@@ -380,8 +400,6 @@ fn generate_cask(
         "app"
     } else if url.ends_with(".pkg") {
         "pkg"
-    } else if url.ends_with(".zip") {
-        "app"
     } else {
         "app"
     };
@@ -430,7 +448,7 @@ end
 
 fn to_class_name(name: &str) -> String {
     // Convert kebab-case or snake_case to PascalCase
-    name.split(|c| c == '-' || c == '_')
+    name.split(['-', '_'])
         .map(|word| {
             let mut chars = word.chars();
             match chars.next() {

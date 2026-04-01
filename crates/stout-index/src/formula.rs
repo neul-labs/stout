@@ -85,7 +85,11 @@ pub struct HeadUrlSpec {
 #[serde(untagged)]
 enum HeadUrlRaw {
     String(String),
-    Object { url: String, #[serde(default)] branch: Option<String> },
+    Object {
+        url: String,
+        #[serde(default)]
+        branch: Option<String>,
+    },
 }
 
 /// Custom deserializer for HeadUrlSpec that handles both string and object formats

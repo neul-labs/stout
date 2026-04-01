@@ -39,7 +39,10 @@ pub enum DriftChange {
         new_version: String,
     },
     /// Cask installed but not in state
-    CaskAdded { token: String, version: Option<String> },
+    CaskAdded {
+        token: String,
+        version: Option<String>,
+    },
     /// Cask in state but not installed
     CaskRemoved { token: String },
 }
@@ -261,9 +264,7 @@ pub fn apply_changes(
                 applied += 1;
             }
             DriftChange::FormulaVersionChanged {
-                name,
-                new_version,
-                ..
+                name, new_version, ..
             } => {
                 if let Some(pkg) = installed.get(name).cloned() {
                     if pkg.pinned {
@@ -316,7 +317,11 @@ pub fn apply_changes(
             DriftChange::CaskRemoved { token } => {
                 cask_state.remove(token);
                 if !quiet {
-                    println!("  {} Removed cask {} from tracking", style("✓").green(), token);
+                    println!(
+                        "  {} Removed cask {} from tracking",
+                        style("✓").green(),
+                        token
+                    );
                 }
                 applied += 1;
             }
@@ -390,4 +395,3 @@ fn describe_change(change: &DriftChange) -> String {
         }
     }
 }
-

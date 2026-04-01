@@ -4,7 +4,6 @@ use anyhow::{bail, Context, Result};
 use clap::Args as ClapArgs;
 use console::style;
 
-
 use stout_state::{Config, InstalledPackages, PackageHistory, Paths};
 
 #[derive(ClapArgs)]

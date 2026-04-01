@@ -391,14 +391,8 @@ mod tests {
 
     #[test]
     fn test_extract_quoted_string() {
-        assert_eq!(
-            extract_quoted_string("\"jq\""),
-            Some("jq".to_string())
-        );
-        assert_eq!(
-            extract_quoted_string("'jq'"),
-            Some("jq".to_string())
-        );
+        assert_eq!(extract_quoted_string("\"jq\""), Some("jq".to_string()));
+        assert_eq!(extract_quoted_string("'jq'"), Some("jq".to_string()));
         assert_eq!(
             extract_quoted_string("\"homebrew/cask\""),
             Some("homebrew/cask".to_string())

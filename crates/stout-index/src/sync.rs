@@ -447,7 +447,7 @@ impl IndexSync {
     pub async fn fetch_formula(&self, name: &str) -> Result<Formula> {
         // Try stout-index first
         match self.fetch_formula_from_index(name).await {
-            Ok(formula) => return Ok(formula),
+            Ok(formula) => Ok(formula),
             Err(Error::FormulaNotFound(_)) => {
                 // Fall back to Homebrew API
                 debug!(
@@ -456,7 +456,7 @@ impl IndexSync {
                 );
                 self.fetch_formula_from_homebrew(name).await
             }
-            Err(e) => return Err(e),
+            Err(e) => Err(e),
         }
     }
 

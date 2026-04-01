@@ -1,19 +1,18 @@
 //! Install command
 
 use anyhow::{bail, Context, Result};
-use stout_fetch::{BottleSpec, DownloadCache, DownloadClient, ProgressReporter};
-use stout_index::{Database, Formula, IndexSync};
-use stout_install::{
-    BottleInfo, BuildConfig, HeadBuildConfig, HeadBuilder, InstallReceipt,
-    ParallelInstaller, RuntimeDependency, SourceBuilder, link_package, scan_cellar_package,
-    write_receipt,
-};
-use stout_resolve::{DependencyGraph, InstallPlan, InstallStep};
-use stout_state::{Config, InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 use std::sync::Arc;
 use std::time::Instant;
+use stout_fetch::{BottleSpec, DownloadCache, DownloadClient, ProgressReporter};
+use stout_index::{Database, Formula, IndexSync};
+use stout_install::{
+    link_package, scan_cellar_package, write_receipt, BottleInfo, BuildConfig, HeadBuildConfig,
+    HeadBuilder, InstallReceipt, ParallelInstaller, RuntimeDependency, SourceBuilder,
+};
+use stout_resolve::{DependencyGraph, InstallPlan, InstallStep};
+use stout_state::{Config, InstalledPackages, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -256,8 +255,8 @@ pub async fn run(args: Args) -> Result<()> {
                 .context("Auto-update failed. Try running 'stout update' manually.")?;
 
             // Re-open the database with the fresh index
-            let fresh_db = Database::open(paths.index_db())
-                .context("Failed to re-open index after update")?;
+            let fresh_db =
+                Database::open(paths.index_db()).context("Failed to re-open index after update")?;
 
             // Re-fetch the formula — the cached JSON may also be stale
             let fresh_formula = sync
@@ -265,9 +264,11 @@ pub async fn run(args: Args) -> Result<()> {
                 .await
                 .context(format!("Failed to re-fetch formula {}", step.name))?;
 
-            if fresh_formula.version != fresh_db.get_formula(&step.name)?
-                .map(|i| i.version)
-                .unwrap_or_default()
+            if fresh_formula.version
+                != fresh_db
+                    .get_formula(&step.name)?
+                    .map(|i| i.version)
+                    .unwrap_or_default()
             {
                 bail!(
                     "Formula version mismatch persists for {} after update. \
@@ -306,7 +307,8 @@ pub async fn run(args: Args) -> Result<()> {
                 continue;
             }
 
-            let use_source = build_from_source || fresh_formula.bottle_for_platform(&platform).is_none();
+            let use_source =
+                build_from_source || fresh_formula.bottle_for_platform(&platform).is_none();
 
             if use_source {
                 if fresh_formula.urls.stable.is_none() {
@@ -537,15 +539,14 @@ pub async fn run(args: Args) -> Result<()> {
         for (step, formula) in &head_installs {
             let head_url = formula.urls.head.as_ref().expect("head URL should exist");
 
-            println!(
-                "  {} {} (from HEAD)",
-                style("Building").yellow(),
-                step.name
-            );
+            println!("  {} {} (from HEAD)", style("Building").yellow(), step.name);
 
             let head_config = HeadBuildConfig {
                 git_url: head_url.url.clone(),
-                branch: head_url.branch.clone().unwrap_or_else(|| "master".to_string()),
+                branch: head_url
+                    .branch
+                    .clone()
+                    .unwrap_or_else(|| "master".to_string()),
                 name: step.name.clone(),
                 prefix: paths.prefix.clone(),
                 cellar: paths.cellar.clone(),

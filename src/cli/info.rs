@@ -1,10 +1,10 @@
 //! Info command
 
 use anyhow::{Context, Result};
-use stout_index::{Database, IndexSync};
-use stout_state::{Config, Paths};
 use clap::Args as ClapArgs;
 use console::style;
+use stout_index::{Database, IndexSync};
+use stout_state::{Config, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -111,9 +111,7 @@ async fn show_formula_info(
     println!("{:12} {}", style("Tap:").dim(), formula.tap);
 
     // Dependencies
-    if !formula.dependencies.runtime.is_empty()
-        || !formula.dependencies.build.is_empty()
-    {
+    if !formula.dependencies.runtime.is_empty() || !formula.dependencies.build.is_empty() {
         println!("\n{}:", style("Dependencies").cyan());
 
         let deps = &formula.dependencies;
@@ -206,8 +204,20 @@ async fn show_cask_info(
     if let Some(homepage) = &cask.homepage {
         println!("{:12} {}", style("Homepage:").dim(), homepage);
     }
-    println!("{:12} {}", style("Tap:").dim(), if cask.tap.is_empty() { "homebrew/cask" } else { &cask.tap });
-    println!("{:12} {}", style("Type:").dim(), cask.primary_artifact_type());
+    println!(
+        "{:12} {}",
+        style("Tap:").dim(),
+        if cask.tap.is_empty() {
+            "homebrew/cask"
+        } else {
+            &cask.tap
+        }
+    );
+    println!(
+        "{:12} {}",
+        style("Type:").dim(),
+        cask.primary_artifact_type()
+    );
 
     // Apps
     let apps = cask.apps();
@@ -223,7 +233,7 @@ async fn show_cask_info(
         println!("\n{}:", style("Dependencies").cyan());
 
         for dep in &cask.depends_on.formula {
-            println!("  {} {} {}", "├──", dep, style("(formula)").dim());
+            println!("  ├── {} {}", dep, style("(formula)").dim());
         }
         for (i, dep) in cask.depends_on.cask.iter().enumerate() {
             let is_last = i == cask.depends_on.cask.len() - 1;

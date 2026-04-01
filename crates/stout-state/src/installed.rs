@@ -116,6 +116,7 @@ impl InstalledPackages {
     }
 
     /// Add or update a package with full metadata (used by import/sync)
+    #[allow(clippy::too_many_arguments)]
     pub fn add_imported(
         &mut self,
         name: &str,

@@ -6,9 +6,9 @@
 //! - Transparent (you can see what's collected)
 
 use anyhow::Result;
-use stout_state::{Config, Paths};
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
+use stout_state::{Config, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -47,13 +47,13 @@ async fn run_on() -> Result<()> {
     config.analytics.enabled = true;
     config.save(&paths)?;
 
-    println!(
-        "\n{} Analytics enabled\n",
-        style("✓").green().bold()
-    );
+    println!("\n{} Analytics enabled\n", style("✓").green().bold());
 
     println!("Thank you for helping improve stout!");
-    println!("Run '{}' to see what data is collected.\n", style("stout analytics what").cyan());
+    println!(
+        "Run '{}' to see what data is collected.\n",
+        style("stout analytics what").cyan()
+    );
 
     Ok(())
 }
@@ -65,10 +65,7 @@ async fn run_off() -> Result<()> {
     config.analytics.enabled = false;
     config.save(&paths)?;
 
-    println!(
-        "\n{} Analytics disabled\n",
-        style("✓").green().bold()
-    );
+    println!("\n{} Analytics disabled\n", style("✓").green().bold());
 
     Ok(())
 }
@@ -80,26 +77,32 @@ async fn run_status() -> Result<()> {
     println!("\n{}\n", style("Analytics Status").cyan().bold());
 
     if config.analytics.enabled {
+        println!("  Status: {}", style("Enabled").green());
         println!(
-            "  Status: {}",
-            style("Enabled").green()
+            "\n  Run '{}' to disable.",
+            style("stout analytics off").cyan()
         );
-        println!("\n  Run '{}' to disable.", style("stout analytics off").cyan());
     } else {
+        println!("  Status: {}", style("Disabled").dim());
         println!(
-            "  Status: {}",
-            style("Disabled").dim()
+            "\n  Run '{}' to enable.",
+            style("stout analytics on").cyan()
         );
-        println!("\n  Run '{}' to enable.", style("stout analytics on").cyan());
     }
 
-    println!("  Run '{}' to see what data is collected.\n", style("stout analytics what").cyan());
+    println!(
+        "  Run '{}' to see what data is collected.\n",
+        style("stout analytics what").cyan()
+    );
 
     Ok(())
 }
 
 async fn run_what() -> Result<()> {
-    println!("\n{}\n", style("What stout collects (when enabled)").cyan().bold());
+    println!(
+        "\n{}\n",
+        style("What stout collects (when enabled)").cyan().bold()
+    );
 
     println!("{}:", style("Anonymous usage data").bold());
     println!("  • Commands used (install, search, update, etc.)");
@@ -127,7 +130,10 @@ async fn run_what() -> Result<()> {
     println!("{}:", style("Data handling").bold());
     println!("  • Data is aggregated and anonymized");
     println!("  • No individual usage is tracked");
-    println!("  • You can disable at any time with '{}'\n", style("stout analytics off").cyan());
+    println!(
+        "  • You can disable at any time with '{}'\n",
+        style("stout analytics off").cyan()
+    );
 
     Ok(())
 }

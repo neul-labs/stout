@@ -65,17 +65,12 @@ pub struct Cask {
 }
 
 /// SHA256 can be a string or "no_check"
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CaskSha256 {
     Hash(String),
+    #[default]
     NoCheck,
-}
-
-impl Default for CaskSha256 {
-    fn default() -> Self {
-        CaskSha256::NoCheck
-    }
 }
 
 impl CaskSha256 {
@@ -185,7 +180,9 @@ impl Cask {
         self.artifacts
             .iter()
             .filter_map(|a| match a {
-                CaskArtifact::App(app) => Some(app.app.iter().map(|s| s.as_str()).collect::<Vec<_>>()),
+                CaskArtifact::App(app) => {
+                    Some(app.app.iter().map(|s| s.as_str()).collect::<Vec<_>>())
+                }
                 _ => None,
             })
             .flatten()

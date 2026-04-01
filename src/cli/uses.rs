@@ -1,10 +1,10 @@
 //! Uses command - show packages that depend on a given package
 
 use anyhow::{bail, Context, Result};
-use stout_index::Database;
-use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
+use stout_index::Database;
+use stout_state::{InstalledPackages, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -55,8 +55,9 @@ pub async fn run(args: Args) -> Result<()> {
     if args.installed {
         // Check only installed packages
         for name in installed.names() {
-            let pkg = installed.get(name)
-                .with_context(|| format!("package '{}' is in installed list but not found", name))?;
+            let pkg = installed.get(name).with_context(|| {
+                format!("package '{}' is in installed list but not found", name)
+            })?;
             if pkg.dependencies.contains(&args.formula) {
                 dependents.push(name.to_string());
             }
@@ -66,8 +67,9 @@ pub async fn run(args: Args) -> Result<()> {
         // This would require iterating all formulas - for now we'll check installed
         // and note this limitation
         for name in installed.names() {
-            let pkg = installed.get(name)
-                .with_context(|| format!("package '{}' is in installed list but not found", name))?;
+            let pkg = installed.get(name).with_context(|| {
+                format!("package '{}' is in installed list but not found", name)
+            })?;
             if pkg.dependencies.contains(&args.formula) {
                 dependents.push(name.to_string());
             }
@@ -103,12 +105,7 @@ pub async fn run(args: Args) -> Result<()> {
             .get(dep)
             .map(|p| p.version.as_str())
             .unwrap_or_default();
-        println!(
-            "  {} {} {}",
-            style("•").dim(),
-            dep,
-            style(version).dim()
-        );
+        println!("  {} {} {}", style("•").dim(), dep, style(version).dim());
     }
 
     Ok(())

@@ -41,14 +41,16 @@ impl DownloadCache {
         validate_name(version)?;
         validate_name(platform)?;
 
-        Ok(self.cache_dir
+        Ok(self
+            .cache_dir
             .join("downloads")
             .join(format!("{}-{}-{}.tar.gz", name, version, platform)))
     }
 
     /// Check if a bottle is cached
     pub fn has_bottle(&self, name: &str, version: &str, platform: &str) -> bool {
-        self.bottle_path(name, version, platform).map_or(false, |p| p.exists())
+        self.bottle_path(name, version, platform)
+            .is_ok_and(|p| p.exists())
     }
 
     /// Get a cached bottle path if it exists

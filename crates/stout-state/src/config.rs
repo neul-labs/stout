@@ -4,9 +4,8 @@ use crate::error::Result;
 use crate::paths::Paths;
 use serde::{Deserialize, Serialize};
 
-
 /// User configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Config {
     #[serde(default)]
     pub index: IndexConfig,
@@ -61,7 +60,7 @@ pub struct CacheConfig {
     pub download_ttl: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AnalyticsConfig {
     /// Enable anonymous usage analytics (opt-in)
     #[serde(default)]
@@ -209,14 +208,6 @@ impl Default for CacheConfig {
     }
 }
 
-impl Default for AnalyticsConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false, // Opt-in by default
-        }
-    }
-}
-
 impl Default for SecurityConfig {
     fn default() -> Self {
         Self {
@@ -236,19 +227,6 @@ impl SecurityConfig {
             max_signature_age: self.max_signature_age,
             additional_keys: self.additional_trusted_keys.clone(),
             allow_unsigned: self.allow_unsigned,
-        }
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            index: IndexConfig::default(),
-            install: InstallConfig::default(),
-            cache: CacheConfig::default(),
-            analytics: AnalyticsConfig::default(),
-            security: SecurityConfig::default(),
-            sync: SyncConfig::default(),
         }
     }
 }

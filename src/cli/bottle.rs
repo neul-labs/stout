@@ -1,14 +1,14 @@
 //! Bottle command - create bottles from installed packages
 
 use anyhow::{bail, Context, Result};
-use stout_install::create_bottle;
-use stout_state::{InstalledPackages, Paths};
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
 use flate2::read::GzDecoder;
 use humansize::{format_size, BINARY};
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
+use stout_install::create_bottle;
+use stout_state::{InstalledPackages, Paths};
 use tar::Archive;
 
 #[derive(ClapArgs)]
@@ -109,10 +109,7 @@ async fn run_create(
     // Get the installed package path
     let pkg_path = paths.cellar.join(&package).join(&pkg_info.version);
     if !pkg_path.exists() {
-        bail!(
-            "Package installation not found at {}",
-            pkg_path.display()
-        );
+        bail!("Package installation not found at {}", pkg_path.display());
     }
 
     // Create the bottle
@@ -127,10 +124,7 @@ async fn run_create(
 
     // Print usage hint
     println!("{}", style("To install this bottle:").dim());
-    println!(
-        "  stout install --bottle {}",
-        bottle_path.display()
-    );
+    println!("  stout install --bottle {}", bottle_path.display());
 
     Ok(())
 }

@@ -1,10 +1,10 @@
 //! Audit command - scan for vulnerabilities in installed packages
 
 use anyhow::{bail, Result};
-use stout_audit::{AuditReport, Severity, VulnDatabase, VulnDatabaseConfig};
-use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
+use stout_audit::{AuditReport, Severity, VulnDatabase, VulnDatabaseConfig};
+use stout_state::{InstalledPackages, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -68,7 +68,10 @@ impl std::str::FromStr for SeverityArg {
             "medium" | "moderate" => Ok(Self(Severity::Medium)),
             "high" => Ok(Self(Severity::High)),
             "critical" => Ok(Self(Severity::Critical)),
-            _ => Err(format!("Unknown severity: {} (use: low, medium, high, critical)", s)),
+            _ => Err(format!(
+                "Unknown severity: {} (use: low, medium, high, critical)",
+                s
+            )),
         }
     }
 }
@@ -157,10 +160,7 @@ fn print_text_report(report: &AuditReport, min_severity: Severity, show_unmapped
             "{}",
             style("No known vulnerabilities found!").green().bold()
         );
-        println!(
-            "  Scanned {} packages",
-            report.scanned_formulas.len()
-        );
+        println!("  Scanned {} packages", report.scanned_formulas.len());
 
         if !report.unmapped_formulas.is_empty() {
             println!(
@@ -226,10 +226,7 @@ fn print_text_report(report: &AuditReport, min_severity: Severity, show_unmapped
     println!("{}", style("Summary").bold().underlined());
 
     if counts.critical > 0 {
-        println!(
-            "  {} critical",
-            style(counts.critical).magenta().bold()
-        );
+        println!("  {} critical", style(counts.critical).magenta().bold());
     }
     if counts.high > 0 {
         println!("  {} high", style(counts.high).red().bold());

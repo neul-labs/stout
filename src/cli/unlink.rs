@@ -1,10 +1,10 @@
 //! Unlink command - remove symlinks for a package without uninstalling
 
 use anyhow::{bail, Result};
-use stout_install::unlink_package;
-use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
+use stout_install::unlink_package;
+use stout_state::{InstalledPackages, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -27,10 +27,7 @@ pub async fn run(args: Args) -> Result<()> {
     let install_path = paths.cellar.join(&args.formula).join(&pkg.version);
 
     if !install_path.exists() {
-        bail!(
-            "Cellar path does not exist: {}",
-            install_path.display()
-        );
+        bail!("Cellar path does not exist: {}", install_path.display());
     }
 
     println!(
@@ -50,11 +47,7 @@ pub async fn run(args: Args) -> Result<()> {
     if unlinked.is_empty() {
         println!("{}", style("No files were unlinked.").dim());
     } else {
-        println!(
-            "{} Unlinked {} files",
-            style("✓").green(),
-            unlinked.len()
-        );
+        println!("{} Unlinked {} files", style("✓").green(), unlinked.len());
     }
 
     Ok(())

@@ -50,11 +50,7 @@ pub struct LockedPackage {
 impl Lockfile {
     /// Create a new empty lockfile
     pub fn new() -> Self {
-        let platform = format!(
-            "{}-{}",
-            std::env::consts::OS,
-            std::env::consts::ARCH
-        );
+        let platform = format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH);
 
         let created_at = chrono_lite_timestamp();
 
@@ -102,11 +98,7 @@ impl Lockfile {
 
     /// Check if the lockfile matches the current platform
     pub fn matches_platform(&self) -> bool {
-        let current = format!(
-            "{}-{}",
-            std::env::consts::OS,
-            std::env::consts::ARCH
-        );
+        let current = format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH);
         self.platform == current
     }
 

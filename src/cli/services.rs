@@ -4,10 +4,10 @@
 //! launchd plists (macOS) or systemd units (Linux).
 
 use anyhow::{bail, Context, Result};
-use stout_state::{InstalledPackages, Paths};
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
 use std::path::PathBuf;
+use stout_state::{InstalledPackages, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -93,15 +93,13 @@ async fn list_services() -> Result<()> {
     let paths = Paths::default();
     let installed = InstalledPackages::load(&paths)?;
 
-    println!(
-        "{} Managed services:",
-        style("==>").blue().bold()
-    );
+    println!("{} Managed services:", style("==>").blue().bold());
 
     let mut found_services = false;
 
     for name in installed.names() {
-        let pkg = installed.get(name)
+        let pkg = installed
+            .get(name)
             .with_context(|| format!("package '{}' is in installed list but not found", name))?;
         let install_path = paths.cellar.join(name).join(&pkg.version);
 
@@ -120,7 +118,12 @@ async fn list_services() -> Result<()> {
 
             println!(
                 "  {} {} ({}) - {}",
-                style(if status == ServiceStatus::Running { "●" } else { "○" }).dim(),
+                style(if status == ServiceStatus::Running {
+                    "●"
+                } else {
+                    "○"
+                })
+                .dim(),
                 name,
                 &pkg.version,
                 status_style
@@ -174,7 +177,10 @@ async fn start_service(name: &str) -> Result<()> {
     #[cfg(target_os = "linux")]
     {
         // For Linux, we'd use systemctl
-        println!("{}", style("Service management on Linux requires systemd setup").yellow());
+        println!(
+            "{}",
+            style("Service management on Linux requires systemd setup").yellow()
+        );
     }
 
     println!("{} Successfully started {}", style("✓").green(), name);
@@ -219,7 +225,10 @@ async fn stop_service(name: &str) -> Result<()> {
 
     #[cfg(target_os = "linux")]
     {
-        println!("{}", style("Service management on Linux requires systemd setup").yellow());
+        println!(
+            "{}",
+            style("Service management on Linux requires systemd setup").yellow()
+        );
     }
 
     println!("{} Successfully stopped {}", style("✓").green(), name);
@@ -292,7 +301,7 @@ async fn info_service(name: &str) -> Result<()> {
     println!("  {}: {}", style("Status").dim(), get_service_status(name));
 
     if service_files.is_empty() {
-        println!("  {}: {}", style("Service files").dim(), "none");
+        println!("  {}: none", style("Service files").dim());
     } else {
         println!("  {}:", style("Service files").dim());
         for file in &service_files {
@@ -348,8 +357,7 @@ fn glob_simple(dir: &std::path::Path, pattern: &str) -> Result<Vec<PathBuf>> {
         let entry = entry?;
         let name = entry.file_name().to_string_lossy().to_string();
 
-        if pattern.starts_with('*') {
-            let suffix = &pattern[1..];
+        if let Some(suffix) = pattern.strip_prefix('*') {
             if name.ends_with(suffix) {
                 results.push(entry.path());
             }

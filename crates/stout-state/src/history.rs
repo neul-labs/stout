@@ -122,12 +122,26 @@ impl PackageHistory {
 
     /// Record a reinstall action
     pub fn record_reinstall(&mut self, name: &str, version: &str, revision: u32) {
-        self.record(name, version, revision, HistoryAction::Reinstall, None, None);
+        self.record(
+            name,
+            version,
+            revision,
+            HistoryAction::Reinstall,
+            None,
+            None,
+        );
     }
 
     /// Record an uninstall action
     pub fn record_uninstall(&mut self, name: &str, version: &str, revision: u32) {
-        self.record(name, version, revision, HistoryAction::Uninstall, None, None);
+        self.record(
+            name,
+            version,
+            revision,
+            HistoryAction::Uninstall,
+            None,
+            None,
+        );
     }
 
     /// Record a history entry
@@ -171,7 +185,11 @@ impl PackageHistory {
         self.packages.get(name).and_then(|entries| {
             if entries.len() >= 2 {
                 // Find the most recent non-uninstall entry before the last one
-                entries.iter().rev().skip(1).find(|e| e.action != HistoryAction::Uninstall)
+                entries
+                    .iter()
+                    .rev()
+                    .skip(1)
+                    .find(|e| e.action != HistoryAction::Uninstall)
             } else {
                 None
             }
@@ -196,7 +214,10 @@ impl PackageHistory {
 
     /// Check if a package has any history
     pub fn has_history(&self, name: &str) -> bool {
-        self.packages.get(name).map(|e| !e.is_empty()).unwrap_or(false)
+        self.packages
+            .get(name)
+            .map(|e| !e.is_empty())
+            .unwrap_or(false)
     }
 
     /// Prune history to keep only the last N entries per package

@@ -4,7 +4,6 @@ use crate::error::{Error, Result};
 use std::collections::{HashMap, HashSet, VecDeque};
 use stout_index::{Database, DependencyType};
 
-
 /// A dependency graph for resolution
 #[derive(Debug, Default)]
 pub struct DependencyGraph {

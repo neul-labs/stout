@@ -107,12 +107,7 @@ async fn health_check() -> impl IntoResponse {
 /// Get manifest endpoint
 async fn get_manifest(State(state): State<Arc<ServerState>>) -> Response {
     match serde_json::to_string_pretty(&state.manifest) {
-        Ok(json) => (
-            StatusCode::OK,
-            [("content-type", "application/json")],
-            json,
-        )
-            .into_response(),
+        Ok(json) => (StatusCode::OK, [("content-type", "application/json")], json).into_response(),
         Err(e) => {
             warn!("Failed to serialize manifest: {}", e);
             (StatusCode::INTERNAL_SERVER_ERROR, "Internal error").into_response()

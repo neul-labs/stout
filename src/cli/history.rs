@@ -49,7 +49,7 @@ pub async fn run(args: Args) -> Result<()> {
         // Show history for specific formula
         let entries = history.get(formula);
 
-        if entries.as_ref().map_or(true, |e| e.is_empty()) {
+        if entries.as_ref().is_none_or(|e| e.is_empty()) {
             if args.json {
                 println!("{{\"packages\": []}}");
             } else {
@@ -192,11 +192,10 @@ fn print_entry(_name: &str, entry: &stout_state::HistoryEntry) {
     };
 
     println!(
-        "  {} {} {} {}{}",
+        "  {} {} {} {}",
         style(&entry.timestamp).dim(),
         action_style,
         style(&version_str).white().bold(),
-        style(&from_str).dim(),
-        ""
+        style(&from_str).dim()
     );
 }

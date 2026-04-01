@@ -217,7 +217,11 @@ fn test_link_package_creates_symlinks() {
     // bin/wget should exist and be a symlink
     let linked_binary = prefix.join("bin").join("wget");
     assert!(linked_binary.symlink_metadata().is_ok());
-    assert!(linked_binary.symlink_metadata().unwrap().file_type().is_symlink());
+    assert!(linked_binary
+        .symlink_metadata()
+        .unwrap()
+        .file_type()
+        .is_symlink());
 }
 
 #[test]
@@ -234,7 +238,11 @@ fn test_link_package_creates_opt_link() {
     // opt/wget should exist and be a symlink
     let opt_link = prefix.join("opt").join("wget");
     assert!(opt_link.symlink_metadata().is_ok());
-    assert!(opt_link.symlink_metadata().unwrap().file_type().is_symlink());
+    assert!(opt_link
+        .symlink_metadata()
+        .unwrap()
+        .file_type()
+        .is_symlink());
 }
 
 #[test]

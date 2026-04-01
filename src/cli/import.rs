@@ -186,7 +186,10 @@ fn import_brew_casks(paths: &Paths, dry_run: bool, overwrite: bool, verbose: boo
 
         let timestamp = timestamp_now_iso();
         let imported_cask = stout_cask::InstalledCask {
-            version: cask.version.clone().unwrap_or_else(|| "unknown".to_string()),
+            version: cask
+                .version
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string()),
             installed_at: timestamp,
             artifact_path: std::path::PathBuf::from(""),
             auto_updates: false,
@@ -229,7 +232,7 @@ pub fn import_cellar_package(installed: &mut InstalledPackages, pkg: &CellarPack
             let at = receipt
                 .install_time
                 .map(timestamp_to_iso)
-                .unwrap_or_else(|| timestamp_now_iso());
+                .unwrap_or_else(timestamp_now_iso);
 
             (receipt.installed_on_request, "brew", at, deps)
         }

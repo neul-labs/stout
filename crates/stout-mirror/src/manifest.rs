@@ -143,7 +143,8 @@ impl MirrorManifest {
 
     /// Add a checksum for a file
     pub fn add_checksum(&mut self, path: &str, checksum: &str) {
-        self.checksums.insert(path.to_string(), checksum.to_string());
+        self.checksums
+            .insert(path.to_string(), checksum.to_string());
     }
 }
 

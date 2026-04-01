@@ -1,7 +1,7 @@
 //! Tests for stout-index
 
 use crate::db::Database;
-use crate::formula::{FormulaInfo, DependencyType};
+use crate::formula::{DependencyType, FormulaInfo};
 use crate::query::Query;
 use tempfile::tempdir;
 
@@ -36,10 +36,13 @@ fn test_database_formula_operations() {
             disabled: false,
             has_bottle: true,
             json_hash: Some("abc123".to_string()),
-        }).unwrap();
+        })
+        .unwrap();
 
-        tx.insert_dependency("wget", "openssl@3", DependencyType::Runtime).unwrap();
-        tx.insert_dependency("wget", "pkg-config", DependencyType::Build).unwrap();
+        tx.insert_dependency("wget", "openssl@3", DependencyType::Runtime)
+            .unwrap();
+        tx.insert_dependency("wget", "pkg-config", DependencyType::Build)
+            .unwrap();
         tx.insert_bottle("wget", "arm64_sonoma").unwrap();
         tx.insert_bottle("wget", "x86_64_linux").unwrap();
         tx.set_meta("version", "2024.01.01").unwrap();
@@ -59,8 +62,12 @@ fn test_database_formula_operations() {
     // Verify dependencies
     let deps = db.get_dependencies("wget").unwrap();
     assert_eq!(deps.len(), 2);
-    assert!(deps.iter().any(|d| d.name == "openssl@3" && d.dep_type == DependencyType::Runtime));
-    assert!(deps.iter().any(|d| d.name == "pkg-config" && d.dep_type == DependencyType::Build));
+    assert!(deps
+        .iter()
+        .any(|d| d.name == "openssl@3" && d.dep_type == DependencyType::Runtime));
+    assert!(deps
+        .iter()
+        .any(|d| d.name == "pkg-config" && d.dep_type == DependencyType::Build));
 
     // Verify bottles
     let platforms = db.get_platforms("wget").unwrap();
@@ -96,7 +103,8 @@ fn test_database_search() {
                 disabled: false,
                 has_bottle: true,
                 json_hash: None,
-            }).unwrap();
+            })
+            .unwrap();
         }
 
         tx.set_meta("version", "test").unwrap();
@@ -106,7 +114,9 @@ fn test_database_search() {
     // Search for JSON-related
     let results = db.search("json*", 10).unwrap();
     assert!(results.len() >= 1);
-    assert!(results.iter().any(|f| f.name == "jq" || f.name == "jless" || f.name == "gojq"));
+    assert!(results
+        .iter()
+        .any(|f| f.name == "jq" || f.name == "jless" || f.name == "gojq"));
 
     // Search for specific name
     let results = db.search("wget", 10).unwrap();
@@ -136,7 +146,8 @@ fn test_database_find_similar() {
                 disabled: false,
                 has_bottle: true,
                 json_hash: None,
-            }).unwrap();
+            })
+            .unwrap();
         }
 
         tx.commit().unwrap();
@@ -173,7 +184,8 @@ fn test_database_list_formulas() {
                 disabled: false,
                 has_bottle: true,
                 json_hash: None,
-            }).unwrap();
+            })
+            .unwrap();
         }
 
         tx.commit().unwrap();
@@ -215,7 +227,8 @@ fn test_query_interface() {
             disabled: false,
             has_bottle: true,
             json_hash: None,
-        }).unwrap();
+        })
+        .unwrap();
         tx.set_meta("version", "test").unwrap();
         tx.commit().unwrap();
     }

@@ -25,7 +25,9 @@ fn test_cache_bottle_path() {
     let cache = DownloadCache::new(tmp.path());
 
     let path = cache.bottle_path("wget", "1.24.5", "x86_64_linux").unwrap();
-    assert!(path.to_string_lossy().contains("wget-1.24.5-x86_64_linux.tar.gz"));
+    assert!(path
+        .to_string_lossy()
+        .contains("wget-1.24.5-x86_64_linux.tar.gz"));
     assert!(path.to_string_lossy().contains("downloads"));
 }
 
@@ -44,7 +46,9 @@ fn test_cache_store_and_get() {
 
     // Store a bottle
     let data = b"test bottle content";
-    let path = cache.store_bottle("wget", "1.0.0", "x86_64_linux", data).unwrap();
+    let path = cache
+        .store_bottle("wget", "1.0.0", "x86_64_linux", data)
+        .unwrap();
 
     assert!(path.exists());
     assert!(cache.has_bottle("wget", "1.0.0", "x86_64_linux"));
@@ -64,7 +68,9 @@ fn test_cache_get_missing() {
     let tmp = tempdir().unwrap();
     let cache = DownloadCache::new(tmp.path());
 
-    let got = cache.get_bottle("nonexistent", "1.0.0", "x86_64_linux").unwrap();
+    let got = cache
+        .get_bottle("nonexistent", "1.0.0", "x86_64_linux")
+        .unwrap();
     assert!(got.is_none());
 }
 
@@ -74,10 +80,14 @@ fn test_cache_remove_bottle() {
     let cache = DownloadCache::new(tmp.path());
 
     // Store then remove
-    cache.store_bottle("wget", "1.0.0", "x86_64_linux", b"test").unwrap();
+    cache
+        .store_bottle("wget", "1.0.0", "x86_64_linux", b"test")
+        .unwrap();
     assert!(cache.has_bottle("wget", "1.0.0", "x86_64_linux"));
 
-    cache.remove_bottle("wget", "1.0.0", "x86_64_linux").unwrap();
+    cache
+        .remove_bottle("wget", "1.0.0", "x86_64_linux")
+        .unwrap();
     assert!(!cache.has_bottle("wget", "1.0.0", "x86_64_linux"));
 }
 

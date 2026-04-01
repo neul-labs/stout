@@ -4,9 +4,9 @@ use anyhow::{Context, Result};
 use clap::Args as ClapArgs;
 use console::style;
 use std::cmp::Ordering;
-use stout_audit::compare_versions;
 use std::sync::Arc;
 use std::time::Instant;
+use stout_audit::compare_versions;
 use stout_fetch::{BottleSpec, DownloadCache, DownloadClient, ProgressReporter};
 use stout_index::{Database, Formula, IndexSync};
 use stout_install::{
@@ -128,7 +128,11 @@ pub async fn run(args: Args) -> Result<()> {
             if let (Some(current), Some(remote)) = (&pkg.head_sha, remote_sha) {
                 if current != &remote {
                     let short_remote: String = remote.chars().take(7).collect();
-                    head_updates.push((name.clone(), pkg.short_sha().unwrap_or("?").to_string(), short_remote));
+                    head_updates.push((
+                        name.clone(),
+                        pkg.short_sha().unwrap_or("?").to_string(),
+                        short_remote,
+                    ));
                 }
             }
         }
@@ -139,7 +143,11 @@ pub async fn run(args: Args) -> Result<()> {
             "\n{} {} pinned {} skipped (use 'stout unpin' to allow upgrades)",
             style("!").yellow(),
             pinned_skipped.len(),
-            if pinned_skipped.len() == 1 { "package" } else { "packages" }
+            if pinned_skipped.len() == 1 {
+                "package"
+            } else {
+                "packages"
+            }
         );
     }
 
@@ -316,8 +324,9 @@ pub async fn run(args: Args) -> Result<()> {
 
                     // Re-fetch with fresh data
                     match sync.fetch_formula(&candidate.name).await {
-                        Ok(fresh) if fresh.version == candidate.new_version
-                            || fresh.version != formula.version =>
+                        Ok(fresh)
+                            if fresh.version == candidate.new_version
+                                || fresh.version != formula.version =>
                         {
                             // Accept the fresh formula — proceed below
                             // (version may have changed, use fresh.version)
@@ -537,4 +546,3 @@ fn get_remote_head_sha(url: &str, branch: &Option<String>) -> Result<String> {
 
     Ok(sha.to_string())
 }
-

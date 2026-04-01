@@ -821,7 +821,7 @@ stout snapshot import < backup.json
   "name": "mysetup",
   "description": "Before upgrade",
   "created_at": "2024-01-15T10:00:00Z",
-  "stout_version": "0.2.0",
+  "stout_version": "0.2.1",
   "formulas": [
     {"name": "jq", "version": "1.7.1", "revision": 0, "requested": true},
     {"name": "oniguruma", "version": "6.9.9", "revision": 0, "requested": false}
@@ -1066,7 +1066,7 @@ mirror/
 {
   "version": "2024.01.15.1200",
   "created_at": "2024-01-15T12:00:00Z",
-  "stout_version": "0.2.0",
+  "stout_version": "0.2.1",
   "platforms": ["arm64_sonoma", "x86_64_linux"],
 
   "update_schedule": {

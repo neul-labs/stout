@@ -14,7 +14,7 @@ pub enum Severity {
 }
 
 impl Severity {
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse_severity(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "low" => Some(Self::Low),
             "medium" | "moderate" => Some(Self::Medium),
@@ -160,9 +160,7 @@ impl AuditReport {
                     || self.severity_counts.high > 0
                     || self.severity_counts.critical > 0
             }
-            Severity::High => {
-                self.severity_counts.high > 0 || self.severity_counts.critical > 0
-            }
+            Severity::High => self.severity_counts.high > 0 || self.severity_counts.critical > 0,
             Severity::Critical => self.severity_counts.critical > 0,
         }
     }

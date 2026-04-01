@@ -80,9 +80,10 @@ impl DownloadClient {
             token: String,
         }
 
-        let token_resp: TokenResponse = response.json().await.map_err(|e| {
-            Error::DownloadFailed(format!("Failed to parse token response: {}", e))
-        })?;
+        let token_resp: TokenResponse = response
+            .json()
+            .await
+            .map_err(|e| Error::DownloadFailed(format!("Failed to parse token response: {}", e)))?;
 
         // Cache the token
         {
@@ -107,7 +108,9 @@ impl DownloadClient {
         let parts: Vec<&str> = path.split('/').collect();
 
         // Find the index of "blobs" or "manifests" to know where the repo path ends
-        let end_idx = parts.iter().position(|&p| p == "blobs" || p == "manifests")?;
+        let end_idx = parts
+            .iter()
+            .position(|&p| p == "blobs" || p == "manifests")?;
 
         if end_idx >= 3 {
             // Join all parts up to (but not including) blobs/manifests
@@ -201,9 +204,11 @@ impl DownloadClient {
         progress: Arc<ProgressReporter>,
     ) -> Result<PathBuf> {
         // Acquire semaphore permit to limit concurrency
-        let _permit = self.semaphore.acquire().await.map_err(|_| {
-            Error::DownloadFailed("Semaphore closed".to_string())
-        })?;
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
+            .map_err(|_| Error::DownloadFailed("Semaphore closed".to_string()))?;
 
         self.download_bottle(
             &spec.name,
@@ -288,7 +293,9 @@ mod tests {
         // Store a fake bottle
         let data = b"test bottle content";
         let hash = sha256_bytes(data);
-        cache.store_bottle("test", "1.0.0", "x86_64_linux", data).unwrap();
+        cache
+            .store_bottle("test", "1.0.0", "x86_64_linux", data)
+            .unwrap();
 
         let client = DownloadClient::new(cache, 4).unwrap();
 
@@ -303,25 +310,43 @@ mod tests {
     #[test]
     fn test_get_ghcr_scope_simple_package() {
         // Simple package like wget
-        let url = &format!("{}homebrew/core/wget/blobs/sha256:abc123", GHCR_V2_URL_PREFIX);
+        let url = &format!(
+            "{}homebrew/core/wget/blobs/sha256:abc123",
+            GHCR_V2_URL_PREFIX
+        );
         let scope = DownloadClient::get_ghcr_scope(url);
-        assert_eq!(scope, Some("repository:homebrew/core/wget:pull".to_string()));
+        assert_eq!(
+            scope,
+            Some("repository:homebrew/core/wget:pull".to_string())
+        );
     }
 
     #[test]
     fn test_get_ghcr_scope_versioned_package() {
         // Versioned package like openssl@3 -> openssl/3
-        let url = &format!("{}homebrew/core/openssl/3/blobs/sha256:abc123", GHCR_V2_URL_PREFIX);
+        let url = &format!(
+            "{}homebrew/core/openssl/3/blobs/sha256:abc123",
+            GHCR_V2_URL_PREFIX
+        );
         let scope = DownloadClient::get_ghcr_scope(url);
-        assert_eq!(scope, Some("repository:homebrew/core/openssl/3:pull".to_string()));
+        assert_eq!(
+            scope,
+            Some("repository:homebrew/core/openssl/3:pull".to_string())
+        );
     }
 
     #[test]
     fn test_get_ghcr_scope_python_versioned() {
         // Python with version like python@3.14 -> python/3.14
-        let url = &format!("{}homebrew/core/python/3.14/blobs/sha256:abc123", GHCR_V2_URL_PREFIX);
+        let url = &format!(
+            "{}homebrew/core/python/3.14/blobs/sha256:abc123",
+            GHCR_V2_URL_PREFIX
+        );
         let scope = DownloadClient::get_ghcr_scope(url);
-        assert_eq!(scope, Some("repository:homebrew/core/python/3.14:pull".to_string()));
+        assert_eq!(
+            scope,
+            Some("repository:homebrew/core/python/3.14:pull".to_string())
+        );
     }
 
     #[test]
@@ -329,7 +354,10 @@ mod tests {
         // Manifest URL format
         let url = &format!("{}homebrew/core/wget/manifests/latest", GHCR_V2_URL_PREFIX);
         let scope = DownloadClient::get_ghcr_scope(url);
-        assert_eq!(scope, Some("repository:homebrew/core/wget:pull".to_string()));
+        assert_eq!(
+            scope,
+            Some("repository:homebrew/core/wget:pull".to_string())
+        );
     }
 
     #[test]

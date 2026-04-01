@@ -1,9 +1,9 @@
 //! Switch command - switch between installed versions of a package
 
 use anyhow::{bail, Result};
-use stout_state::{InstalledPackages, PackageHistory, Paths};
 use clap::Args as ClapArgs;
 use console::style;
+use stout_state::{InstalledPackages, PackageHistory, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -27,8 +27,12 @@ pub async fn run(args: Args) -> Result<()> {
         bail!("{} is not installed", args.formula);
     }
 
-    let current = installed.get(&args.formula)
-        .ok_or_else(|| anyhow::anyhow!("package '{}' is installed but not found in state", args.formula))?;
+    let current = installed.get(&args.formula).ok_or_else(|| {
+        anyhow::anyhow!(
+            "package '{}' is installed but not found in state",
+            args.formula
+        )
+    })?;
     let current_version = &current.version;
 
     // Check if target version is in cellar
@@ -85,8 +89,12 @@ pub async fn run(args: Args) -> Result<()> {
 
     // Update installed state
     let mut installed = InstalledPackages::load(&paths)?;
-    let pkg = installed.get(&args.formula)
-        .ok_or_else(|| anyhow::anyhow!("package '{}' is installed but not found in state", args.formula))?;
+    let pkg = installed.get(&args.formula).ok_or_else(|| {
+        anyhow::anyhow!(
+            "package '{}' is installed but not found in state",
+            args.formula
+        )
+    })?;
     let requested = pkg.requested;
     let deps = pkg.dependencies.clone();
     installed.add_with_deps(&args.formula, &args.version, 0, requested, deps);

@@ -98,7 +98,10 @@ pub fn link_package(
                 }
 
                 // Directory or other type - can't compare, just warn
-                warn!("Skipping {}: already exists (not a symlink)", target.display());
+                warn!(
+                    "Skipping {}: already exists (not a symlink)",
+                    target.display()
+                );
                 continue;
             }
 

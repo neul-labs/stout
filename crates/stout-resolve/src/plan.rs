@@ -2,8 +2,8 @@
 
 use crate::error::Result;
 use crate::graph::DependencyGraph;
-use stout_index::FormulaInfo;
 use std::collections::HashSet;
+use stout_index::FormulaInfo;
 
 /// A single step in an installation plan
 #[derive(Debug, Clone)]

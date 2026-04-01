@@ -4,10 +4,10 @@
 //! useful for project-specific dependencies or testing.
 
 use anyhow::{bail, Context, Result};
-use stout_state::Paths;
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
 use std::path::PathBuf;
+use stout_state::Paths;
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -61,7 +61,11 @@ pub async fn run(args: Args) -> Result<()> {
     match args.command {
         Some(PrefixCommand::Create { path, force }) => run_create(path, force).await,
         Some(PrefixCommand::List) => run_list().await,
-        Some(PrefixCommand::Remove { path, packages, force }) => run_remove(path, packages, force).await,
+        Some(PrefixCommand::Remove {
+            path,
+            packages,
+            force,
+        }) => run_remove(path, packages, force).await,
         Some(PrefixCommand::Info { path }) => run_info(path).await,
         Some(PrefixCommand::Default { path }) => run_default(path).await,
         None => run_info(None).await,
@@ -78,7 +82,8 @@ async fn run_create(path: PathBuf, force: bool) -> Result<()> {
     // Expand path
     let path = if path.starts_with("~") {
         let home = dirs::home_dir().context("Could not determine home directory")?;
-        let stripped = path.strip_prefix("~")
+        let stripped = path
+            .strip_prefix("~")
             .expect("path starts with ~ so strip_prefix should succeed");
         home.join(stripped)
     } else {
@@ -92,7 +97,7 @@ async fn run_create(path: PathBuf, force: bool) -> Result<()> {
                 "Prefix already exists at {}. Use --force to reinitialize.",
                 path.display()
             );
-        } else if !path.read_dir()?.next().is_none() {
+        } else if path.read_dir()?.next().is_some() {
             bail!(
                 "Directory not empty: {}. Use --force to create prefix anyway.",
                 path.display()
@@ -141,14 +146,8 @@ async fn run_create(path: PathBuf, force: bool) -> Result<()> {
     println!("  share:   {}", share.display());
     println!();
     println!("{}:", style("Usage").bold());
-    println!(
-        "  stout --prefix={} install <package>",
-        path.display()
-    );
-    println!(
-        "  stout --prefix={} list",
-        path.display()
-    );
+    println!("  stout --prefix={} install <package>", path.display());
+    println!("  stout --prefix={} list", path.display());
     println!();
     println!("{}:", style("Add to PATH").bold());
     println!("  export PATH=\"{}:$PATH\"", bin.display());
@@ -178,11 +177,7 @@ async fn run_list() -> Result<()> {
             if exists {
                 println!("{}", prefix.display());
             } else {
-                println!(
-                    "{} {}",
-                    prefix.display(),
-                    style("(not found)").red()
-                );
+                println!("{} {}", prefix.display(), style("(not found)").red());
             }
         }
     }
@@ -197,7 +192,8 @@ async fn run_list() -> Result<()> {
 async fn run_remove(path: PathBuf, remove_packages: bool, force: bool) -> Result<()> {
     let path = if path.starts_with("~") {
         let home = dirs::home_dir().context("Could not determine home directory")?;
-        let stripped = path.strip_prefix("~")
+        let stripped = path
+            .strip_prefix("~")
             .expect("path starts with ~ so strip_prefix should succeed");
         home.join(stripped)
     } else {
@@ -245,7 +241,8 @@ async fn run_info(path: Option<PathBuf>) -> Result<()> {
         Some(p) => {
             if p.starts_with("~") {
                 let home = dirs::home_dir().context("Could not determine home directory")?;
-                let stripped = p.strip_prefix("~")
+                let stripped = p
+                    .strip_prefix("~")
                     .expect("path starts with ~ so strip_prefix should succeed");
                 home.join(stripped)
             } else {
@@ -306,7 +303,8 @@ async fn run_info(path: Option<PathBuf>) -> Result<()> {
 async fn run_default(path: PathBuf) -> Result<()> {
     let path = if path.starts_with("~") {
         let home = dirs::home_dir().context("Could not determine home directory")?;
-        let stripped = path.strip_prefix("~")
+        let stripped = path
+            .strip_prefix("~")
             .expect("path starts with ~ so strip_prefix should succeed");
         home.join(stripped)
     } else {
@@ -357,10 +355,7 @@ fn unregister_prefix(path: &std::path::Path) -> Result<()> {
     let file_path = prefixes_file()?;
     let prefixes = list_prefixes()?;
 
-    let filtered: Vec<_> = prefixes
-        .into_iter()
-        .filter(|p| p != path)
-        .collect();
+    let filtered: Vec<_> = prefixes.into_iter().filter(|p| p != path).collect();
 
     let content: String = filtered
         .iter()
@@ -438,12 +433,7 @@ mod chrono_lite {
 
         format!(
             "{}-{:02}-{:02} {:02}:{:02}:{:02} UTC",
-            years,
-            1,
-            1,
-            hours,
-            minutes,
-            seconds
+            years, 1, 1, hours, minutes, seconds
         )
     }
 }
@@ -466,7 +456,8 @@ mod tests {
         // Just verify it doesn't panic
         if path.starts_with("~") {
             if let Some(home) = dirs::home_dir() {
-                let stripped = path.strip_prefix("~")
+                let stripped = path
+                    .strip_prefix("~")
                     .expect("path starts with ~ so strip_prefix should succeed");
                 let expanded = home.join(stripped);
                 assert!(!expanded.starts_with("~"));

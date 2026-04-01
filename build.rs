@@ -39,9 +39,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Install packages from bottles or source
-    #[command(long_about = "Install one or more packages. By default, stout installs pre-built \
+    #[command(
+        long_about = "Install one or more packages. By default, stout installs pre-built \
                             bottles (binary packages) for fast installation. Use --build-from-source \
-                            to compile from source instead.")]
+                            to compile from source instead."
+    )]
     Install {
         /// Package names to install
         packages: Vec<String>,
@@ -57,8 +59,10 @@ enum Command {
     },
 
     /// Uninstall packages
-    #[command(long_about = "Remove one or more installed packages. Use --force to remove even \
-                            if other packages depend on them.")]
+    #[command(
+        long_about = "Remove one or more installed packages. Use --force to remove even \
+                            if other packages depend on them."
+    )]
     Uninstall {
         /// Package names to uninstall
         packages: Vec<String>,
@@ -74,9 +78,11 @@ enum Command {
     },
 
     /// Search for packages by name or description
-    #[command(long_about = "Search for packages in the formula index. Supports full-text search \
+    #[command(
+        long_about = "Search for packages in the formula index. Supports full-text search \
                             across package names and descriptions. Use --desc to search only \
-                            descriptions.")]
+                            descriptions."
+    )]
     Search {
         /// Search query
         query: String,
@@ -89,8 +95,10 @@ enum Command {
     },
 
     /// Show detailed package information
-    #[command(long_about = "Display detailed information about a package including version, \
-                            dependencies, installation status, and available bottles.")]
+    #[command(
+        long_about = "Display detailed information about a package including version, \
+                            dependencies, installation status, and available bottles."
+    )]
     Info {
         /// Package name
         package: String,
@@ -100,8 +108,10 @@ enum Command {
     },
 
     /// List installed packages
-    #[command(long_about = "List all installed packages. Use --versions to show version numbers, \
-                            --pinned to show only pinned packages.")]
+    #[command(
+        long_about = "List all installed packages. Use --versions to show version numbers, \
+                            --pinned to show only pinned packages."
+    )]
     List {
         /// Show version numbers
         #[arg(long)]
@@ -119,8 +129,10 @@ enum Command {
     },
 
     /// Update the formula index
-    #[command(long_about = "Download the latest formula index from the remote repository. \
-                            This updates the local database used for searching and package info.")]
+    #[command(
+        long_about = "Download the latest formula index from the remote repository. \
+                            This updates the local database used for searching and package info."
+    )]
     Update {
         /// Force update even if recently updated
         #[arg(short, long)]
@@ -128,8 +140,10 @@ enum Command {
     },
 
     /// Upgrade installed packages to latest versions
-    #[command(long_about = "Upgrade one or more packages to their latest versions. If no packages \
-                            are specified, upgrades all outdated packages.")]
+    #[command(
+        long_about = "Upgrade one or more packages to their latest versions. If no packages \
+                            are specified, upgrades all outdated packages."
+    )]
     Upgrade {
         /// Package names to upgrade (all if empty)
         packages: Vec<String>,
@@ -139,8 +153,10 @@ enum Command {
     },
 
     /// Remove unused dependencies (orphans)
-    #[command(long_about = "Remove packages that were installed as dependencies but are no longer \
-                            needed by any installed package.")]
+    #[command(
+        long_about = "Remove packages that were installed as dependencies but are no longer \
+                            needed by any installed package."
+    )]
     Autoremove {
         /// Dry run - show what would be removed
         #[arg(short = 'n', long)]
@@ -148,8 +164,10 @@ enum Command {
     },
 
     /// Remove old downloads and cache files
-    #[command(long_about = "Clean up disk space by removing old downloads, outdated formula cache, \
-                            and old versions of installed packages.")]
+    #[command(
+        long_about = "Clean up disk space by removing old downloads, outdated formula cache, \
+                            and old versions of installed packages."
+    )]
     Cleanup {
         /// Remove all cached files
         #[arg(short, long)]
@@ -163,8 +181,10 @@ enum Command {
     },
 
     /// Show dependencies of a package
-    #[command(long_about = "Display the dependency tree for a package. Shows both runtime and \
-                            build dependencies.")]
+    #[command(
+        long_about = "Display the dependency tree for a package. Shows both runtime and \
+                            build dependencies."
+    )]
     Deps {
         /// Package name
         package: String,
@@ -245,8 +265,10 @@ enum Command {
     },
 
     /// Manage taps (custom formula repositories)
-    #[command(long_about = "Manage custom formula repositories (taps). Taps allow you to install \
-                            packages from third-party repositories.")]
+    #[command(
+        long_about = "Manage custom formula repositories (taps). Taps allow you to install \
+                            packages from third-party repositories."
+    )]
     Tap {
         #[command(subcommand)]
         command: Option<TapCommand>,
@@ -265,32 +287,40 @@ enum Command {
     },
 
     /// Check system health and diagnose issues
-    #[command(long_about = "Run diagnostic checks on your stout installation. Reports issues \
-                            with configuration, permissions, and installed packages.")]
+    #[command(
+        long_about = "Run diagnostic checks on your stout installation. Reports issues \
+                            with configuration, permissions, and installed packages."
+    )]
     Doctor,
 
     /// Show stout and system configuration
     Config,
 
     /// Generate shell completions for bash, zsh, or fish
-    #[command(long_about = "Generate shell completion scripts. Add the output to your shell \
-                            configuration file to enable tab completion.")]
+    #[command(
+        long_about = "Generate shell completion scripts. Add the output to your shell \
+                            configuration file to enable tab completion."
+    )]
     Completions {
         /// Shell to generate completions for
         shell: String,
     },
 
     /// Manage casks (GUI applications)
-    #[command(long_about = "Install and manage macOS applications (casks) and Linux apps \
-                            (AppImage, Flatpak).")]
+    #[command(
+        long_about = "Install and manage macOS applications (casks) and Linux apps \
+                            (AppImage, Flatpak)."
+    )]
     Cask {
         #[command(subcommand)]
         command: CaskCommand,
     },
 
     /// Manage Brewfile bundles
-    #[command(long_about = "Install packages from a Brewfile or generate a Brewfile from \
-                            installed packages.")]
+    #[command(
+        long_about = "Install packages from a Brewfile or generate a Brewfile from \
+                            installed packages."
+    )]
     Bundle {
         #[command(subcommand)]
         command: Option<BundleCommand>,
@@ -303,8 +333,10 @@ enum Command {
     },
 
     /// Audit packages for known security vulnerabilities
-    #[command(long_about = "Check installed packages against the vulnerability database. \
-                            Reports CVEs and security advisories affecting your packages.")]
+    #[command(
+        long_about = "Check installed packages against the vulnerability database. \
+                            Reports CVEs and security advisories affecting your packages."
+    )]
     Audit {
         /// Package to audit (all if omitted)
         package: Option<String>,
@@ -502,9 +534,7 @@ enum PrefixCommand {
 
 fn main() {
     // Only generate man pages when building for release or when explicitly requested
-    if env::var("PROFILE").unwrap_or_default() != "release"
-        && env::var("STOUT_GEN_MAN").is_err()
-    {
+    if env::var("PROFILE").unwrap_or_default() != "release" && env::var("STOUT_GEN_MAN").is_err() {
         return;
     }
 
@@ -530,9 +560,9 @@ fn main() {
         let man = Man::new(subcommand.clone());
         let mut buffer = Vec::new();
         man.render(&mut buffer)
-            .expect(&format!("Failed to render man page for {}", name));
+            .unwrap_or_else(|_| panic!("Failed to render man page for {}", name));
         fs::write(man_dir.join(format!("stout-{}.1", name)), buffer)
-            .expect(&format!("Failed to write stout-{}.1", name));
+            .unwrap_or_else(|_| panic!("Failed to write stout-{}.1", name));
     }
 
     // Tell cargo to rerun if CLI changes

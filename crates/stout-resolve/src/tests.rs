@@ -3,8 +3,8 @@
 use crate::error::Error;
 use crate::graph::DependencyGraph;
 use crate::plan::{InstallPlan, InstallStep};
-use stout_index::FormulaInfo;
 use std::collections::HashSet;
+use stout_index::FormulaInfo;
 
 // ============================================================================
 // DependencyGraph tests
@@ -207,7 +207,8 @@ fn test_install_plan_single_package() {
         &["wget"],
         |name| Some(make_formula_info(name, "1.0.0")),
         |_| false, // nothing installed
-    ).unwrap();
+    )
+    .unwrap();
 
     assert_eq!(plan.total_packages(), 1);
     assert!(plan.requested.contains("wget"));
@@ -227,7 +228,8 @@ fn test_install_plan_with_deps() {
         &["wget"],
         |name| Some(make_formula_info(name, "1.0.0")),
         |_| false,
-    ).unwrap();
+    )
+    .unwrap();
 
     assert_eq!(plan.total_packages(), 3);
     assert!(plan.requested.contains("wget"));
@@ -255,7 +257,8 @@ fn test_install_plan_skips_installed() {
         &["wget"],
         |name| Some(make_formula_info(name, "1.0.0")),
         |name| installed.contains(name),
-    ).unwrap();
+    )
+    .unwrap();
 
     // Only wget should be in steps, openssl is skipped
     assert_eq!(plan.total_packages(), 1);
@@ -275,7 +278,8 @@ fn test_install_plan_multiple_requested() {
         &["wget", "curl"],
         |name| Some(make_formula_info(name, "1.0.0")),
         |_| false,
-    ).unwrap();
+    )
+    .unwrap();
 
     assert!(plan.requested.contains("wget"));
     assert!(plan.requested.contains("curl"));
@@ -298,7 +302,8 @@ fn test_install_plan_all_installed() {
         &["wget"],
         |name| Some(make_formula_info(name, "1.0.0")),
         |_| true, // everything installed
-    ).unwrap();
+    )
+    .unwrap();
 
     assert!(plan.is_empty());
     assert!(plan.already_installed.contains("wget"));
@@ -315,7 +320,8 @@ fn test_install_plan_preserves_version() {
         &["wget"],
         |_| Some(make_formula_info("wget", "1.24.5")),
         |_| false,
-    ).unwrap();
+    )
+    .unwrap();
 
     assert_eq!(plan.steps[0].version, "1.24.5");
 }
@@ -337,7 +343,8 @@ fn test_install_plan_missing_info_skipped() {
             }
         },
         |_| false,
-    ).unwrap();
+    )
+    .unwrap();
 
     // Only wget should be in steps
     assert_eq!(plan.total_packages(), 1);
@@ -354,7 +361,8 @@ fn test_install_plan_new_packages_iterator() {
         &["wget"],
         |name| Some(make_formula_info(name, "1.0.0")),
         |_| false,
-    ).unwrap();
+    )
+    .unwrap();
 
     let new_pkgs: Vec<_> = plan.new_packages().collect();
     assert_eq!(new_pkgs.len(), 2);
@@ -373,11 +381,17 @@ fn test_error_display_cycle() {
 #[test]
 fn test_error_display_unresolved() {
     let err = Error::UnresolvedDependency("wget".to_string(), "openssl".to_string());
-    assert_eq!(err.to_string(), "Unresolved dependency: wget requires openssl");
+    assert_eq!(
+        err.to_string(),
+        "Unresolved dependency: wget requires openssl"
+    );
 }
 
 #[test]
 fn test_error_display_conflict() {
     let err = Error::Conflict("openssl@3".to_string(), "openssl@1.1".to_string());
-    assert_eq!(err.to_string(), "Conflict: openssl@3 conflicts with openssl@1.1");
+    assert_eq!(
+        err.to_string(),
+        "Conflict: openssl@3 conflicts with openssl@1.1"
+    );
 }

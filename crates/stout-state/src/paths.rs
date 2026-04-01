@@ -14,22 +14,6 @@ pub struct Paths {
 }
 
 impl Paths {
-    /// Create paths with default locations
-    pub fn default() -> Self {
-        let stout_dir = dirs::home_dir()
-            .map(|h| h.join(".stout"))
-            .unwrap_or_else(|| PathBuf::from(".stout"));
-
-        let prefix = detect_homebrew_prefix();
-        let cellar = prefix.join("Cellar");
-
-        Self {
-            stout_dir,
-            prefix,
-            cellar,
-        }
-    }
-
     /// Create paths with custom locations
     pub fn new(stout_dir: PathBuf, prefix: PathBuf) -> Self {
         let cellar = prefix.join("Cellar");
@@ -118,8 +102,8 @@ impl Paths {
 fn detect_homebrew_prefix() -> PathBuf {
     // Check common locations for existing Homebrew installations
     let candidates = [
-        "/opt/homebrew",       // macOS ARM
-        "/usr/local",          // macOS Intel / Linux
+        "/opt/homebrew",              // macOS ARM
+        "/usr/local",                 // macOS Intel / Linux
         "/home/linuxbrew/.linuxbrew", // Linux
     ];
 
@@ -158,6 +142,17 @@ fn detect_homebrew_prefix() -> PathBuf {
 
 impl Default for Paths {
     fn default() -> Self {
-        Self::default()
+        let stout_dir = dirs::home_dir()
+            .map(|h| h.join(".stout"))
+            .unwrap_or_else(|| PathBuf::from(".stout"));
+
+        let prefix = detect_homebrew_prefix();
+        let cellar = prefix.join("Cellar");
+
+        Self {
+            stout_dir,
+            prefix,
+            cellar,
+        }
     }
 }

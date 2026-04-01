@@ -39,11 +39,7 @@ pub struct RuntimeDependency {
 
 impl InstallReceipt {
     /// Create a new receipt for a bottle installation
-    pub fn new_bottle(
-        tap: &str,
-        on_request: bool,
-        dependencies: Vec<RuntimeDependency>,
-    ) -> Self {
+    pub fn new_bottle(tap: &str, on_request: bool, dependencies: Vec<RuntimeDependency>) -> Self {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -66,11 +62,7 @@ impl InstallReceipt {
     }
 
     /// Create a new receipt for a source-built installation
-    pub fn new_source(
-        tap: &str,
-        on_request: bool,
-        dependencies: Vec<RuntimeDependency>,
-    ) -> Self {
+    pub fn new_source(tap: &str, on_request: bool, dependencies: Vec<RuntimeDependency>) -> Self {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()

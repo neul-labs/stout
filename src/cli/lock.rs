@@ -1,10 +1,10 @@
 //! Lock command for managing lockfiles
 
 use anyhow::{Context, Result};
-use stout_state::{InstalledPackages, LockedPackage, Lockfile, Paths};
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
 use std::path::PathBuf;
+use stout_state::{InstalledPackages, LockedPackage, Lockfile, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -54,7 +54,8 @@ async fn generate_lockfile(output: Option<PathBuf>) -> Result<()> {
     println!("{}...", style("Generating lockfile").cyan());
 
     for name in installed.names() {
-        let pkg = installed.get(name)
+        let pkg = installed
+            .get(name)
             .with_context(|| format!("package '{}' is in installed list but not found", name))?;
 
         // Create a basic locked package entry
@@ -94,7 +95,11 @@ async fn install_from_lockfile(file: Option<PathBuf>) -> Result<()> {
 
     println!(
         "{}...",
-        style(format!("Installing from lockfile ({})", lockfile_path.display())).cyan()
+        style(format!(
+            "Installing from lockfile ({})",
+            lockfile_path.display()
+        ))
+        .cyan()
     );
 
     if !lockfile.matches_platform() {
@@ -107,10 +112,7 @@ async fn install_from_lockfile(file: Option<PathBuf>) -> Result<()> {
         );
     }
 
-    println!(
-        "\n{} packages to install:\n",
-        lockfile.packages.len()
-    );
+    println!("\n{} packages to install:\n", lockfile.packages.len());
 
     for (name, pkg) in &lockfile.packages {
         let source = if pkg.built_from_source {
@@ -148,11 +150,7 @@ async fn show_lockfile(file: Option<PathBuf>) -> Result<()> {
     println!("  {}: {}", style("Version").dim(), lockfile.version);
     println!("  {}: {}", style("Platform").dim(), lockfile.platform);
     println!("  {}: {}", style("Created").dim(), lockfile.created_at);
-    println!(
-        "  {}: {}",
-        style("Packages").dim(),
-        lockfile.packages.len()
-    );
+    println!("  {}: {}", style("Packages").dim(), lockfile.packages.len());
 
     if !lockfile.packages.is_empty() {
         println!("\n{}:\n", style("Packages").cyan());

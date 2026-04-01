@@ -206,9 +206,9 @@ fn test_installed_packages_names() {
 #[test]
 fn test_installed_packages_requested() {
     let mut installed = InstalledPackages::default();
-    installed.add("wget", "1.24.5", 0, true);  // requested
+    installed.add("wget", "1.24.5", 0, true); // requested
     installed.add("openssl", "3.0", 0, false); // dependency
-    installed.add("jq", "1.7", 0, true);       // requested
+    installed.add("jq", "1.7", 0, true); // requested
 
     let requested: Vec<_> = installed.requested().collect();
     assert_eq!(requested.len(), 2);
@@ -219,9 +219,9 @@ fn test_installed_packages_requested() {
 #[test]
 fn test_installed_packages_dependencies() {
     let mut installed = InstalledPackages::default();
-    installed.add("wget", "1.24.5", 0, true);  // requested
+    installed.add("wget", "1.24.5", 0, true); // requested
     installed.add("openssl", "3.0", 0, false); // dependency
-    installed.add("zlib", "1.3", 0, false);    // dependency
+    installed.add("zlib", "1.3", 0, false); // dependency
 
     let deps: Vec<_> = installed.dependencies().collect();
     assert_eq!(deps.len(), 2);
@@ -314,7 +314,10 @@ fn test_paths_installed_file() {
     let tmp = tempdir().unwrap();
     let paths = Paths::new(tmp.path().to_path_buf(), tmp.path().join("prefix"));
 
-    assert_eq!(paths.installed_file(), tmp.path().join("state").join("installed.toml"));
+    assert_eq!(
+        paths.installed_file(),
+        tmp.path().join("state").join("installed.toml")
+    );
 }
 
 #[test]

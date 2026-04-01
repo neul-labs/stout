@@ -1,12 +1,12 @@
 //! Cask command - install macOS/Linux applications
 
 use anyhow::{bail, Context, Result};
-use stout_cask::{install_cask, uninstall_cask, CaskInstallOptions, InstalledCasks};
-use stout_index::{Database, IndexSync};
-use stout_state::{Config, Paths};
 use clap::{Args as ClapArgs, Subcommand};
 use console::style;
 use std::time::Instant;
+use stout_cask::{install_cask, uninstall_cask, CaskInstallOptions, InstalledCasks};
+use stout_index::{Database, IndexSync};
+use stout_state::{Config, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -229,12 +229,7 @@ async fn run_install(args: InstallArgs) -> Result<()> {
                 installed_count += 1;
             }
             Err(e) => {
-                eprintln!(
-                    "  {} Failed to install {}: {}",
-                    style("✗").red(),
-                    token,
-                    e
-                );
+                eprintln!("  {} Failed to install {}: {}", style("✗").red(), token, e);
             }
         }
     }
@@ -261,19 +256,11 @@ async fn run_uninstall(args: UninstallArgs) -> Result<()> {
     let state_path = paths.stout_dir.join("casks.json");
 
     for token in &args.casks {
-        println!(
-            "{} {}...",
-            style("Uninstalling").cyan(),
-            token
-        );
+        println!("{} {}...", style("Uninstalling").cyan(), token);
 
         match uninstall_cask(token, &state_path, args.zap).await {
             Ok(_) => {
-                println!(
-                    "  {} {} uninstalled",
-                    style("✓").green(),
-                    token
-                );
+                println!("  {} {} uninstalled", style("✓").green(), token);
             }
             Err(e) => {
                 eprintln!(
@@ -298,9 +285,9 @@ async fn run_info(args: InfoArgs) -> Result<()> {
         .context("Failed to open index. Run 'stout update' first.")?;
 
     // Get cask from database
-    let cask_info = db.get_cask(&args.cask)?.ok_or_else(|| {
-        anyhow::anyhow!("Cask '{}' not found", args.cask)
-    })?;
+    let cask_info = db
+        .get_cask(&args.cask)?
+        .ok_or_else(|| anyhow::anyhow!("Cask '{}' not found", args.cask))?;
 
     // Fetch full cask data for more details
     let sync = IndexSync::with_security_policy(
@@ -334,7 +321,11 @@ async fn run_info(args: InfoArgs) -> Result<()> {
         println!("{}: {}", style("Download URL").bold(), url);
     }
 
-    println!("{}: {}", style("SHA256").bold(), full_cask.sha256.as_str().unwrap_or("no_check"));
+    println!(
+        "{}: {}",
+        style("SHA256").bold(),
+        full_cask.sha256.as_str().unwrap_or("no_check")
+    );
 
     if full_cask.auto_updates {
         println!("{}: yes", style("Auto-updates").bold());
@@ -371,11 +362,13 @@ async fn run_search(args: SearchArgs) -> Result<()> {
     if args.json {
         let json_results: Vec<_> = results
             .iter()
-            .map(|c| serde_json::json!({
-                "token": c.token,
-                "version": c.version,
-                "desc": c.desc,
-            }))
+            .map(|c| {
+                serde_json::json!({
+                    "token": c.token,
+                    "version": c.version,
+                    "desc": c.desc,
+                })
+            })
             .collect();
         println!("{}", serde_json::to_string_pretty(&json_results)?);
         return Ok(());
@@ -408,12 +401,14 @@ async fn run_list(args: ListArgs) -> Result<()> {
     if args.json {
         let json_list: Vec<_> = installed
             .iter()
-            .map(|(token, cask)| serde_json::json!({
-                "token": token,
-                "version": cask.version,
-                "installed_at": cask.installed_at,
-                "path": cask.artifact_path,
-            }))
+            .map(|(token, cask)| {
+                serde_json::json!({
+                    "token": token,
+                    "version": cask.version,
+                    "installed_at": cask.installed_at,
+                    "path": cask.artifact_path,
+                })
+            })
             .collect();
         println!("{}", serde_json::to_string_pretty(&json_list)?);
         return Ok(());
@@ -467,11 +462,13 @@ async fn run_outdated(args: OutdatedArgs) -> Result<()> {
     if args.json {
         let json_outdated: Vec<_> = outdated
             .iter()
-            .map(|(token, current, latest)| serde_json::json!({
-                "token": token,
-                "current_version": current,
-                "latest_version": latest,
-            }))
+            .map(|(token, current, latest)| {
+                serde_json::json!({
+                    "token": token,
+                    "current_version": current,
+                    "latest_version": latest,
+                })
+            })
             .collect();
         println!("{}", serde_json::to_string_pretty(&json_outdated)?);
         return Ok(());
@@ -560,12 +557,7 @@ async fn run_upgrade(args: UpgradeArgs) -> Result<()> {
                 );
             }
             Err(e) => {
-                eprintln!(
-                    "  {} Failed to upgrade {}: {}",
-                    style("✗").red(),
-                    token,
-                    e
-                );
+                eprintln!("  {} Failed to upgrade {}: {}", style("✗").red(), token, e);
             }
         }
     }

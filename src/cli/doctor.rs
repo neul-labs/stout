@@ -143,25 +143,14 @@ pub async fn run(args: Args) -> Result<()> {
                     match crate::cli::sync::fix_drift(&paths).await {
                         Ok(descriptions) if !descriptions.is_empty() => {
                             for desc in &descriptions {
-                                println!(
-                                    "    {} {}",
-                                    style("✓").green(),
-                                    desc
-                                );
+                                println!("    {} {}", style("✓").green(), desc);
                             }
                         }
                         Ok(_) => {
-                            println!(
-                                "    {} no changes needed",
-                                style("✓").green()
-                            );
+                            println!("    {} no changes needed", style("✓").green());
                         }
                         Err(e) => {
-                            println!(
-                                "    {} sync failed: {}",
-                                style("✗").red(),
-                                e
-                            );
+                            println!("    {} sync failed: {}", style("✗").red(), e);
                             issues += 1;
                         }
                     }
@@ -254,12 +243,7 @@ pub async fn run(args: Args) -> Result<()> {
                     }
                     Ok(_) => {}
                     Err(e) => {
-                        println!(
-                            "    {} {}: {}",
-                            style("✗").red(),
-                            name,
-                            e
-                        );
+                        println!("    {} {}: {}", style("✗").red(), name, e);
                     }
                 }
             }

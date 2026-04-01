@@ -42,10 +42,10 @@ When a tag is pushed (e.g., `v0.1.0`), the release workflow:
 
 # 2. Commit changes
 git add -A
-git commit -m "Release v0.2.0"
+git commit -m "Release v0.2.1"
 
 # 3. Create tag
-git tag v0.2.0
+git tag v0.2.1
 
 # 4. Push (triggers release workflow)
 git push origin main --tags
@@ -123,7 +123,7 @@ end
 
 ```bash
 cd packaging/homebrew
-./update-formula.sh 0.2.0
+./update-formula.sh 0.2.1
 # Copy to tap repo and push
 ```
 
@@ -149,7 +149,7 @@ makepkg --printsrcinfo > .SRCINFO
 
 # Commit and push
 git add PKGBUILD .SRCINFO
-git commit -m "Update to 0.2.0"
+git commit -m "Update to 0.2.1"
 git push
 ```
 
@@ -164,7 +164,7 @@ makepkg -si
 
 # Check with namcap
 namcap PKGBUILD
-namcap stout-0.2.0-1-x86_64.pkg.tar.zst
+namcap stout-0.2.1-1-x86_64.pkg.tar.zst
 ```
 
 ## Nix
@@ -241,7 +241,7 @@ All `Cargo.toml` files must have matching versions:
 ```bash
 # Use cargo-edit for batch updates
 cargo install cargo-edit
-cargo set-version 0.2.0
+cargo set-version 0.2.1
 ```
 
 Or manually update each:

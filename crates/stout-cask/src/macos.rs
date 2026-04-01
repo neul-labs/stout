@@ -3,9 +3,9 @@
 use crate::download::ArtifactType;
 use crate::error::{Error, Result};
 use crate::install::CaskInstallOptions;
-use stout_index::Cask;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use stout_index::Cask;
 use tracing::{debug, info, warn};
 
 /// RAII guard for temporary directory cleanup
@@ -22,7 +22,11 @@ impl Drop for TempDirGuard {
     fn drop(&mut self) {
         if self.0.exists() {
             if let Err(e) = std::fs::remove_dir_all(&self.0) {
-                warn!("Failed to clean up temp directory {}: {}", self.0.display(), e);
+                warn!(
+                    "Failed to clean up temp directory {}: {}",
+                    self.0.display(),
+                    e
+                );
             }
         }
     }
@@ -64,7 +68,11 @@ async fn install_from_dmg(
         .appdir
         .clone()
         .unwrap_or_else(|| PathBuf::from("/Applications"));
-    let app_name = app_bundle.file_name().unwrap().to_string_lossy().to_string();
+    let app_name = app_bundle
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .to_string();
     let dest = appdir.join(&app_name);
 
     // Remove existing if force
@@ -175,7 +183,11 @@ async fn install_from_zip(
         .appdir
         .clone()
         .unwrap_or_else(|| PathBuf::from("/Applications"));
-    let app_name = app_bundle.file_name().unwrap().to_string_lossy().to_string();
+    let app_name = app_bundle
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .to_string();
     let dest = appdir.join(&app_name);
 
     // Remove existing if force
@@ -233,7 +245,11 @@ async fn install_from_archive(
         .appdir
         .clone()
         .unwrap_or_else(|| PathBuf::from("/Applications"));
-    let app_name = app_bundle.file_name().unwrap().to_string_lossy().to_string();
+    let app_name = app_bundle
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .to_string();
     let dest = appdir.join(&app_name);
 
     // Remove existing if force
@@ -262,7 +278,11 @@ fn mount_dmg(dmg_path: &Path) -> Result<PathBuf> {
     // Create mount point
     std::fs::create_dir_all(&mount_point)?;
 
-    debug!("Mounting {} at {}", dmg_path.display(), mount_point.display());
+    debug!(
+        "Mounting {} at {}",
+        dmg_path.display(),
+        mount_point.display()
+    );
 
     let output = Command::new("hdiutil")
         .args(["attach", "-nobrowse", "-readonly", "-mountpoint"])

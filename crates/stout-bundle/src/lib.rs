@@ -11,5 +11,5 @@ mod parser;
 mod snapshot;
 
 pub use error::{Error, Result};
-pub use parser::{Brewfile, BrewEntry, CaskEntry, TapEntry, MasEntry};
+pub use parser::{BrewEntry, Brewfile, CaskEntry, MasEntry, TapEntry};
 pub use snapshot::{Snapshot, SnapshotManager};

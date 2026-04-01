@@ -4,11 +4,11 @@
 //! can execute with --version or --help flags.
 
 use anyhow::{bail, Context, Result};
-use stout_state::{InstalledPackages, Paths};
 use clap::Args as ClapArgs;
 use console::style;
 use std::process::Command;
 use std::time::Instant;
+use stout_state::{InstalledPackages, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -67,12 +67,10 @@ pub async fn run(args: Args) -> Result<()> {
             continue;
         }
 
-        let pkg_info = installed.get(name)
+        let pkg_info = installed
+            .get(name)
             .with_context(|| format!("package '{}' is installed but not found in state", name))?;
-        let install_path = paths
-            .cellar
-            .join(name)
-            .join(&pkg_info.version);
+        let install_path = paths.cellar.join(name).join(&pkg_info.version);
 
         if !install_path.exists() {
             println!(
@@ -122,27 +120,19 @@ pub async fn run(args: Args) -> Result<()> {
                 }
 
                 // Try running with --version
-                let result = test_binary(&paths.prefix.join("bin").join(&binary_name), args.verbose);
+                let result =
+                    test_binary(&paths.prefix.join("bin").join(&binary_name), args.verbose);
 
-                if result.is_ok() {
-                    tested = true;
-                    if args.verbose {
-                        println!(
-                            "    {} {}",
-                            style("✓").green(),
-                            binary_name
-                        );
-                    }
-                } else {
+                if let Err(e) = result {
                     tested = true;
                     all_passed = false;
                     if args.verbose {
-                        println!(
-                            "    {} {} - {}",
-                            style("✗").red(),
-                            binary_name,
-                            result.unwrap_err()
-                        );
+                        println!("    {} {} - {}", style("✗").red(), binary_name, e);
+                    }
+                } else {
+                    tested = true;
+                    if args.verbose {
+                        println!("    {} {}", style("✓").green(), binary_name);
                     }
                 }
             }
@@ -213,9 +203,7 @@ fn test_binary(path: &std::path::Path, verbose: bool) -> Result<(), String> {
     }
 
     // Try --version first
-    let version_result = Command::new(path)
-        .arg("--version")
-        .output();
+    let version_result = Command::new(path).arg("--version").output();
 
     if let Ok(output) = version_result {
         if output.status.success() {
@@ -233,20 +221,20 @@ fn test_binary(path: &std::path::Path, verbose: bool) -> Result<(), String> {
     }
 
     // Try --help as fallback
-    let help_result = Command::new(path)
-        .arg("--help")
-        .output();
+    let help_result = Command::new(path).arg("--help").output();
 
     if let Ok(output) = help_result {
-        if output.status.success() || output.status.code() == Some(0) || output.status.code() == Some(1) {
+        if output.status.success()
+            || output.status.code() == Some(0)
+            || output.status.code() == Some(1)
+        {
             // Some programs exit with 1 for --help
             return Ok(());
         }
     }
 
     // Try just running it with no args (for simple utilities)
-    let bare_result = Command::new(path)
-        .output();
+    let bare_result = Command::new(path).output();
 
     if let Ok(output) = bare_result {
         // Consider it success if it runs without crashing

@@ -199,7 +199,7 @@ impl DeltaSync {
                 let manifest: super::Manifest = response.json().await?;
 
                 Ok(UpdateStatus::Available {
-                    manifest,
+                    manifest: Box::new(manifest),
                     etag: new_etag,
                     last_modified: new_last_modified,
                 })
@@ -301,7 +301,7 @@ pub enum UpdateStatus {
     NotModified,
     /// Update available
     Available {
-        manifest: super::Manifest,
+        manifest: Box<super::Manifest>,
         etag: Option<String>,
         last_modified: Option<String>,
     },
