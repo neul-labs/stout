@@ -335,38 +335,50 @@ pub async fn run(args: Args) -> Result<()> {
                 println!("{}", style("✓").green());
             } else if args.fix {
                 println!();
-                let all_files: Vec<&Path> =
-                    affected.iter().flat_map(|(_, files): &(_, Vec<_>)| files.iter().map(|f| f.as_path())).collect();
-                let (fixed, failed): (usize, usize) = all_files
-                    .par_iter()
-                    .fold(
-                        || (0usize, 0usize),
-                        |(mut ok, mut fail), file| {
-                            if resign_file(file) {
-                                ok += 1;
-                            } else {
-                                fail += 1;
-                            }
-                            (ok, fail)
-                        },
-                    )
-                    .reduce(
-                        || (0, 0),
-                        |(ok1, fail1), (ok2, fail2)| (ok1 + ok2, fail1 + fail2),
-                    );
-                if fixed > 0 {
-                    println!(
-                        "    {} Re-signed {} files across {} packages",
-                        style("✓").green(),
-                        fixed,
-                        affected.len()
-                    );
+                // Attempt re-signing; track which packages still have issues
+                let corrupted_packages: std::sync::Mutex<Vec<(String, usize)>> =
+                    std::sync::Mutex::new(Vec::new());
+                let mut fixed = 0usize;
+                let mut failed = 0usize;
+
+                for (name, files) in &affected {
+                    let mut pkg_fixed = 0usize;
+                    let mut pkg_failed = 0usize;
+                    for file in files {
+                        if resign_file(file) {
+                            pkg_fixed += 1;
+                        } else {
+                            pkg_failed += 1;
+                        }
+                    }
+                    fixed += pkg_fixed;
+                    if pkg_failed > 0 {
+                        corrupted_packages
+                            .lock()
+                            .unwrap()
+                            .push((name.clone(), pkg_failed));
+                    }
+                    failed += pkg_failed;
                 }
-                if failed > 0 {
+
+                if fixed > 0 {
+                    println!("    {} Re-signed {} file(s)", style("✓").green(), fixed,);
+                }
+                let corrupted = corrupted_packages.into_inner().unwrap();
+                if !corrupted.is_empty() {
                     println!(
-                        "    {} Failed to re-sign {} files",
+                        "    {} {} corrupted file(s) across {} package(s):",
                         style("✗").red(),
-                        failed
+                        failed,
+                        corrupted.len()
+                    );
+                    for (name, count) in &corrupted {
+                        println!("      {} {} ({} file(s))", style("✗").red(), name, count);
+                    }
+                    println!(
+                        "    {}",
+                        style("Reinstall corrupted packages: stout upgrade <package>")
+                            .dim()
                     );
                     issues += 1;
                 }
@@ -383,7 +395,7 @@ pub async fn run(args: Args) -> Result<()> {
                 );
                 for (name, files) in &affected {
                     println!(
-                        "    {} {} ({} files with invalid signatures)",
+                        "    {} {} ({} files)",
                         style("⚠").yellow(),
                         name,
                         files.len()
@@ -391,7 +403,8 @@ pub async fn run(args: Args) -> Result<()> {
                 }
                 println!(
                     "    {}",
-                    style("Run 'stout doctor --fix' to re-sign").dim()
+                    style("Run 'stout doctor --fix' to re-sign (corrupted files need reinstall)")
+                        .dim()
                 );
                 issues += 1;
             }
