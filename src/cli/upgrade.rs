@@ -32,6 +32,14 @@ pub struct Args {
     /// Check HEAD packages for updates (does not upgrade, use reinstall)
     #[arg(long = "fetch-HEAD")]
     pub fetch_head: bool,
+
+    /// Only upgrade casks
+    #[arg(long)]
+    pub cask: bool,
+
+    /// Only upgrade formulas
+    #[arg(long, conflicts_with = "cask")]
+    pub formula: bool,
 }
 
 struct UpgradeCandidate {
@@ -82,112 +90,116 @@ pub async fn run(args: Args) -> Result<()> {
 
     println!("\n{}...", style("Checking for updates").cyan());
 
-    // Find upgradable packages
     let mut upgradable: Vec<UpgradeCandidate> = Vec::new();
     let mut pinned_skipped: Vec<String> = Vec::new();
+    let mut head_updates: Vec<(String, String, String)> = Vec::new();
 
-    let packages_to_check: Vec<_> = if args.formulas.is_empty() {
-        installed.names().cloned().collect()
-    } else {
-        args.formulas.clone()
-    };
-
-    for name in packages_to_check {
-        let pkg = match installed.get(&name) {
-            Some(pkg) => pkg,
-            None => continue,
+    // Find upgradable formulas (skip if --cask)
+    if !args.cask {
+        let packages_to_check: Vec<_> = if args.formulas.is_empty() {
+            installed.names().cloned().collect()
+        } else {
+            args.formulas.clone()
         };
 
-        // Skip HEAD formulas - they are not upgraded to stable versions
-        if pkg.is_head_install() {
-            continue;
-        }
-
-        // Skip pinned formulas unless explicitly requested by name
-        if pkg.pinned && args.formulas.is_empty() {
-            // Check if there's actually an update available before reporting
-            if let Some(info) = db.get_formula(&name)? {
-                if info.version != pkg.version {
-                    pinned_skipped.push(name.clone());
-                }
-            }
-            continue;
-        }
-
-        let info = match db.get_formula(&name)? {
-            Some(info) => info,
-            None => continue,
-        };
-
-        // Only mark as upgradable if installed version is strictly less than current
-        if compare_versions(&pkg.version, &info.version) == Ordering::Less {
-            upgradable.push(UpgradeCandidate {
-                name: name.clone(),
-                old_version: pkg.version.clone(),
-                new_version: info.version.clone(),
-                explicitly_requested: pkg.requested,
-            });
-        }
-    }
-
-    // Check HEAD packages for updates if --fetch-HEAD is specified
-    let mut head_updates: Vec<(String, String, String)> = Vec::new(); // (name, old_sha, new_sha)
-    if args.fetch_head {
-        let sync = IndexSync::with_security_policy(
-            Some(&config.index.base_url),
-            &paths.stout_dir,
-            config.security.to_security_policy(),
-        )?;
-
-        for (name, pkg) in installed.iter() {
-            if !pkg.is_head_install() {
-                continue;
-            }
-
-            let formula = match sync.fetch_formula_cached(name, None).await {
-                Ok(f) => f,
-                Err(_) => continue,
-            };
-
-            let head_url = match &formula.urls.head {
-                Some(url) => url,
+        for name in packages_to_check {
+            let pkg = match installed.get(&name) {
+                Some(pkg) => pkg,
                 None => continue,
             };
 
-            // Get remote HEAD SHA (without cloning)
-            let remote_sha = get_remote_head_sha(&head_url.url, &head_url.branch).ok();
-
-            if let (Some(current), Some(remote)) = (&pkg.head_sha, remote_sha) {
-                if current != &remote {
-                    let short_remote: String = remote.chars().take(7).collect();
-                    head_updates.push((
-                        name.clone(),
-                        pkg.short_sha().unwrap_or("?").to_string(),
-                        short_remote,
-                    ));
-                }
-            }
-        }
-    }
-
-    // Check for cask upgrades
-    let mut cask_upgrades: Vec<(String, String, String)> = Vec::new(); // (token, old, new)
-    let cask_state_path = paths.stout_dir.join("casks.json");
-    if let Ok(installed_casks) = InstalledCasks::load(&cask_state_path) {
-        for (token, cask) in installed_casks.iter() {
-            // Skip if version is unknown
-            if cask.version == "unknown" {
+            // Skip HEAD formulas - they are not upgraded to stable versions
+            if pkg.is_head_install() {
                 continue;
             }
 
-            // Check if there's a newer version in the index
-            if let Some(info) = db.get_cask(token)? {
-                if compare_versions(&cask.version, &info.version) == Ordering::Less {
-                    cask_upgrades.push((token.clone(), cask.version.clone(), info.version));
+            // Skip pinned formulas unless explicitly requested by name
+            if pkg.pinned && args.formulas.is_empty() {
+                // Check if there's actually an update available before reporting
+                if let Some(info) = db.get_formula(&name)? {
+                    if info.version != pkg.version {
+                        pinned_skipped.push(name.clone());
+                    }
+                }
+                continue;
+            }
+
+            let info = match db.get_formula(&name)? {
+                Some(info) => info,
+                None => continue,
+            };
+
+            // Only mark as upgradable if installed version is strictly less than current
+            if compare_versions(&pkg.version, &info.version) == Ordering::Less {
+                upgradable.push(UpgradeCandidate {
+                    name: name.clone(),
+                    old_version: pkg.version.clone(),
+                    new_version: info.version.clone(),
+                    explicitly_requested: pkg.requested,
+                });
+            }
+        }
+
+        // Check HEAD packages for updates if --fetch-HEAD is specified
+        if args.fetch_head {
+            let sync = IndexSync::with_security_policy(
+                Some(&config.index.base_url),
+                &paths.stout_dir,
+                config.security.to_security_policy(),
+            )?;
+
+            for (name, pkg) in installed.iter() {
+                if !pkg.is_head_install() {
+                    continue;
+                }
+
+                let formula = match sync.fetch_formula_cached(name, None).await {
+                    Ok(f) => f,
+                    Err(_) => continue,
+                };
+
+                let head_url = match &formula.urls.head {
+                    Some(url) => url,
+                    None => continue,
+                };
+
+                // Get remote HEAD SHA (without cloning)
+                let remote_sha = get_remote_head_sha(&head_url.url, &head_url.branch).ok();
+
+                if let (Some(current), Some(remote)) = (&pkg.head_sha, remote_sha) {
+                    if current != &remote {
+                        let short_remote: String = remote.chars().take(7).collect();
+                        head_updates.push((
+                            name.clone(),
+                            pkg.short_sha().unwrap_or("?").to_string(),
+                            short_remote,
+                        ));
+                    }
                 }
             }
         }
-    }
+    } // end if !args.cask
+
+    // Check for cask upgrades (skip if --formula)
+    let mut cask_upgrades: Vec<(String, String, String)> = Vec::new(); // (token, old, new)
+    let cask_state_path = paths.stout_dir.join("casks.json");
+    if !args.formula {
+        if let Ok(installed_casks) = InstalledCasks::load(&cask_state_path) {
+            for (token, cask) in installed_casks.iter() {
+                // Skip if version is unknown
+                if cask.version == "unknown" {
+                    continue;
+                }
+
+                // Check if there's a newer version in the index
+                if let Some(info) = db.get_cask(token)? {
+                    if compare_versions(&cask.version, &info.version) == Ordering::Less {
+                        cask_upgrades.push((token.clone(), cask.version.clone(), info.version));
+                    }
+                }
+            }
+        }
+    } // end if !args.formula
 
     if !pinned_skipped.is_empty() {
         println!(
