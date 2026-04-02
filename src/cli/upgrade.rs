@@ -698,10 +698,7 @@ pub async fn run(args: Args) -> Result<()> {
         }
 
         // Phase 2: Install all casks sequentially
-        let mut installed_casks = match stout_cask::InstalledCasks::load(&cask_state_path) {
-            Ok(c) => c,
-            Err(_) => stout_cask::InstalledCasks::default(),
-        };
+        let mut installed_casks = stout_cask::InstalledCasks::load(&cask_state_path).unwrap_or_default();
 
         for dl in downloads {
             if dl.error.is_some() {
