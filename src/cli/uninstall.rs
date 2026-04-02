@@ -51,11 +51,11 @@ pub async fn run(args: Args) -> Result<()> {
                 .is_some_and(|c| c.is_installed(name));
 
         if args.cask {
-            uninstall_cask(name, &cask_state_path, args.zap, args.dry_run).await?;
+            uninstall_cask(name, &cask_state_path, &paths, args.zap, args.dry_run).await?;
         } else if args.formula || is_formula_installed {
             uninstall_formula(name, &mut installed, &paths, args.force, args.dry_run)?;
         } else if is_cask_installed {
-            uninstall_cask(name, &cask_state_path, args.zap, args.dry_run).await?;
+            uninstall_cask(name, &cask_state_path, &paths, args.zap, args.dry_run).await?;
         } else {
             eprintln!("{} {} is not installed", style("error:").red().bold(), name);
         }
@@ -198,6 +198,7 @@ fn uninstall_formula(
 async fn uninstall_cask(
     name: &str,
     cask_state_path: &std::path::Path,
+    paths: &stout_state::Paths,
     zap: bool,
     dry_run: bool,
 ) -> Result<()> {
@@ -225,6 +226,15 @@ async fn uninstall_cask(
             );
 
             stout_cask::uninstall_cask(name, cask_state_path, zap).await?;
+
+            // Remove from Caskroom so sync doesn't see a stale entry
+            if let Err(e) = stout_install::cask_scan::unregister_cask_from_caskroom(
+                &paths.prefix,
+                name,
+                &cask.version,
+            ) {
+                tracing::debug!("Failed to unregister {} from Caskroom: {}", name, e);
+            }
 
             println!("  {} {} {}", style("✓").green(), name, cask.version);
         }

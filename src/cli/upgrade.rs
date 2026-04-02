@@ -749,6 +749,16 @@ pub async fn run(args: Args) -> Result<()> {
                         artifacts: vec![],
                     };
                     installed_casks.add(&dl.token, installed);
+
+                    // Update Caskroom so sync sees the correct version
+                    if let Err(e) = stout_install::cask_scan::register_cask_in_caskroom(
+                        &paths.prefix,
+                        &dl.token,
+                        &new_version,
+                    ) {
+                        tracing::debug!("Failed to register {} in Caskroom: {}", dl.token, e);
+                    }
+
                     println!(
                         "  {} {} {} → {}",
                         style("✓").green(),

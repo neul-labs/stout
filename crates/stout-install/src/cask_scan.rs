@@ -85,6 +85,38 @@ fn read_cask_version(cask_dir: &Path) -> Option<String> {
     versions.pop()
 }
 
+/// Register a cask in the Caskroom by creating `<prefix>/Caskroom/<token>/<version>/`.
+///
+/// Removes any existing token directory first (including stale version dirs
+/// from prior installs or Homebrew-managed upgrades), then creates the fresh
+/// entry. This ensures `scan_caskroom` sees only the current version.
+pub fn register_cask_in_caskroom(prefix: &Path, token: &str, version: &str) -> std::io::Result<()> {
+    let token_dir = caskroom_path(prefix).join(token);
+    if token_dir.exists() {
+        std::fs::remove_dir_all(&token_dir)?;
+    }
+    std::fs::create_dir_all(token_dir.join(version))
+}
+
+/// Remove a cask's entire Caskroom entry on uninstall.
+///
+/// Removes the token directory and all its contents (version dirs, metadata).
+/// This handles cases where the tracked version doesn't match the directory
+/// name (e.g., after an upgrade or external Homebrew modifications).
+pub fn unregister_cask_from_caskroom(
+    prefix: &Path,
+    token: &str,
+    _version: &str,
+) -> std::io::Result<()> {
+    let token_dir = caskroom_path(prefix).join(token);
+
+    if token_dir.exists() {
+        std::fs::remove_dir_all(&token_dir)?;
+    }
+
+    Ok(())
+}
+
 /// Count installed casks (fast, doesn't require full parsing)
 pub fn count_caskroom_casks(prefix: &Path) -> usize {
     let caskroom = caskroom_path(prefix);

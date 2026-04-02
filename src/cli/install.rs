@@ -727,7 +727,7 @@ async fn install_formulas(
     }
 
     // Save state
-    installed.save(&paths)?;
+    installed.save(paths)?;
 
     // Cleanup downloaded bottles unless --keep-bottles is specified
     if !args.keep_bottles && !bottle_paths.is_empty() {
@@ -832,10 +832,8 @@ async fn install_casks(
     }
 
     // Phase 2: Install all casks sequentially (terminal access for sudo, etc.)
-    let mut installed_casks = match stout_cask::InstalledCasks::load(&cask_state_path) {
-        Ok(c) => c,
-        Err(_) => stout_cask::InstalledCasks::default(),
-    };
+    let mut installed_casks =
+        stout_cask::InstalledCasks::load(&cask_state_path).unwrap_or_default();
 
     for dl in downloads {
         if let Some(e) = &dl.error {
@@ -912,6 +910,15 @@ async fn install_casks(
                     artifacts: vec![],
                 };
                 installed_casks.add(&dl.token, installed);
+
+                // Register in Caskroom so sync sees the correct version
+                if let Err(e) = stout_install::cask_scan::register_cask_in_caskroom(
+                    &paths.prefix,
+                    &dl.token,
+                    &version,
+                ) {
+                    tracing::debug!("Failed to register {} in Caskroom: {}", dl.token, e);
+                }
 
                 println!("  {} {}", style("✓").green(), dl.token);
             }
