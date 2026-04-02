@@ -366,21 +366,27 @@ pub async fn run(args: Args) -> Result<()> {
                 }
                 let corrupted = corrupted_packages.into_inner().unwrap();
                 if !corrupted.is_empty() {
+                    let names: Vec<String> =
+                        corrupted.iter().map(|(name, _)| name.clone()).collect();
                     println!(
-                        "    {} {} corrupted file(s) across {} package(s):",
-                        style("✗").red(),
+                        "    {} {} corrupted file(s) across {} package(s), reinstalling...",
+                        style("→").cyan(),
                         failed,
-                        corrupted.len()
+                        corrupted.len(),
                     );
                     for (name, count) in &corrupted {
-                        println!("      {} {} ({} file(s))", style("✗").red(), name, count);
+                        println!("      {} {} ({} file(s))", style("•").dim(), name, count);
                     }
-                    println!(
-                        "    {}",
-                        style("Reinstall corrupted packages: stout upgrade <package>")
-                            .dim()
-                    );
-                    issues += 1;
+                    let reinstall_args = crate::cli::reinstall::Args {
+                        formulas: names,
+                        build_from_source: false,
+                        head: false,
+                        keep_bottles: false,
+                    };
+                    if let Err(e) = crate::cli::reinstall::run(reinstall_args).await {
+                        println!("    {} Reinstall failed: {}", style("✗").red(), e);
+                        issues += 1;
+                    }
                 }
             } else {
                 let total_files: usize = affected.iter().map(|(_, f): &(_, Vec<_>)| f.len()).sum();
@@ -403,7 +409,7 @@ pub async fn run(args: Args) -> Result<()> {
                 }
                 println!(
                     "    {}",
-                    style("Run 'stout doctor --fix' to re-sign (corrupted files need reinstall)")
+                    style("Run 'stout doctor --fix' to re-sign and reinstall corrupted files")
                         .dim()
                 );
                 issues += 1;
