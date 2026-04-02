@@ -117,7 +117,9 @@ pub async fn run(args: Args) -> Result<()> {
             if pkg.pinned && args.formulas.is_empty() {
                 // Check if there's actually an update available before reporting
                 if let Some(info) = db.get_formula(&name)? {
-                    if info.version != pkg.version {
+                    let installed_ver = effective_version(&pkg.version, pkg.revision);
+                    let index_ver = effective_version(&info.version, info.revision);
+                    if compare_versions(&installed_ver, &index_ver) == Ordering::Less {
                         pinned_skipped.push(name.clone());
                     }
                 }
@@ -129,12 +131,16 @@ pub async fn run(args: Args) -> Result<()> {
                 None => continue,
             };
 
-            // Only mark as upgradable if installed version is strictly less than current
-            if compare_versions(&pkg.version, &info.version) == Ordering::Less {
+            // Only mark as upgradable if installed version is strictly less than current.
+            // Incorporate revision into the comparison so rebuilds (e.g. 25.9.0_1) are
+            // detected even when the base version string is unchanged.
+            let installed_ver = effective_version(&pkg.version, pkg.revision);
+            let index_ver = effective_version(&info.version, info.revision);
+            if compare_versions(&installed_ver, &index_ver) == Ordering::Less {
                 upgradable.push(UpgradeCandidate {
                     name: name.clone(),
-                    old_version: pkg.version.clone(),
-                    new_version: info.version.clone(),
+                    old_version: installed_ver,
+                    new_version: index_ver,
                     explicitly_requested: pkg.requested,
                 });
             }
@@ -414,9 +420,11 @@ pub async fn run(args: Args) -> Result<()> {
     for candidate in upgradable {
         match sync.fetch_formula_cached(&candidate.name, None).await {
             Ok(formula) => {
-                // Verify formula version matches expected version from index
-                // This catches stale formula JSON that doesn't match the index
-                if formula.version != candidate.new_version {
+                // Verify formula version matches expected version from index.
+                // Compare effective versions (with _N revision suffix) so that
+                // rebuilds of the same base version are handled correctly.
+                let formula_effective = effective_version(&formula.version, formula.revision);
+                if formula_effective != candidate.new_version {
                     // Try auto-updating the index once
                     if !index_refreshed {
                         println!(
@@ -447,12 +455,13 @@ pub async fn run(args: Args) -> Result<()> {
                     // Re-fetch with fresh data
                     match sync.fetch_formula(&candidate.name).await {
                         Ok(fresh)
-                            if fresh.version == candidate.new_version
+                            if effective_version(&fresh.version, fresh.revision)
+                                == candidate.new_version
                                 || fresh.version != formula.version =>
                         {
                             // Accept the fresh formula — proceed below
-                            // (version may have changed, use fresh.version)
-                            let fresh_version = fresh.version.clone();
+                            // (version may have changed, use fresh effective version)
+                            let fresh_version = effective_version(&fresh.version, fresh.revision);
                             match fresh.bottle_for_platform(&platform) {
                                 Some(bottle) => {
                                     bottle_specs.push(BottleSpec {
@@ -846,4 +855,17 @@ fn get_remote_head_sha(url: &str, branch: &Option<String>) -> Result<String> {
         .ok_or_else(|| anyhow::anyhow!("No SHA in git ls-remote output"))?;
 
     Ok(sha.to_string())
+}
+
+/// Build the effective version string used for comparison, incorporating the
+/// Homebrew revision suffix (`_N`) when revision > 0.
+///
+/// This ensures that a rebuild of the same base version (e.g. `25.9.0_1`)
+/// is correctly detected as newer than the previously installed `25.9.0`.
+fn effective_version(version: &str, revision: u32) -> String {
+    if revision > 0 {
+        format!("{}_{}", version, revision)
+    } else {
+        version.to_string()
+    }
 }
