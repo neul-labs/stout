@@ -438,10 +438,8 @@ fn mount_dmg(dmg_path: &Path) -> Result<PathBuf> {
         .stderr(std::process::Stdio::null())
         .output();
 
-    // Inherit stdin so embedded SLA (Software License Agreement) prompts
-    // can accept user input. Some DMGs (e.g. calhash) embed an SLA that
-    // hdiutil prints to stdout and waits for input.
-    // Capture stdout/stderr to suppress the disk/partition table output.
+    // Phase 1: Try mounting quietly (stdout suppressed). Most DMGs mount
+    // without interaction and the disk info output is noisy.
     let mut child = Command::new("hdiutil")
         .args([
             "attach",
@@ -452,24 +450,26 @@ fn mount_dmg(dmg_path: &Path) -> Result<PathBuf> {
         ])
         .arg(&mount_point)
         .arg(dmg_path)
-        .stdin(std::process::Stdio::inherit())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
         .spawn()
         .map_err(|e| Error::CommandFailed {
             cmd: "hdiutil attach".to_string(),
             message: e.to_string(),
         })?;
 
+    const SLA_DETECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
     const ATTACH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
     let start = std::time::Instant::now();
 
+    // Wait for quiet mount to complete, or detect SLA prompt
     let status = loop {
         match child.try_wait().map_err(|e| Error::CommandFailed {
             cmd: "hdiutil attach".to_string(),
             message: e.to_string(),
         })? {
-            Some(s) => break s,
+            Some(s) => break Some(s),
             None => {
                 if start.elapsed() >= ATTACH_TIMEOUT {
                     let _ = child.kill();
@@ -480,7 +480,68 @@ fn mount_dmg(dmg_path: &Path) -> Result<PathBuf> {
                         ATTACH_TIMEOUT.as_secs()
                     )));
                 }
+                if start.elapsed() >= SLA_DETECT_TIMEOUT {
+                    // Likely an SLA prompt — kill and retry interactively
+                    break None;
+                }
                 std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+        }
+    };
+
+    let status = match status {
+        Some(s) => s,
+        None => {
+            // Phase 2: SLA-licensed DMG detected — retry with interactive
+            // stdout so the user can see and respond to the license prompt.
+            let _ = child.kill();
+            let _ = child.wait();
+
+            eprintln!(
+                "  {} Interactive license agreement detected — \
+                 please respond to the prompt below.",
+                console::style("⚠").yellow()
+            );
+
+            let mut child = Command::new("hdiutil")
+                .args([
+                    "attach",
+                    "-nobrowse",
+                    "-readonly",
+                    "-noverify",
+                    "-mountpoint",
+                ])
+                .arg(&mount_point)
+                .arg(dmg_path)
+                .stdin(std::process::Stdio::inherit())
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .map_err(|e| Error::CommandFailed {
+                    cmd: "hdiutil attach".to_string(),
+                    message: e.to_string(),
+                })?;
+
+            let sla_start = std::time::Instant::now();
+            loop {
+                match child.try_wait().map_err(|e| Error::CommandFailed {
+                    cmd: "hdiutil attach".to_string(),
+                    message: e.to_string(),
+                })? {
+                    Some(s) => break s,
+                    None => {
+                        if sla_start.elapsed() >= ATTACH_TIMEOUT {
+                            let _ = child.kill();
+                            let _ = child.wait();
+                            return Err(Error::MountFailed(format!(
+                                "hdiutil attach timed out after {}s \
+                                 (license agreement or security dialog may be blocking)",
+                                ATTACH_TIMEOUT.as_secs()
+                            )));
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                    }
+                }
             }
         }
     };

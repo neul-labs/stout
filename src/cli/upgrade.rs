@@ -535,127 +535,125 @@ pub async fn run(args: Args) -> Result<()> {
         }
     }
 
-    // If all formulas failed, we're done
-    if bottle_specs.is_empty() {
-        installed.save(&paths)?;
-        if !already_upgraded.is_empty() {
-            println!(
-                "\n{} {} packages (already upgraded externally)",
-                style("Updated state for").green().bold(),
-                already_upgraded.len()
-            );
-        }
-        return Ok(());
-    }
-
-    // Download all bottles in parallel
-    println!(
-        "\n{} {} packages...",
-        style("Downloading").cyan(),
-        bottle_specs.len()
-    );
-
-    let cache = DownloadCache::new(&paths.stout_dir);
-    let client = DownloadClient::new(cache, config.install.parallel_downloads as usize)?;
-    let progress = Arc::new(ProgressReporter::new());
-
-    let bottle_paths = client
-        .download_bottles(bottle_specs, Arc::clone(&progress))
-        .await
-        .context("Failed to download bottles")?;
-
-    // Upgrade all packages
-    println!("\n{}...", style("Upgrading").cyan());
-
+    // Download and upgrade formulas (if any)
     let mut upgrade_errors: Vec<(String, String)> = Vec::new();
 
-    for ((candidate, formula), bottle_path) in formulas_to_upgrade.iter().zip(bottle_paths.iter()) {
-        // Extract NEW version FIRST (before removing old)
-        // This ensures we don't break the system if extraction fails
-        let install_path = match extract_bottle(bottle_path, &paths.cellar) {
-            Ok(path) => path,
-            Err(e) => {
-                upgrade_errors.push((candidate.name.clone(), format!("extraction failed: {}", e)));
-                continue;
-            }
-        };
+    if !bottle_specs.is_empty() {
+        // Download all bottles in parallel
+        println!(
+            "\n{} {} packages...",
+            style("Downloading").cyan(),
+            bottle_specs.len()
+        );
 
-        // Relocate Homebrew placeholders to actual paths
-        if let Err(e) = relocate_bottle(&install_path, &paths.prefix) {
-            // Non-fatal - package may still work, but log the issue
-            warn!(
-                "Failed to relocate placeholders in {}: {}",
-                candidate.name, e
-            );
-        }
+        let cache = DownloadCache::new(&paths.stout_dir);
+        let client = DownloadClient::new(cache, config.install.parallel_downloads as usize)?;
+        let progress = Arc::new(ProgressReporter::new());
 
-        // Now that extraction succeeded, unlink and remove OLD version
-        let old_install_path = paths.package_path(&candidate.name, &candidate.old_version);
-        if old_install_path.exists() {
-            if let Err(e) = unlink_package(&old_install_path, &paths.prefix) {
-                upgrade_errors.push((
-                    candidate.name.clone(),
-                    format!("unlink old version failed: {}", e),
-                ));
-                // Try to clean up the newly extracted version
-                let _ = remove_package(&paths.cellar, &candidate.name, &candidate.new_version);
-                continue;
-            }
-            if let Err(e) = remove_package(&paths.cellar, &candidate.name, &candidate.old_version) {
-                // Non-fatal - old files remain but new version is installed
+        let bottle_paths = client
+            .download_bottles(bottle_specs, Arc::clone(&progress))
+            .await
+            .context("Failed to download bottles")?;
+
+        // Upgrade all packages
+        println!("\n{}...", style("Upgrading").cyan());
+
+        for ((candidate, formula), bottle_path) in
+            formulas_to_upgrade.iter().zip(bottle_paths.iter())
+        {
+            // Extract NEW version FIRST (before removing old)
+            // This ensures we don't break the system if extraction fails
+            let install_path = match extract_bottle(bottle_path, &paths.cellar) {
+                Ok(path) => path,
+                Err(e) => {
+                    upgrade_errors
+                        .push((candidate.name.clone(), format!("extraction failed: {}", e)));
+                    continue;
+                }
+            };
+
+            // Relocate Homebrew placeholders to actual paths
+            if let Err(e) = relocate_bottle(&install_path, &paths.prefix) {
+                // Non-fatal - package may still work, but log the issue
                 warn!(
-                    "Failed to remove old version {} of {}: {}",
-                    candidate.old_version, candidate.name, e
+                    "Failed to relocate placeholders in {}: {}",
+                    candidate.name, e
                 );
             }
+
+            // Now that extraction succeeded, unlink and remove OLD version
+            let old_install_path = paths.package_path(&candidate.name, &candidate.old_version);
+            if old_install_path.exists() {
+                if let Err(e) = unlink_package(&old_install_path, &paths.prefix) {
+                    upgrade_errors.push((
+                        candidate.name.clone(),
+                        format!("unlink old version failed: {}", e),
+                    ));
+                    // Try to clean up the newly extracted version
+                    let _ = remove_package(&paths.cellar, &candidate.name, &candidate.new_version);
+                    continue;
+                }
+                if let Err(e) =
+                    remove_package(&paths.cellar, &candidate.name, &candidate.old_version)
+                {
+                    // Non-fatal - old files remain but new version is installed
+                    warn!(
+                        "Failed to remove old version {} of {}: {}",
+                        candidate.old_version, candidate.name, e
+                    );
+                }
+            }
+
+            // Link new version
+            if let Err(e) = link_package(&install_path, &paths.prefix) {
+                upgrade_errors.push((candidate.name.clone(), format!("link failed: {}", e)));
+                // Package is extracted but not linked - user can manually fix
+                continue;
+            }
+
+            // Write receipt
+            let runtime_deps: Vec<RuntimeDependency> = formula
+                .runtime_deps()
+                .iter()
+                .filter_map(|dep| {
+                    db.get_formula(dep)
+                        .ok()
+                        .flatten()
+                        .map(|info| RuntimeDependency {
+                            full_name: dep.clone(),
+                            version: info.version,
+                            revision: Some(info.revision),
+                        })
+                })
+                .collect();
+
+            let receipt = InstallReceipt::new_bottle(
+                &formula.tap,
+                candidate.explicitly_requested,
+                runtime_deps,
+            );
+            if let Err(e) = write_receipt(&install_path, &receipt) {
+                warn!("Failed to write receipt for {}: {}", candidate.name, e);
+            }
+
+            // Update state - remove old, add new
+            installed.remove(&candidate.name);
+            installed.add(
+                &candidate.name,
+                &candidate.new_version,
+                formula.revision,
+                candidate.explicitly_requested,
+            );
+
+            println!(
+                "  {} {} {} → {}",
+                style("✓").green(),
+                candidate.name,
+                style(&candidate.old_version).dim(),
+                style(&candidate.new_version).cyan()
+            );
         }
-
-        // Link new version
-        if let Err(e) = link_package(&install_path, &paths.prefix) {
-            upgrade_errors.push((candidate.name.clone(), format!("link failed: {}", e)));
-            // Package is extracted but not linked - user can manually fix
-            continue;
-        }
-
-        // Write receipt
-        let runtime_deps: Vec<RuntimeDependency> = formula
-            .runtime_deps()
-            .iter()
-            .filter_map(|dep| {
-                db.get_formula(dep)
-                    .ok()
-                    .flatten()
-                    .map(|info| RuntimeDependency {
-                        full_name: dep.clone(),
-                        version: info.version,
-                        revision: Some(info.revision),
-                    })
-            })
-            .collect();
-
-        let receipt =
-            InstallReceipt::new_bottle(&formula.tap, candidate.explicitly_requested, runtime_deps);
-        if let Err(e) = write_receipt(&install_path, &receipt) {
-            warn!("Failed to write receipt for {}: {}", candidate.name, e);
-        }
-
-        // Update state - remove old, add new
-        installed.remove(&candidate.name);
-        installed.add(
-            &candidate.name,
-            &candidate.new_version,
-            formula.revision,
-            candidate.explicitly_requested,
-        );
-
-        println!(
-            "  {} {} {} → {}",
-            style("✓").green(),
-            candidate.name,
-            style(&candidate.old_version).dim(),
-            style(&candidate.new_version).cyan()
-        );
-    }
+    } // end if !bottle_specs.is_empty()
 
     // Save state
     installed.save(&paths)?;
@@ -698,7 +696,8 @@ pub async fn run(args: Args) -> Result<()> {
         }
 
         // Phase 2: Install all casks sequentially
-        let mut installed_casks = stout_cask::InstalledCasks::load(&cask_state_path).unwrap_or_default();
+        let mut installed_casks =
+            stout_cask::InstalledCasks::load(&cask_state_path).unwrap_or_default();
 
         for dl in downloads {
             if dl.error.is_some() {
