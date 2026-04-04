@@ -49,11 +49,21 @@ pub async fn install_artifact(
     artifact_type: ArtifactType,
     options: &CaskInstallOptions,
 ) -> Result<PathBuf> {
+    // Delegate to sync version
+    install_artifact_sync(cask, artifact_path, artifact_type, options)
+}
+
+/// Synchronous version for use with spawn_blocking
+pub fn install_artifact_sync(
+    cask: &Cask,
+    artifact_path: &Path,
+    artifact_type: ArtifactType,
+    options: &CaskInstallOptions,
+) -> Result<PathBuf> {
     match artifact_type {
-        ArtifactType::AppImage => install_appimage(cask, artifact_path, options).await,
+        ArtifactType::AppImage => install_appimage_sync(cask, artifact_path, options),
         ArtifactType::Zip | ArtifactType::TarGz | ArtifactType::TarBz2 => {
-            // Try to extract and find binary or AppImage
-            install_from_archive(cask, artifact_path, artifact_type, options).await
+            install_from_archive_sync(cask, artifact_path, artifact_type, options)
         }
         ArtifactType::Dmg | ArtifactType::Pkg => Err(Error::UnsupportedPlatform(
             "DMG and PKG are macOS-only formats".to_string(),
@@ -61,8 +71,8 @@ pub async fn install_artifact(
     }
 }
 
-/// Install an AppImage
-async fn install_appimage(
+/// Install an AppImage (synchronous)
+fn install_appimage_sync(
     cask: &Cask,
     appimage_path: &Path,
     options: &CaskInstallOptions,
@@ -118,8 +128,8 @@ async fn install_appimage(
     Ok(dest)
 }
 
-/// Install from archive on Linux
-async fn install_from_archive(
+/// Install from archive on Linux (synchronous)
+fn install_from_archive_sync(
     cask: &Cask,
     archive_path: &Path,
     artifact_type: ArtifactType,
@@ -163,7 +173,7 @@ async fn install_from_archive(
             .output()
     } else {
         Command::new("tar")
-            .args(extract_args)
+            .args(&extract_args)
             .arg(archive_path)
             .args(["-C"])
             .arg(&temp_dir)
@@ -181,8 +191,7 @@ async fn install_from_archive(
 
     // Look for AppImage or executable
     if let Some(appimage) = find_file_by_extension(&temp_dir, "AppImage")? {
-        let result = install_appimage(cask, &appimage, options).await?;
-        // Success - guard will clean up on drop
+        let result = install_appimage_sync(cask, &appimage, options)?;
         return Ok(result);
     }
 
@@ -206,11 +215,9 @@ async fn install_from_archive(
         perms.set_mode(0o755);
         std::fs::set_permissions(&dest, perms)?;
 
-        // Success - guard will clean up on drop
         return Ok(dest);
     }
 
-    // Guard will clean up on drop
     Err(Error::ArtifactNotFound(
         "No AppImage or executable found in archive".to_string(),
     ))

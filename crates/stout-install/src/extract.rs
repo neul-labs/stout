@@ -9,7 +9,7 @@ use std::io::{Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use tar::Archive;
+use tar::{Archive, EntryType};
 use tracing::{debug, info, warn};
 
 /// Extract a bottle tarball to the Cellar
@@ -33,14 +33,18 @@ pub fn extract_bottle(bottle_path: impl AsRef<Path>, cellar: impl AsRef<Path>) -
     // Create cellar if it doesn't exist
     create_dir_all_force(cellar)?;
 
-    // Extract all entries
     let mut install_path: Option<PathBuf> = None;
+    let mut hardlinks: Vec<(PathBuf, PathBuf)> = Vec::new();
 
+    // Single-pass extraction: regular entries are extracted immediately,
+    // hardlinks are collected and resolved in a post-pass. This is required
+    // because tar entries stream from a gzip decoder — storing entries for
+    // a second pass would consume and invalidate their data.
     for entry in archive.entries()? {
         let mut entry = entry?;
-        let path = entry.path()?;
+        let path = entry.path()?.to_path_buf();
 
-        // Get the top-level directory (package name)
+        // Determine install path from the first entry
         if install_path.is_none() {
             if let Some(component) = path.components().next() {
                 let pkg_name = component.as_os_str().to_string_lossy();
@@ -50,7 +54,7 @@ pub fn extract_bottle(bottle_path: impl AsRef<Path>, cellar: impl AsRef<Path>) -
                     let version = second.as_os_str().to_string_lossy();
                     let dest_path = cellar.join(&*pkg_name).join(&*version);
 
-                    // Remove existing directory if it exists (from previous failed/partial install)
+                    // Remove existing directory (from previous failed/partial install)
                     if dest_path.exists() {
                         debug!("Removing existing directory: {}", dest_path.display());
                         std::fs::remove_dir_all(&dest_path)?;
@@ -61,26 +65,65 @@ pub fn extract_bottle(bottle_path: impl AsRef<Path>, cellar: impl AsRef<Path>) -
             }
         }
 
-        // Compute full destination path
         let dest = cellar.join(&path);
 
-        // Create parent directories (removing any conflicting files in the way)
-        if let Some(parent) = dest.parent() {
+        match entry.header().entry_type() {
+            EntryType::Link => {
+                let link_target = entry.link_name()?.unwrap_or_default().into_owned();
+                hardlinks.push((path, link_target));
+            }
+            EntryType::Directory => {
+                create_dir_all_force(&dest)?;
+            }
+            _ => {
+                // Create parent directories
+                if let Some(parent) = dest.parent() {
+                    create_dir_all_force(parent)?;
+                }
+
+                // Remove existing file/symlink (entry.unpack fails on existing files)
+                if dest.exists() || dest.symlink_metadata().is_ok() {
+                    if dest.is_dir() {
+                        std::fs::remove_dir_all(&dest)?;
+                    } else {
+                        std::fs::remove_file(&dest)?;
+                    }
+                }
+
+                entry.set_unpack_xattrs(false);
+                entry.unpack(&dest)?;
+            }
+        }
+    }
+
+    // Post-pass: resolve hardlinks
+    for (link_path, target_path) in hardlinks {
+        let link_dest = cellar.join(&link_path);
+        let target_dest = cellar.join(&target_path);
+
+        if let Some(parent) = link_dest.parent() {
             create_dir_all_force(parent)?;
         }
 
-        // Remove existing file/symlink if present (entry.unpack fails on existing files)
-        if dest.exists() || dest.symlink_metadata().is_ok() {
-            debug!("Removing existing file: {}", dest.display());
-            if dest.is_dir() {
-                std::fs::remove_dir_all(&dest)?;
-            } else {
-                std::fs::remove_file(&dest)?;
-            }
+        if link_dest.exists() || link_dest.symlink_metadata().is_ok() {
+            std::fs::remove_file(&link_dest)?;
         }
 
-        // Extract the entry
-        entry.unpack(&dest)?;
+        debug!(
+            "Creating hardlink: {} -> {}",
+            link_dest.display(),
+            target_dest.display()
+        );
+
+        if let Err(e) = std::fs::hard_link(&target_dest, &link_dest) {
+            warn!(
+                "Failed to create hardlink {} -> {}: {}. Falling back to copy.",
+                link_dest.display(),
+                target_dest.display(),
+                e
+            );
+            std::fs::copy(&target_dest, &link_dest)?;
+        }
     }
 
     let install_path = install_path.ok_or_else(|| {

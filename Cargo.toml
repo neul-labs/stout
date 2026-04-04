@@ -121,6 +121,7 @@ stout-audit.workspace = true
 stout-mirror.workspace = true
 
 tokio.workspace = true
+futures-util.workspace = true
 clap.workspace = true
 clap_complete.workspace = true
 serde.workspace = true

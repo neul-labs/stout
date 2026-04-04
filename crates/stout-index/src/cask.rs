@@ -1,7 +1,16 @@
 //! Cask types and structures for macOS applications
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
+
+/// Helper to deserialize null as default bool value
+fn deserialize_null_bool_as_default<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt = Option::<bool>::deserialize(deserializer)?;
+    Ok(opt.unwrap_or(false))
+}
 
 /// Basic cask info stored in the SQLite index (fast queries)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,13 +56,13 @@ pub struct Cask {
 
     pub caveats: Option<String>,
 
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_bool_as_default")]
     pub auto_updates: bool,
 
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_bool_as_default")]
     pub deprecated: bool,
 
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_bool_as_default")]
     pub disabled: bool,
 
     /// Container type (e.g., "dmg", "zip", "pkg")
@@ -82,41 +91,13 @@ impl CaskSha256 {
     }
 }
 
-/// Cask artifact - what gets installed
+/// Cask artifact - what gets installed (normalized format from index)
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum CaskArtifact {
-    App(AppArtifact),
-    Pkg(PkgArtifact),
-    Binary(BinaryArtifact),
-    Zap(ZapArtifact),
-    Uninstall(UninstallArtifact),
-    Other(serde_json::Value),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AppArtifact {
-    pub app: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PkgArtifact {
-    pub pkg: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BinaryArtifact {
-    pub binary: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ZapArtifact {
-    pub zap: Vec<serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UninstallArtifact {
-    pub uninstall: Vec<serde_json::Value>,
+pub struct CaskArtifact {
+    #[serde(rename = "type")]
+    pub artifact_type: String,
+    pub source: Option<String>,
+    pub stanza: Option<Vec<serde_json::Value>>,
 }
 
 /// Container specification
@@ -154,6 +135,7 @@ pub enum MacOsRequirement {
     Version(String),
     Versions(Vec<String>),
     Comparison { op: String, version: String },
+    ComparisonList(std::collections::HashMap<String, Vec<String>>),
 }
 
 impl Cask {
@@ -162,14 +144,13 @@ impl Cask {
         self.name.first().map(|s| s.as_str()).unwrap_or(&self.token)
     }
 
-    /// Get the primary artifact type
-    pub fn primary_artifact_type(&self) -> &'static str {
+    /// Get the primary artifact type (first non-cleanup artifact)
+    pub fn primary_artifact_type(&self) -> &str {
         for artifact in &self.artifacts {
-            match artifact {
-                CaskArtifact::App(_) => return "app",
-                CaskArtifact::Pkg(_) => return "pkg",
-                CaskArtifact::Binary(_) => return "binary",
-                _ => continue,
+            // Skip cleanup artifacts, return first installable type
+            match artifact.artifact_type.as_str() {
+                "zap" | "uninstall" => continue,
+                t => return t,
             }
         }
         "unknown"
@@ -179,13 +160,8 @@ impl Cask {
     pub fn apps(&self) -> Vec<&str> {
         self.artifacts
             .iter()
-            .filter_map(|a| match a {
-                CaskArtifact::App(app) => {
-                    Some(app.app.iter().map(|s| s.as_str()).collect::<Vec<_>>())
-                }
-                _ => None,
-            })
-            .flatten()
+            .filter(|a| a.artifact_type == "app")
+            .filter_map(|a| a.source.as_deref())
             .collect()
     }
 
