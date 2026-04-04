@@ -7,8 +7,8 @@ use std::sync::Arc;
 use stout_fetch::{BottleSpec, DownloadCache, DownloadClient, ProgressReporter};
 use stout_index::{Database, IndexSync};
 use stout_install::{
-    extract_bottle, link_package, unlink_package, write_receipt, BuildConfig, HeadBuildConfig,
-    HeadBuilder, InstallReceipt, RuntimeDependency, SourceBuilder,
+    extract_bottle, link_package, relocate_bottle, unlink_package, write_receipt, BuildConfig,
+    HeadBuildConfig, HeadBuilder, InstallReceipt, RuntimeDependency, SourceBuilder,
 };
 use stout_state::{Config, InstalledPackages, Paths};
 
@@ -223,6 +223,15 @@ pub async fn run(args: Args) -> Result<()> {
 
             println!("  {} Extracting...", style("•").dim());
             let install_path = extract_bottle(bottle_path, &paths.cellar)?;
+
+            // Relocate Homebrew placeholders to actual paths
+            if let Err(e) = relocate_bottle(&install_path, &paths.prefix) {
+                eprintln!(
+                    "  {} Warning: relocation failed: {}",
+                    style("!").yellow(),
+                    e
+                );
+            }
 
             // Cleanup bottle if not keeping
             if !args.keep_bottles {

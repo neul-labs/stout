@@ -141,6 +141,9 @@ This checks:
 - Formula index
 - Homebrew prefix and Cellar
 - Installed packages state
+- Homebrew drift
+- Unrelocated placeholders
+- Code signatures (macOS)
 
 ## Command Reference
 
@@ -296,8 +299,10 @@ Checks system health and configuration:
 - Installed packages state
 - Homebrew drift (packages in Cellar/Caskroom not tracked by stout)
 - Unrelocated Homebrew placeholders
+- Code signatures on all Mach-O binaries (macOS)
 
-Use `--fix` to automatically run sync and resolve drift.
+Use `--fix` to automatically run sync, relocate unresolved placeholders,
+re-sign binaries with invalid signatures, and reinstall corrupted packages.
 
 ### stout completions
 

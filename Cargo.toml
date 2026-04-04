@@ -141,6 +141,7 @@ tar.workspace = true
 sha2.workspace = true
 hex.workspace = true
 walkdir = "2"
+rayon.workspace = true
 dirs.workspace = true
 
 [build-dependencies]
