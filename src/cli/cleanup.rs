@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 use clap::Args as ClapArgs;
 use console::style;
 use std::path::Path;
+use stout_cask::InstalledCasks;
 use stout_fetch::DownloadCache;
 use stout_state::{InstalledPackages, Paths};
 
@@ -80,6 +81,36 @@ pub async fn run(args: Args) -> Result<()> {
                     );
                     total_freed += freed;
                 }
+            }
+        }
+
+        // Clean cask artifact cache
+        let cask_state_path = paths.stout_dir.join("casks.json");
+        let installed_casks = InstalledCasks::load(&cask_state_path).unwrap_or_default();
+        let cask_cache_dir = paths.stout_dir.join("cache").join("casks");
+
+        if max_age_days == 0 || args.scrub {
+            let freed = clean_all_cask_artifacts(
+                &cask_cache_dir,
+                &installed_casks,
+                args.scrub,
+                args.dry_run,
+            )?;
+            total_freed += freed.0;
+            items_removed += freed.1;
+        } else if args.dry_run {
+            let (size, count) = preview_old_cask_artifacts(&cask_cache_dir, max_age_secs)?;
+            total_freed += size;
+            items_removed += count;
+        } else {
+            let freed = clean_old_cask_artifacts(&cask_cache_dir, max_age_secs)?;
+            if freed > 0 {
+                println!(
+                    "  {} Removed stale cask artifacts: {}",
+                    style("✓").green(),
+                    format_bytes(freed)
+                );
+                total_freed += freed;
             }
         }
 
@@ -214,6 +245,133 @@ fn preview_old_downloads(paths: &Paths, max_age_secs: u64) -> Result<(u64, usize
     }
 
     Ok((total_size, count))
+}
+
+/// Clean all cask artifact downloads
+/// If scrub is false, keeps artifacts for installed casks
+fn clean_all_cask_artifacts(
+    cache_dir: &Path,
+    installed_casks: &InstalledCasks,
+    scrub: bool,
+    dry_run: bool,
+) -> Result<(u64, usize)> {
+    if !cache_dir.exists() {
+        return Ok((0, 0));
+    }
+
+    let mut total_size = 0u64;
+    let mut count = 0usize;
+
+    for entry in std::fs::read_dir(cache_dir)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_file() {
+            continue;
+        }
+
+        let filename = entry.file_name().to_string_lossy().to_string();
+
+        // If not scrubbing, skip artifacts for installed casks
+        if !scrub {
+            // Filename format: <token>.<ext> (e.g. firefox.dmg, slack.zip)
+            if let Some(token) = filename.split('.').next() {
+                if installed_casks.is_installed(token) {
+                    continue;
+                }
+            }
+        }
+
+        let size = entry.metadata()?.len();
+        total_size += size;
+        count += 1;
+
+        if dry_run {
+            println!(
+                "  {} {} ({})",
+                style("Would remove:").yellow(),
+                filename,
+                format_bytes(size)
+            );
+        } else {
+            std::fs::remove_file(entry.path())?;
+            println!(
+                "  {} Removed {} ({})",
+                style("✓").green(),
+                filename,
+                format_bytes(size)
+            );
+        }
+    }
+
+    Ok((total_size, count))
+}
+
+/// Preview what old cask artifacts would be removed
+fn preview_old_cask_artifacts(cache_dir: &Path, max_age_secs: u64) -> Result<(u64, usize)> {
+    if !cache_dir.exists() {
+        return Ok((0, 0));
+    }
+
+    let now = std::time::SystemTime::now();
+    let mut total_size = 0u64;
+    let mut count = 0usize;
+
+    for entry in std::fs::read_dir(cache_dir)? {
+        let entry = entry?;
+        let metadata = entry.metadata()?;
+
+        if !metadata.is_file() {
+            continue;
+        }
+
+        if let Ok(modified) = metadata.modified() {
+            if let Ok(age) = now.duration_since(modified) {
+                if age.as_secs() > max_age_secs {
+                    let size = metadata.len();
+                    total_size += size;
+                    count += 1;
+                    println!(
+                        "  {} {} ({}, {} days old)",
+                        style("Would remove:").yellow(),
+                        entry.file_name().to_string_lossy(),
+                        format_bytes(size),
+                        age.as_secs() / 86400
+                    );
+                }
+            }
+        }
+    }
+
+    Ok((total_size, count))
+}
+
+/// Remove old cask artifacts based on age
+fn clean_old_cask_artifacts(cache_dir: &Path, max_age_secs: u64) -> Result<u64> {
+    if !cache_dir.exists() {
+        return Ok(0);
+    }
+
+    let now = std::time::SystemTime::now();
+    let mut freed = 0u64;
+
+    for entry in std::fs::read_dir(cache_dir)? {
+        let entry = entry?;
+        let metadata = entry.metadata()?;
+
+        if !metadata.is_file() {
+            continue;
+        }
+
+        if let Ok(modified) = metadata.modified() {
+            if let Ok(age) = now.duration_since(modified) {
+                if age.as_secs() > max_age_secs {
+                    freed += metadata.len();
+                    std::fs::remove_file(entry.path())?;
+                }
+            }
+        }
+    }
+
+    Ok(freed)
 }
 
 /// Clean formula/cask JSON cache
