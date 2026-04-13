@@ -14,6 +14,10 @@ pub struct Args {
     /// Show cask info (if both formula and cask exist)
     #[arg(long)]
     pub cask: bool,
+
+    /// Show formula info (if both formula and cask exist)
+    #[arg(long, conflicts_with = "cask")]
+    pub formula: bool,
 }
 
 pub async fn run(args: Args) -> Result<()> {
@@ -37,9 +41,11 @@ pub async fn run(args: Args) -> Result<()> {
         }
     }
 
-    // Try cask
-    if let Some(cask_info) = db.get_cask(&args.name)? {
-        return show_cask_info(&args.name, &cask_info, &sync, &paths).await;
+    // Try cask (unless --formula specified)
+    if !args.formula {
+        if let Some(cask_info) = db.get_cask(&args.name)? {
+            return show_cask_info(&args.name, &cask_info, &sync, &paths).await;
+        }
     }
 
     // Not found - show suggestions
@@ -170,7 +176,7 @@ async fn show_cask_info(
     token: &str,
     info: &stout_index::CaskInfo,
     sync: &IndexSync,
-    _paths: &Paths,
+    paths: &Paths,
 ) -> Result<()> {
     // Fetch full cask data
     let cask = sync
@@ -255,14 +261,24 @@ async fn show_cask_info(
         }
     }
 
-    // Install status (casks go to /Applications typically)
+    // Install status
     println!();
-    // Note: We'd need to check /Applications for casks
-    println!(
-        "{}: {}",
-        style("Installed").dim(),
-        style("Check /Applications").dim()
-    );
+    let cask_state_path = paths.stout_dir.join("casks.json");
+    if let Ok(installed_casks) = stout_cask::InstalledCasks::load(&cask_state_path) {
+        if let Some(inst) = installed_casks.get(token) {
+            println!(
+                "{}: {} {} ({})",
+                style("Installed").green().bold(),
+                style("Yes").green(),
+                style(&inst.version).dim(),
+                inst.artifact_path.display()
+            );
+        } else {
+            println!("{}: {}", style("Installed").dim(), style("No").dim());
+        }
+    } else {
+        println!("{}: {}", style("Installed").dim(), style("No").dim());
+    }
 
     println!();
     Ok(())

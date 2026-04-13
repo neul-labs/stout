@@ -45,6 +45,12 @@ pub enum DriftChange {
     },
     /// Cask in state but not installed
     CaskRemoved { token: String },
+    /// Cask version changed (upgraded externally)
+    CaskVersionChanged {
+        token: String,
+        old_version: String,
+        new_version: Option<String>,
+    },
 }
 
 pub async fn run(args: Args) -> Result<()> {
@@ -145,13 +151,29 @@ pub fn detect_drift(installed: &InstalledPackages, paths: &Paths) -> Result<Vec<
     let cask_state_path = paths.stout_dir.join("casks.json");
     let cask_state = InstalledCasks::load(&cask_state_path).unwrap_or_default();
 
-    // Check for casks installed but not in state
+    // Check for casks installed but not in state, or version changed
     for cask in &brew_casks {
-        if !cask_state.is_installed(&cask.token) {
-            changes.push(DriftChange::CaskAdded {
-                token: cask.token.clone(),
-                version: cask.version.clone(),
-            });
+        match cask_state.get(&cask.token) {
+            None => {
+                changes.push(DriftChange::CaskAdded {
+                    token: cask.token.clone(),
+                    version: cask.version.clone(),
+                });
+            }
+            Some(installed) => {
+                // Check if version changed (upgraded externally)
+                if installed.version != "unknown" {
+                    if let Some(ref new_version) = cask.version {
+                        if &installed.version != new_version {
+                            changes.push(DriftChange::CaskVersionChanged {
+                                token: cask.token.clone(),
+                                old_version: installed.version.clone(),
+                                new_version: cask.version.clone(),
+                            });
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -220,6 +242,20 @@ fn print_changes(changes: &[DriftChange]) {
                     style("-").red(),
                     token,
                     style("(tracked, not installed)").dim()
+                );
+            }
+            DriftChange::CaskVersionChanged {
+                token,
+                old_version,
+                new_version,
+            } => {
+                println!(
+                    "  {} {} {} → {}  {}",
+                    style("~").yellow(),
+                    token,
+                    style(old_version).dim(),
+                    style(new_version.as_deref().unwrap_or("unknown")).cyan(),
+                    style("(cask upgraded externally)").dim()
                 );
             }
         }
@@ -325,6 +361,24 @@ pub fn apply_changes(
                 }
                 applied += 1;
             }
+            DriftChange::CaskVersionChanged {
+                token, new_version, ..
+            } => {
+                // Update the version in state
+                if let Some(installed) = cask_state.get_mut(token) {
+                    installed.version =
+                        new_version.clone().unwrap_or_else(|| "unknown".to_string());
+                    if !quiet {
+                        println!(
+                            "  {} Updated cask {} to {}",
+                            style("✓").green(),
+                            token,
+                            style(new_version.as_deref().unwrap_or("unknown")).cyan()
+                        );
+                    }
+                    applied += 1;
+                }
+            }
         }
     }
 
@@ -392,6 +446,15 @@ fn describe_change(change: &DriftChange) -> String {
         }
         DriftChange::CaskRemoved { token } => {
             format!("removed cask {}", token)
+        }
+        DriftChange::CaskVersionChanged {
+            token, new_version, ..
+        } => {
+            format!(
+                "updated cask {} to {}",
+                token,
+                new_version.as_deref().unwrap_or("unknown")
+            )
         }
     }
 }

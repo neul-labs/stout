@@ -47,6 +47,14 @@ struct OutdatedPackage {
     pinned: bool,
 }
 
+/// Information about an outdated cask
+#[derive(Debug, serde::Serialize)]
+struct OutdatedCask {
+    token: String,
+    installed_version: String,
+    current_version: String,
+}
+
 /// Information about a HEAD package with updates
 #[derive(Debug, serde::Serialize)]
 struct HeadUpdate {
@@ -74,45 +82,72 @@ pub async fn run(args: Args) -> Result<()> {
     let mut outdated: Vec<OutdatedPackage> = Vec::new();
     let mut head_updates: Vec<HeadUpdate> = Vec::new();
 
-    // Get list of packages to check
-    let packages_to_check: Vec<String> = if args.formulas.is_empty() {
-        installed.names().map(|s| s.to_string()).collect()
-    } else {
-        args.formulas.clone()
-    };
-
-    for name in packages_to_check {
-        let pkg = match installed.get(&name) {
-            Some(p) => p,
-            None => continue,
+    // Check for outdated formulas (skip if --cask is set)
+    if !args.cask {
+        // Get list of packages to check
+        let packages_to_check: Vec<String> = if args.formulas.is_empty() {
+            installed.names().map(|s| s.to_string()).collect()
+        } else {
+            args.formulas.clone()
         };
 
-        // Skip HEAD formulas - they are not compared against stable versions
-        if pkg.is_head_install() {
-            continue;
-        }
+        for name in packages_to_check {
+            let pkg = match installed.get(&name) {
+                Some(p) => p,
+                None => continue,
+            };
 
-        // Look up current version in index
-        if let Ok(Some(info)) = db.get_formula(&name) {
-            // Only mark as outdated if installed version is strictly less than current
-            if compare_versions(&pkg.version, &info.version) == Ordering::Less {
-                outdated.push(OutdatedPackage {
-                    name: name.clone(),
-                    installed_version: pkg.version.clone(),
-                    current_version: info.version,
-                    pinned: pkg.pinned,
-                });
+            // Skip HEAD formulas - they are not compared against stable versions
+            if pkg.is_head_install() {
+                continue;
+            }
+
+            // Look up current version in index
+            if let Ok(Some(info)) = db.get_formula(&name) {
+                // Only mark as outdated if installed version is strictly less than current
+                if compare_versions(&pkg.version, &info.version) == Ordering::Less {
+                    outdated.push(OutdatedPackage {
+                        name: name.clone(),
+                        installed_version: pkg.version.clone(),
+                        current_version: info.version,
+                        pinned: pkg.pinned,
+                    });
+                }
             }
         }
-    }
+    } // end if !args.cask
 
     // Filter pinned packages unless --greedy
     if !args.greedy {
         outdated.retain(|p| !p.pinned);
     }
 
+    // Check for outdated casks
+    let mut outdated_casks: Vec<OutdatedCask> = Vec::new();
+
+    if !args.formula {
+        let cask_state_path = paths.stout_dir.join("casks.json");
+        if let Ok(installed_casks) = stout_cask::InstalledCasks::load(&cask_state_path) {
+            for (token, cask) in installed_casks.iter() {
+                if cask.version == "unknown" {
+                    continue;
+                }
+
+                if let Ok(Some(info)) = db.get_cask(token) {
+                    if compare_versions(&cask.version, &info.version) == Ordering::Less {
+                        outdated_casks.push(OutdatedCask {
+                            token: token.to_string(),
+                            installed_version: cask.version.clone(),
+                            current_version: info.version,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
     // Check HEAD packages for updates if --fetch-HEAD is specified
-    if args.fetch_head {
+    if args.fetch_head && !args.cask {
         let sync = IndexSync::with_security_policy(
             Some(&config.index.base_url),
             &paths.stout_dir,
@@ -153,12 +188,13 @@ pub async fn run(args: Args) -> Result<()> {
     if args.json {
         // JSON output
         let output = serde_json::json!({
-            "outdated": outdated,
+            "formulas": outdated,
+            "casks": outdated_casks,
             "head_updates": head_updates,
         });
         let json = serde_json::to_string_pretty(&output)?;
         println!("{}", json);
-    } else if outdated.is_empty() && head_updates.is_empty() {
+    } else if outdated.is_empty() && outdated_casks.is_empty() && head_updates.is_empty() {
         // No outdated packages
         if args.formulas.is_empty() {
             println!("{}", style("All packages are up to date.").green());
@@ -191,16 +227,43 @@ pub async fn run(args: Args) -> Result<()> {
             }
 
             println!(
-                "\n{} {} outdated package{}",
+                "\n{} {} outdated formula{}",
                 style("==>").blue().bold(),
                 outdated.len(),
                 if outdated.len() == 1 { "" } else { "s" }
             );
         }
 
+        // Human-readable output for outdated casks
+        if !outdated_casks.is_empty() {
+            if !outdated.is_empty() {
+                println!();
+            }
+
+            for cask in &outdated_casks {
+                if args.verbose {
+                    println!(
+                        "{} {} -> {}",
+                        style(&cask.token).magenta(),
+                        style(&cask.installed_version).yellow(),
+                        style(&cask.current_version).green(),
+                    );
+                } else {
+                    println!("{} (cask)", cask.token);
+                }
+            }
+
+            println!(
+                "\n{} {} outdated cask{}",
+                style("==>").blue().bold(),
+                outdated_casks.len(),
+                if outdated_casks.len() == 1 { "" } else { "s" }
+            );
+        }
+
         // Human-readable output for HEAD updates
         if !head_updates.is_empty() {
-            if !outdated.is_empty() {
+            if !outdated.is_empty() || !outdated_casks.is_empty() {
                 println!();
             }
 

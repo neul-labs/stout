@@ -437,7 +437,65 @@ impl IndexSync {
             manifest.formula_count()
         );
 
+        // Also sync cask index if available
+        if manifest.cask_count() > 0 {
+            if let Err(e) = self.sync_cask_index(db_path, &manifest).await {
+                warn!("Failed to sync cask index: {}", e);
+                // Don't fail the whole update if cask sync fails
+            }
+        }
+
         Ok(manifest)
+    }
+
+    /// Download and merge the cask index into the existing database
+    pub async fn sync_cask_index(
+        &self,
+        db_path: impl AsRef<Path>,
+        manifest: &Manifest,
+    ) -> Result<()> {
+        let cask_entry = manifest
+            .cask_index()
+            .ok_or_else(|| Error::InvalidIndex("No cask index in manifest".to_string()))?;
+
+        let url = format!("{}/casks/index.db.zst", self.base_url);
+        info!("Downloading cask index from {}", url);
+
+        let response = self.client.get(&url).send().await?;
+        let compressed = response.bytes().await?;
+
+        // Verify checksum
+        let mut hasher = Sha256::new();
+        hasher.update(&compressed);
+        let hash = hex::encode(hasher.finalize());
+
+        if hash != cask_entry.db_sha256 {
+            return Err(Error::ChecksumMismatch("casks.db.zst".to_string()));
+        }
+
+        // Decompress to temp file
+        debug!("Decompressing cask index ({} bytes)", compressed.len());
+        let mut decoder = zstd::Decoder::new(Cursor::new(&*compressed))?;
+        let mut decompressed = Vec::new();
+        decoder.read_to_end(&mut decompressed)?;
+
+        // Write to temp file
+        let temp_path = db_path.as_ref().with_extension("casks.db.tmp");
+        std::fs::write(&temp_path, &decompressed)?;
+
+        // Open both databases and merge casks
+        let cask_db = Database::open(&temp_path)?;
+        let mut main_db = Database::open(db_path.as_ref())?;
+
+        // Import casks from cask_db to main_db
+        let cask_count = main_db.import_casks_from(&cask_db)?;
+
+        // Clean up temp file
+        std::fs::remove_file(&temp_path)?;
+
+        info!("Cask index updated ({} casks)", cask_count);
+
+        Ok(())
     }
 
     /// Fetch a formula's full JSON data

@@ -71,18 +71,40 @@ pub fn link_package(
                     if matches {
                         continue; // Already linked correctly
                     }
-                    // Symlink points elsewhere - warn and skip
-                    warn!(
-                        "Skipping {}: symlink points to {} instead of {}",
-                        target.display(),
-                        link_target.display(),
-                        entry.display()
-                    );
-                    continue;
+                    // Symlink points elsewhere — check if it's a stale
+                    // same-package link from a previous version.
+                    let pkg_cellar = install_path.parent();
+                    let is_same_package = pkg_cellar.is_some_and(|cellar| {
+                        let canon = resolved.canonicalize().ok();
+                        canon.is_some_and(|r| r.starts_with(cellar))
+                    });
+
+                    if is_same_package {
+                        // Stale link from prior version — remove and replace
+                        debug!(
+                            "Replacing stale same-package link: {} -> {}",
+                            target.display(),
+                            link_target.display()
+                        );
+                        std::fs::remove_file(&target)?;
+                    } else {
+                        // Owned by a different package — warn and skip
+                        warn!(
+                            "Skipping {}: symlink points to {} instead of {}",
+                            target.display(),
+                            link_target.display(),
+                            entry.display()
+                        );
+                        continue;
+                    }
                 }
 
                 // Not a symlink - check if it's a regular file with matching content
-                if target.is_file() && entry.is_file() {
+                // (may still exist after stale-symlink removal was skipped above)
+                if !target.exists() && target.symlink_metadata().is_err() {
+                    // Target was removed (stale same-package link) — fall
+                    // through to create the new symlink below.
+                } else if target.is_file() && entry.is_file() {
                     if files_match(&target, &entry) {
                         debug!(
                             "Skipping {}: regular file with matching content",
@@ -95,14 +117,14 @@ pub fn link_package(
                         target.display()
                     );
                     continue;
+                } else {
+                    // Directory or other type - can't compare, just warn
+                    warn!(
+                        "Skipping {}: already exists (not a symlink)",
+                        target.display()
+                    );
+                    continue;
                 }
-
-                // Directory or other type - can't compare, just warn
-                warn!(
-                    "Skipping {}: already exists (not a symlink)",
-                    target.display()
-                );
-                continue;
             }
 
             // Create relative symlink
