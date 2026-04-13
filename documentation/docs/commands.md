@@ -91,7 +91,7 @@ stout reinstall <package>...
 |--------|-------------|
 | `--HEAD` | Reinstall from git HEAD |
 | `--build-from-source` | Compile from source |
-| `--force` | Reinstall even if up to date |
+| `--keep-bottles` | Keep downloaded bottles after installation |
 
 **Examples:**
 
@@ -101,6 +101,9 @@ stout reinstall jq
 
 # Reinstall as HEAD build
 stout reinstall --HEAD neovim
+
+# Reinstall from source
+stout reinstall --build-from-source neovim
 ```
 
 ---
@@ -544,12 +547,13 @@ Runs diagnostics and reports issues:
 - Installed packages state
 - Homebrew drift (packages in Cellar/Caskroom not tracked by stout)
 - Unrelocated Homebrew placeholders
+- Code signatures on all Mach-O binaries (macOS)
 
 **Options:**
 
 | Option | Description |
 |--------|-------------|
-| `--fix` | Automatically fix issues (runs sync for drift) |
+| `--fix` | Automatically fix issues (sync, relocate, re-sign, reinstall corrupted packages) |
 
 **Examples:**
 
