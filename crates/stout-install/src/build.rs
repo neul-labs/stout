@@ -431,12 +431,18 @@ fn build_cmake(params: &BuildParams, source_dir: &Path, install_path: &Path) -> 
 fn build_make(params: &BuildParams, source_dir: &Path, install_path: &Path) -> Result<()> {
     info!("Using Makefile build system");
 
+    // Pass PREFIX as a make argument so it overrides Makefile `:=`
+    // assignments. Use the Cellar install path as PREFIX (matching Homebrew's
+    // convention). This ensures files are installed directly into the Cellar
+    // and the runtime prefix resolves through Homebrew/stout symlinks.
+    let prefix_arg = format!("PREFIX={}", install_path.display());
+
     let mut make_cmd = Command::new("make");
     make_cmd
         .arg("-j")
         .arg(params.jobs.to_string())
-        .current_dir(source_dir)
-        .env("PREFIX", install_path);
+        .arg(&prefix_arg)
+        .current_dir(source_dir);
     apply_compiler_env(&mut make_cmd, params)?;
 
     if !make_cmd.status()?.success() {
@@ -445,7 +451,7 @@ fn build_make(params: &BuildParams, source_dir: &Path, install_path: &Path) -> R
 
     let install_status = Command::new("make")
         .arg("install")
-        .arg(format!("PREFIX={}", install_path.display()))
+        .arg(&prefix_arg)
         .current_dir(source_dir)
         .status()?;
 
