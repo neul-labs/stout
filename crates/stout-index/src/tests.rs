@@ -277,3 +277,77 @@ fn test_formula_info_serialization() {
     assert_eq!(parsed.version, info.version);
     assert_eq!(parsed.revision, info.revision);
 }
+
+#[test]
+fn test_get_dependents() {
+    let tmp = tempdir().unwrap();
+    let db_path = tmp.path().join("test.db");
+    let mut db = Database::open(&db_path).unwrap();
+
+    // Insert formulas and dependencies: curl -> openssl@3, wget -> openssl@3 (runtime), wget -> pkg-config (build)
+    {
+        let tx = db.transaction().unwrap();
+        for name in ["openssl@3", "wget", "curl", "pkg-config"] {
+            tx.upsert_formula(&FormulaInfo {
+                name: name.to_string(),
+                version: "1.0.0".to_string(),
+                revision: 0,
+                desc: None,
+                homepage: None,
+                license: None,
+                tap: "homebrew/core".to_string(),
+                deprecated: false,
+                disabled: false,
+                has_bottle: true,
+                json_hash: None,
+            })
+            .unwrap();
+        }
+        tx.insert_dependency("wget", "openssl@3", DependencyType::Runtime)
+            .unwrap();
+        tx.insert_dependency("wget", "pkg-config", DependencyType::Build)
+            .unwrap();
+        tx.insert_dependency("curl", "openssl@3", DependencyType::Runtime)
+            .unwrap();
+        tx.insert_dependency("curl", "pkg-config", DependencyType::Optional)
+            .unwrap();
+        tx.commit().unwrap();
+    }
+
+    // Test: who depends on openssl@3? (wget runtime, curl runtime)
+    let dependents = db.get_dependents("openssl@3", &[]).unwrap();
+    assert_eq!(dependents.len(), 2);
+    assert!(dependents
+        .iter()
+        .any(|d| d.formula == "wget" && d.dep_type == DependencyType::Runtime));
+    assert!(dependents
+        .iter()
+        .any(|d| d.formula == "curl" && d.dep_type == DependencyType::Runtime));
+
+    // Test: filter by dep_type = Runtime only
+    let runtime_only = db
+        .get_dependents("openssl@3", &[DependencyType::Runtime])
+        .unwrap();
+    assert_eq!(runtime_only.len(), 2);
+
+    // Test: filter by dep_type = Build (no build deps on openssl@3)
+    let build_only = db
+        .get_dependents("openssl@3", &[DependencyType::Build])
+        .unwrap();
+    assert_eq!(build_only.len(), 0);
+
+    // Test: who depends on pkg-config? (wget build, curl optional)
+    let pkg_config_deps = db.get_dependents("pkg-config", &[]).unwrap();
+    assert_eq!(pkg_config_deps.len(), 2);
+
+    // Test: filter pkg-config dependents by Build type only
+    let pkg_config_build = db
+        .get_dependents("pkg-config", &[DependencyType::Build])
+        .unwrap();
+    assert_eq!(pkg_config_build.len(), 1);
+    assert_eq!(pkg_config_build[0].formula, "wget");
+
+    // Test: no dependents
+    let no_deps = db.get_dependents("nonexistent", &[]).unwrap();
+    assert!(no_deps.is_empty());
+}

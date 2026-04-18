@@ -2,7 +2,7 @@
 
 use crate::cask::CaskInfo;
 use crate::error::Result;
-use crate::formula::{Dependency, DependencyType, FormulaInfo};
+use crate::formula::{Dependency, DependencyType, Dependent, FormulaInfo};
 use crate::schema::{meta_keys, CREATE_SCHEMA};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::collections::HashSet;
@@ -202,19 +202,63 @@ impl Database {
             .query_map([formula], |row| {
                 let name: String = row.get(0)?;
                 let dep_type_str: String = row.get(1)?;
-                let dep_type = match dep_type_str.as_str() {
-                    "runtime" => DependencyType::Runtime,
-                    "build" => DependencyType::Build,
-                    "test" => DependencyType::Test,
-                    "optional" => DependencyType::Optional,
-                    "recommended" => DependencyType::Recommended,
-                    _ => DependencyType::Runtime,
-                };
+                let dep_type = parse_dep_type(&dep_type_str);
                 Ok(Dependency { name, dep_type })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(deps)
+    }
+
+    /// Get formulas that depend on the given package (reverse dependencies)
+    pub fn get_dependents(
+        &self,
+        dep_name: &str,
+        dep_types: &[DependencyType],
+    ) -> Result<Vec<Dependent>> {
+        if dep_types.is_empty() {
+            let mut stmt = self
+                .conn
+                .prepare("SELECT formula, dep_type FROM dependencies WHERE dep_name = ?")?;
+            let rows = stmt.query_map([dep_name], |row| {
+                let formula: String = row.get(0)?;
+                let dep_type_str: String = row.get(1)?;
+                let dep_type = parse_dep_type(&dep_type_str);
+                Ok(Dependent { formula, dep_type })
+            })?;
+            Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
+        } else {
+            let placeholders: Vec<&str> = dep_types.iter().map(|_| "?").collect();
+            let sql = format!(
+                "SELECT formula, dep_type FROM dependencies WHERE dep_name = ? AND dep_type IN ({})",
+                placeholders.join(", ")
+            );
+            let mut stmt = self.conn.prepare(&sql)?;
+            let params: Vec<Box<dyn rusqlite::types::ToSql>> =
+                std::iter::once(Box::new(dep_name.to_string()) as Box<dyn rusqlite::types::ToSql>)
+                    .chain(dep_types.iter().map(|dt| {
+                        Box::new(dt.as_str().to_string()) as Box<dyn rusqlite::types::ToSql>
+                    }))
+                    .collect();
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> =
+                params.iter().map(|p| p.as_ref()).collect();
+            let rows = stmt.query_map(param_refs.as_slice(), |row| {
+                let formula: String = row.get(0)?;
+                let dep_type_str: String = row.get(1)?;
+                let dep_type = parse_dep_type(&dep_type_str);
+                Ok(Dependent { formula, dep_type })
+            })?;
+            Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
+        }
+    }
+
+    /// Get casks that depend on the given formula
+    pub fn get_cask_dependents(&self, dep_name: &str) -> Result<Vec<String>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT cask FROM cask_dependencies WHERE dep_name = ?")?;
+        let rows = stmt.query_map([dep_name], |row| row.get::<_, String>(0))?;
+        Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
     }
 
     /// Get available platforms for a formula
@@ -522,6 +566,17 @@ impl Database {
         }
 
         Ok(count)
+    }
+}
+
+fn parse_dep_type(s: &str) -> DependencyType {
+    match s {
+        "runtime" => DependencyType::Runtime,
+        "build" => DependencyType::Build,
+        "test" => DependencyType::Test,
+        "optional" => DependencyType::Optional,
+        "recommended" => DependencyType::Recommended,
+        _ => DependencyType::Runtime,
     }
 }
 

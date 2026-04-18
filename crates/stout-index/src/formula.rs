@@ -158,6 +158,13 @@ pub struct Dependency {
     pub dep_type: DependencyType,
 }
 
+/// A dependent (reverse dependency) — a formula that depends on the target
+#[derive(Debug, Clone)]
+pub struct Dependent {
+    pub formula: String,
+    pub dep_type: DependencyType,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FormulaFlags {
     #[serde(default)]
