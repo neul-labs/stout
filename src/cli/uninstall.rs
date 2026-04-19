@@ -1,9 +1,12 @@
 //! Uninstall command
 
+use std::collections::HashSet;
+
 use anyhow::{bail, Result};
 use clap::Args as ClapArgs;
 use console::style;
-use stout_install::{remove_package, scan_cellar_package, unlink_package};
+use stout_index::{Database, DependencyType};
+use stout_install::{remove_package, scan_cellar, scan_cellar_package, unlink_package};
 use stout_state::{InstalledPackages, Paths};
 
 #[derive(ClapArgs)]
@@ -31,6 +34,61 @@ pub struct Args {
     /// Remove all associated files (casks only)
     #[arg(long)]
     pub zap: bool,
+}
+
+/// Find all packages that depend on the given package.
+///
+/// Checks three sources:
+/// 1. InstalledPackages (stout-tracked, always available)
+/// 2. Database (if available — full formula index)
+/// 3. Cellar receipts (fallback for brew-installed packages)
+fn find_dependents(name: &str, installed: &InstalledPackages, paths: &Paths) -> Vec<String> {
+    let mut dependents = HashSet::new();
+
+    // Source 1: stout-tracked packages
+    for (dep_name, dep_pkg) in installed.iter() {
+        if dep_name != name && dep_pkg.dependencies.iter().any(|d| d == name) {
+            dependents.insert(dep_name.clone());
+        }
+    }
+
+    // Source 2: Database (if available)
+    if let Ok(db) = Database::open(paths.index_db()) {
+        if let Ok(db_dependents) = db.get_dependents(
+            name,
+            &[DependencyType::Runtime, DependencyType::Recommended],
+        ) {
+            for dep in db_dependents {
+                // Only count as a dependent if it's actually installed
+                if installed.is_installed(&dep.formula) || paths.cellar.join(&dep.formula).exists()
+                {
+                    dependents.insert(dep.formula);
+                }
+            }
+        }
+    }
+
+    // Source 3: Cellar receipts (fallback for untracked packages)
+    if let Ok(cellar_packages) = scan_cellar(&paths.cellar) {
+        for pkg in &cellar_packages {
+            if pkg.name == name {
+                continue;
+            }
+            if let Some(receipt) = &pkg.receipt {
+                if receipt
+                    .runtime_dependencies
+                    .iter()
+                    .any(|d| d.full_name == name)
+                {
+                    dependents.insert(pkg.name.clone());
+                }
+            }
+        }
+    }
+
+    let mut result: Vec<String> = dependents.into_iter().collect();
+    result.sort();
+    result
 }
 
 pub async fn run(args: Args) -> Result<()> {
@@ -80,6 +138,28 @@ fn uninstall_formula(
         None => {
             // Targeted sync: check if already removed from Cellar
             if let Some(cellar_pkg) = scan_cellar_package(&paths.cellar, name)? {
+                // Check dependents even for untracked packages
+                let dependents = find_dependents(name, installed, paths);
+                if !dependents.is_empty() && !force {
+                    eprintln!(
+                        "{} {} is a dependency of: {}",
+                        style("error:").red().bold(),
+                        name,
+                        dependents.join(", ")
+                    );
+                    eprintln!("  {}", style("Use --force to remove anyway").dim());
+                    return Ok(());
+                }
+
+                if !dependents.is_empty() {
+                    println!(
+                        "  {} {} is a dependency of: {}",
+                        style("⚠").yellow(),
+                        name,
+                        dependents.join(", ")
+                    );
+                }
+
                 if force {
                     // Package in Cellar but not tracked — force remove
                     if dry_run {
@@ -139,14 +219,8 @@ fn uninstall_formula(
         return Ok(());
     }
 
-    // Dependency safety check: warn if other tracked packages depend on this one
-    let dependents: Vec<String> = installed
-        .iter()
-        .filter(|(dep_name, dep_pkg)| {
-            *dep_name != name && dep_pkg.dependencies.iter().any(|d| d == name)
-        })
-        .map(|(dep_name, _)| dep_name.clone())
-        .collect();
+    // Dependency safety check: find all packages that depend on this one
+    let dependents = find_dependents(name, installed, paths);
 
     if !dependents.is_empty() && !force {
         eprintln!(

@@ -121,6 +121,7 @@ CREATE INDEX IF NOT EXISTS idx_bottles_formula ON bottles(formula);
 CREATE INDEX IF NOT EXISTS idx_formulas_tap ON formulas(tap);
 CREATE INDEX IF NOT EXISTS idx_casks_tap ON casks(tap);
 CREATE INDEX IF NOT EXISTS idx_cask_dependencies_cask ON cask_dependencies(cask);
+CREATE INDEX IF NOT EXISTS idx_cask_dependencies_dep ON cask_dependencies(dep_name);
 "#;
 
 /// Meta keys

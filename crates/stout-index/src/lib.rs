@@ -25,7 +25,7 @@ pub use cask::{Cask, CaskInfo};
 pub use db::Database;
 pub use delta::{DeltaManifest, DeltaSync, SyncMetadata, SyncStats, UpdateStatus};
 pub use error::{Error, Result};
-pub use formula::{Bottle, Dependency, DependencyType, Formula, FormulaInfo};
+pub use formula::{Bottle, Dependency, DependencyType, Dependent, Formula, FormulaInfo};
 pub use query::Query;
 pub use signature::{
     compute_file_sha256, compute_sha256, SignatureVerifier, SignedManifest, TrustedKeys,

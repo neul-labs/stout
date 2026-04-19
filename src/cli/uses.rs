@@ -1,9 +1,11 @@
 //! Uses command - show packages that depend on a given package
 
+use std::collections::{HashSet, VecDeque};
+
 use anyhow::{bail, Context, Result};
 use clap::Args as ClapArgs;
 use console::style;
-use stout_index::Database;
+use stout_index::{Database, DependencyType, Dependent};
 use stout_state::{InstalledPackages, Paths};
 
 #[derive(ClapArgs)]
@@ -32,6 +34,20 @@ pub struct Args {
     pub recursive: bool,
 }
 
+fn build_dep_types(args: &Args) -> Vec<DependencyType> {
+    let mut dep_types = vec![DependencyType::Runtime, DependencyType::Recommended];
+    if args.include_build {
+        dep_types.push(DependencyType::Build);
+    }
+    if args.include_test {
+        dep_types.push(DependencyType::Test);
+    }
+    if args.include_optional {
+        dep_types.push(DependencyType::Optional);
+    }
+    dep_types
+}
+
 pub async fn run(args: Args) -> Result<()> {
     let paths = Paths::default();
 
@@ -48,40 +64,25 @@ pub async fn run(args: Args) -> Result<()> {
     }
 
     let installed = InstalledPackages::load(&paths)?;
+    let dep_types = build_dep_types(&args);
 
-    // Find all packages that depend on this formula
-    let mut dependents: Vec<String> = Vec::new();
-
-    if args.installed {
-        // Check only installed packages
-        for name in installed.names() {
-            let pkg = installed.get(name).with_context(|| {
-                format!("package '{}' is in installed list but not found", name)
-            })?;
-            if pkg.dependencies.contains(&args.formula) {
-                dependents.push(name.to_string());
-            }
-        }
+    let dependents = if args.recursive {
+        find_recursive_dependents(&args.formula, &db, &installed, &dep_types, args.installed)?
     } else {
-        // Check all formulas in the index
-        // This would require iterating all formulas - for now we'll check installed
-        // and note this limitation
-        for name in installed.names() {
-            let pkg = installed.get(name).with_context(|| {
-                format!("package '{}' is in installed list but not found", name)
-            })?;
-            if pkg.dependencies.contains(&args.formula) {
-                dependents.push(name.to_string());
-            }
-        }
+        db.get_dependents(&args.formula, &dep_types)?
+    };
 
-        // Note: A full implementation would scan all formulas in the database
-        // which requires a different query pattern
-    }
+    // Filter by installed status
+    let results: Vec<Dependent> = if args.installed {
+        dependents
+            .into_iter()
+            .filter(|d| installed.is_installed(&d.formula))
+            .collect()
+    } else {
+        dependents
+    };
 
-    dependents.sort();
-
-    if dependents.is_empty() {
+    if results.is_empty() {
         println!(
             "No {} packages depend on {}",
             if args.installed { "installed" } else { "" },
@@ -90,23 +91,72 @@ pub async fn run(args: Args) -> Result<()> {
         return Ok(());
     }
 
+    // Deduplicate by formula name (keep first occurrence which has the primary dep_type)
+    let mut seen = HashSet::new();
+    let results: Vec<Dependent> = results
+        .into_iter()
+        .filter(|d| seen.insert(d.formula.clone()))
+        .collect();
+
     println!(
         "{} {} {} package{} that {} {}:",
         style("==>").blue().bold(),
-        dependents.len(),
+        results.len(),
         if args.installed { "installed" } else { "" },
-        if dependents.len() == 1 { "" } else { "s" },
-        if dependents.len() == 1 { "uses" } else { "use" },
+        if results.len() == 1 { "" } else { "s" },
+        if results.len() == 1 { "uses" } else { "use" },
         style(&args.formula).cyan()
     );
 
-    for dep in &dependents {
+    for dep in &results {
         let version = installed
-            .get(dep)
+            .get(&dep.formula)
             .map(|p| p.version.as_str())
             .unwrap_or_default();
-        println!("  {} {} {}", style("•").dim(), dep, style(version).dim());
+        let marker = if installed.is_installed(&dep.formula) {
+            style("✓").green()
+        } else {
+            style("○").dim()
+        };
+        println!(
+            "  {} {} {} {}",
+            marker,
+            dep.formula,
+            style(version).dim(),
+            style(format!("({})", dep.dep_type.as_str())).dim()
+        );
     }
 
     Ok(())
+}
+
+fn find_recursive_dependents(
+    formula: &str,
+    db: &Database,
+    installed: &InstalledPackages,
+    dep_types: &[DependencyType],
+    only_installed: bool,
+) -> Result<Vec<Dependent>> {
+    let mut visited = HashSet::new();
+    visited.insert(formula.to_string());
+    let mut queue = VecDeque::new();
+    queue.push_back(formula.to_string());
+    let mut all_dependents = Vec::new();
+
+    while let Some(current) = queue.pop_front() {
+        let dependents = db.get_dependents(&current, dep_types)?;
+        for dep in dependents {
+            if visited.insert(dep.formula.clone())
+                && (!only_installed || installed.is_installed(&dep.formula))
+            {
+                all_dependents.push(Dependent {
+                    formula: dep.formula.clone(),
+                    dep_type: dep.dep_type,
+                });
+                queue.push_back(dep.formula.clone());
+            }
+        }
+    }
+
+    Ok(all_dependents)
 }
