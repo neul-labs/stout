@@ -202,7 +202,8 @@ impl Database {
             .query_map([formula], |row| {
                 let name: String = row.get(0)?;
                 let dep_type_str: String = row.get(1)?;
-                let dep_type = parse_dep_type(&dep_type_str);
+                let dep_type: DependencyType =
+                    dep_type_str.parse().unwrap_or(DependencyType::Runtime);
                 Ok(Dependency { name, dep_type })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -216,24 +217,21 @@ impl Database {
         dep_name: &str,
         dep_types: &[DependencyType],
     ) -> Result<Vec<Dependent>> {
-        if dep_types.is_empty() {
-            let mut stmt = self
-                .conn
-                .prepare("SELECT formula, dep_type FROM dependencies WHERE dep_name = ?")?;
-            let rows = stmt.query_map([dep_name], |row| {
-                let formula: String = row.get(0)?;
-                let dep_type_str: String = row.get(1)?;
-                let dep_type = parse_dep_type(&dep_type_str);
-                Ok(Dependent { formula, dep_type })
-            })?;
-            Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
+        let sql = if dep_types.is_empty() {
+            "SELECT formula, dep_type FROM dependencies WHERE dep_name = ?".to_string()
         } else {
             let placeholders: Vec<&str> = dep_types.iter().map(|_| "?").collect();
-            let sql = format!(
+            format!(
                 "SELECT formula, dep_type FROM dependencies WHERE dep_name = ? AND dep_type IN ({})",
                 placeholders.join(", ")
-            );
-            let mut stmt = self.conn.prepare(&sql)?;
+            )
+        };
+
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows: Vec<Dependent> = if dep_types.is_empty() {
+            stmt.query_map([dep_name], row_to_dependent)?
+                .collect::<std::result::Result<Vec<_>, _>>()?
+        } else {
             let params: Vec<Box<dyn rusqlite::types::ToSql>> =
                 std::iter::once(Box::new(dep_name.to_string()) as Box<dyn rusqlite::types::ToSql>)
                     .chain(dep_types.iter().map(|dt| {
@@ -242,14 +240,10 @@ impl Database {
                     .collect();
             let param_refs: Vec<&dyn rusqlite::types::ToSql> =
                 params.iter().map(|p| p.as_ref()).collect();
-            let rows = stmt.query_map(param_refs.as_slice(), |row| {
-                let formula: String = row.get(0)?;
-                let dep_type_str: String = row.get(1)?;
-                let dep_type = parse_dep_type(&dep_type_str);
-                Ok(Dependent { formula, dep_type })
-            })?;
-            Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
-        }
+            stmt.query_map(param_refs.as_slice(), row_to_dependent)?
+                .collect::<std::result::Result<Vec<_>, _>>()?
+        };
+        Ok(rows)
     }
 
     /// Get casks that depend on the given formula
@@ -569,15 +563,11 @@ impl Database {
     }
 }
 
-fn parse_dep_type(s: &str) -> DependencyType {
-    match s {
-        "runtime" => DependencyType::Runtime,
-        "build" => DependencyType::Build,
-        "test" => DependencyType::Test,
-        "optional" => DependencyType::Optional,
-        "recommended" => DependencyType::Recommended,
-        _ => DependencyType::Runtime,
-    }
+fn row_to_dependent(row: &rusqlite::Row<'_>) -> rusqlite::Result<Dependent> {
+    let formula: String = row.get(0)?;
+    let dep_type_str: String = row.get(1)?;
+    let dep_type: DependencyType = dep_type_str.parse().unwrap_or(DependencyType::Runtime);
+    Ok(Dependent { formula, dep_type })
 }
 
 /// A database transaction for bulk operations

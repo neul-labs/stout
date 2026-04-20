@@ -276,11 +276,10 @@ async fn install_formulas(
         }
         installed.remove(name);
         println!(
-            "  {} {} {} {}",
+            "  {} {} {}",
             style("→").yellow(),
             name,
-            style("(stale state, will reinstall)").dim(),
-            style("").dim(),
+            style("(stale state, will reinstall)").dim()
         );
     }
 

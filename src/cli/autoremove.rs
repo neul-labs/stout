@@ -8,6 +8,8 @@ use std::collections::HashSet;
 use stout_install::unlink_package;
 use stout_state::{InstalledPackages, Paths};
 
+use super::services;
+
 #[derive(ClapArgs)]
 pub struct Args {
     /// Only show what would be removed without actually removing
@@ -105,6 +107,9 @@ pub async fn run(args: Args) -> Result<()> {
 
         // Unlink from prefix
         if install_path.exists() {
+            // Stop service if one is running
+            services::stop_package_service(name, &install_path);
+
             if let Err(e) = unlink_package(&install_path, &paths.prefix) {
                 eprintln!("  {} Failed to unlink {}: {}", style("⚠").yellow(), name, e);
                 continue;

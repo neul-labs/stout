@@ -35,7 +35,7 @@ pub struct Args {
 }
 
 fn build_dep_types(args: &Args) -> Vec<DependencyType> {
-    let mut dep_types = vec![DependencyType::Runtime, DependencyType::Recommended];
+    let mut dep_types = DependencyType::default_dependent_types().to_vec();
     if args.include_build {
         dep_types.push(DependencyType::Build);
     }
@@ -66,20 +66,15 @@ pub async fn run(args: Args) -> Result<()> {
     let installed = InstalledPackages::load(&paths)?;
     let dep_types = build_dep_types(&args);
 
-    let dependents = if args.recursive {
+    let results: Vec<Dependent> = if args.recursive {
         find_recursive_dependents(&args.formula, &db, &installed, &dep_types, args.installed)?
-    } else {
+    } else if args.installed {
         db.get_dependents(&args.formula, &dep_types)?
-    };
-
-    // Filter by installed status
-    let results: Vec<Dependent> = if args.installed {
-        dependents
             .into_iter()
             .filter(|d| installed.is_installed(&d.formula))
             .collect()
     } else {
-        dependents
+        db.get_dependents(&args.formula, &dep_types)?
     };
 
     if results.is_empty() {

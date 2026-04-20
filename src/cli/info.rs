@@ -1,5 +1,7 @@
 //! Info command
 
+use std::collections::HashSet;
+
 use anyhow::{Context, Result};
 use clap::Args as ClapArgs;
 use console::style;
@@ -146,6 +148,7 @@ async fn show_formula_info(
 
         println!("\n{}:", style("Dependents").cyan());
 
+        // Group by type: runtime/recommended first, then build, then others
         let mut runtime_deps: Vec<&stout_index::Dependent> = Vec::new();
         let mut build_deps: Vec<&stout_index::Dependent> = Vec::new();
         let mut other_deps: Vec<&stout_index::Dependent> = Vec::new();
@@ -160,54 +163,20 @@ async fn show_formula_info(
             }
         }
 
-        for (i, dep) in runtime_deps.iter().enumerate() {
-            let is_last =
-                i == runtime_deps.len() - 1 && build_deps.is_empty() && other_deps.is_empty();
-            let prefix = if is_last { "└──" } else { "├──" };
-            let marker = if installed_pkgs.is_installed(&dep.formula) {
-                style("✓").green()
-            } else {
-                style("○").dim()
-            };
-            println!(
-                "  {} {} {} {}",
-                prefix,
-                marker,
-                dep.formula,
-                style("(runtime)").dim()
-            );
+        let total = dependents.len();
+        let mut idx = 0;
+        for dep in &runtime_deps {
+            print_dependent(dep, idx == total - 1, &installed_pkgs, "(runtime)");
+            idx += 1;
         }
-        for (i, dep) in build_deps.iter().enumerate() {
-            let is_last = i == build_deps.len() - 1 && other_deps.is_empty();
-            let prefix = if is_last { "└──" } else { "├──" };
-            let marker = if installed_pkgs.is_installed(&dep.formula) {
-                style("✓").green()
-            } else {
-                style("○").dim()
-            };
-            println!(
-                "  {} {} {} {}",
-                prefix,
-                marker,
-                dep.formula,
-                style("(build)").dim()
-            );
+        for dep in &build_deps {
+            print_dependent(dep, idx == total - 1, &installed_pkgs, "(build)");
+            idx += 1;
         }
-        for (i, dep) in other_deps.iter().enumerate() {
-            let is_last = i == other_deps.len() - 1;
-            let prefix = if is_last { "└──" } else { "├──" };
-            let marker = if installed_pkgs.is_installed(&dep.formula) {
-                style("✓").green()
-            } else {
-                style("○").dim()
-            };
-            println!(
-                "  {} {} {} {}",
-                prefix,
-                marker,
-                dep.formula,
-                style(format!("({})", dep.dep_type.as_str())).dim()
-            );
+        for dep in &other_deps {
+            let label = format!("({})", dep.dep_type.as_str());
+            print_dependent(dep, idx == total - 1, &installed_pkgs, &label);
+            idx += 1;
         }
 
         println!(
@@ -253,6 +222,27 @@ async fn show_formula_info(
 
     println!();
     Ok(())
+}
+
+fn print_dependent(
+    dep: &stout_index::Dependent,
+    is_last: bool,
+    installed: &InstalledPackages,
+    label: &str,
+) {
+    let prefix = if is_last { "└──" } else { "├──" };
+    let marker = if installed.is_installed(&dep.formula) {
+        style("✓").green()
+    } else {
+        style("○").dim()
+    };
+    println!(
+        "  {} {} {} {}",
+        prefix,
+        marker,
+        dep.formula,
+        style(label).dim()
+    );
 }
 
 async fn show_cask_info(
@@ -335,15 +325,17 @@ async fn show_cask_info(
     // Dependents (formulas that this cask's formula dependencies depend on)
     let formula_deps = &cask.depends_on.formula;
     if !formula_deps.is_empty() {
+        let mut seen = HashSet::new();
         let mut all_dependents: Vec<stout_index::Dependent> = Vec::new();
         for dep in formula_deps {
             if let Ok(deps) = db.get_dependents(dep, &[]) {
-                all_dependents.extend(deps);
+                for d in deps {
+                    if seen.insert(d.formula.clone()) {
+                        all_dependents.push(d);
+                    }
+                }
             }
         }
-        // Deduplicate
-        all_dependents.sort_by(|a, b| a.formula.cmp(&b.formula));
-        all_dependents.dedup_by(|a, b| a.formula == b.formula);
 
         if !all_dependents.is_empty() {
             let cask_dependents = db.get_cask_dependents(token)?;
