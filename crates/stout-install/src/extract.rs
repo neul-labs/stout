@@ -401,11 +401,19 @@ fn relocate_file(path: &Path, prefix: &str, cellar: &str) -> Result<bool> {
 
     // Perform replacements
     let library = format!("{}/Library", prefix);
+    let java_home = std::process::Command::new("/usr/libexec/java_home")
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "/Library/Java/JavaVirtualMachines".to_string());
     let pairs: &[(&[u8], &[u8])] = &[
         (PH_PREFIX, prefix.as_bytes()),
         (PH_CELLAR, cellar.as_bytes()),
         (PH_LIBRARY, library.as_bytes()),
         (PH_REPOSITORY, prefix.as_bytes()),
+        (PH_JAVA, java_home.as_bytes()),
     ];
 
     let mut new_contents = contents;
@@ -498,6 +506,7 @@ pub fn remove_package(cellar: impl AsRef<Path>, name: &str, version: &str) -> Re
 }
 
 const PH_REPOSITORY: &[u8] = b"@@HOMEBREW_REPOSITORY@@";
+const PH_JAVA: &[u8] = b"@@HOMEBREW_JAVA@@";
 
 /// RAII guard that restores file permissions on drop.
 struct WriteGuard<'a> {
@@ -632,6 +641,18 @@ fn replace_homebrew_placeholders(s: &str, prefix: &str, cellar: &str) -> String 
         .replace("@@HOMEBREW_CELLAR@@", cellar)
         .replace("@@HOMEBREW_LIBRARY@@", &library)
         .replace("@@HOMEBREW_REPOSITORY@@", prefix)
+        .replace("@@HOMEBREW_JAVA@@", &java_home_path())
+}
+
+#[cfg(target_os = "macos")]
+fn java_home_path() -> String {
+    std::process::Command::new("/usr/libexec/java_home")
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "/Library/Java/JavaVirtualMachines".to_string())
 }
 
 #[cfg(target_os = "macos")]
