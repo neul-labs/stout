@@ -52,14 +52,15 @@ async fn add_tap(
     name: &str,
     custom_url: Option<&str>,
 ) -> Result<()> {
-    // Parse tap name
     let (tap_name, url) = if let Some(url) = custom_url {
         (name.to_string(), url.to_string())
     } else if name.contains('/') && !name.contains("://") {
-        // Format: user/repo -> GitHub URL
+        // Format: user/repo -> GitHub URL with homebrew- prefix
+        // Homebrew tap naming convention: user/repo -> user/homebrew-repo
+        let parts: Vec<&str> = name.splitn(2, '/').collect();
         let url = format!(
-            "https://raw.githubusercontent.com/{}/main",
-            name.replace("homebrew-", "")
+            "https://raw.githubusercontent.com/{}/homebrew-{}/main",
+            parts[0], parts[1]
         );
         (name.to_string(), url)
     } else if name.starts_with("http://") || name.starts_with("https://") {
@@ -84,16 +85,29 @@ async fn add_tap(
         return Ok(());
     }
 
+    // Verify the tap exists by checking the GitHub repository
     println!("{}...", style(format!("Adding tap {}", tap_name)).cyan());
 
-    // Verify the tap exists by fetching its manifest
-    let client = reqwest::Client::new();
-    let manifest_url = format!("{}/manifest.json", url.trim_end_matches('/'));
+    let client = reqwest::Client::builder()
+        .user_agent(concat!("stout/", env!("CARGO_PKG_VERSION")))
+        .build()?;
 
-    let response = client.get(&manifest_url).send().await;
+    // For user/repo taps, verify the GitHub repo exists
+    // The verification URL is the GitHub repo page, not a manifest.json
+    let verify_url = if custom_url.is_some() {
+        // For custom URLs, try the URL directly
+        url.trim_end_matches('/').to_string()
+    } else if name.contains('/') && !name.contains("://") {
+        let parts: Vec<&str> = name.splitn(2, '/').collect();
+        format!("https://github.com/{}/homebrew-{}", parts[0], parts[1])
+    } else {
+        url.trim_end_matches('/').to_string()
+    };
+
+    let response = client.head(&verify_url).send().await;
     match response {
         Ok(resp) if resp.status().is_success() => {
-            // Tap exists, add it
+            // Repo exists, add the tap
             let tap = Tap {
                 name: tap_name.clone(),
                 url: url.clone(),
@@ -114,7 +128,7 @@ async fn add_tap(
             bail!(
                 "Tap '{}' not found at {} (HTTP {})",
                 tap_name,
-                manifest_url,
+                verify_url,
                 resp.status()
             );
         }
