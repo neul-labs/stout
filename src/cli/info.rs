@@ -39,11 +39,46 @@ pub async fn run(args: Args) -> Result<()> {
         if let Some(info) = db.get_formula(&args.name)? {
             return show_formula_info(&args.name, &info, &sync, &paths, &db).await;
         }
+
+        // Formula not in index DB, try fetching directly via Homebrew
+        if let Ok(formula) = sync.fetch_formula(&args.name).await {
+            let formula_info = stout_index::FormulaInfo {
+                name: formula.name.clone(),
+                version: formula.version.clone(),
+                revision: formula.revision,
+                desc: formula.desc.clone(),
+                homepage: formula.homepage.clone(),
+                license: formula.license.clone(),
+                tap: formula.tap.clone(),
+                deprecated: false,
+                disabled: false,
+                has_bottle: !formula.bottles.is_empty(),
+                json_hash: None,
+            };
+            return show_formula_info(&args.name, &formula_info, &sync, &paths, &db).await;
+        }
     }
 
     // Try cask (unless --formula specified)
     if !args.formula {
         if let Some(cask_info) = db.get_cask(&args.name)? {
+            return show_cask_info(&args.name, &cask_info, &sync, &paths, &db).await;
+        }
+
+        // Cask not in index DB, try fetching directly via Homebrew
+        if let Ok(cask) = sync.fetch_cask(&args.name).await {
+            let cask_info = stout_index::CaskInfo {
+                token: cask.token.clone(),
+                name: cask.name.first().cloned(),
+                version: cask.version.clone(),
+                desc: cask.desc.clone(),
+                homepage: cask.homepage.clone(),
+                tap: cask.tap.clone(),
+                deprecated: cask.deprecated,
+                disabled: cask.disabled,
+                artifact_type: Some(cask.primary_artifact_type().to_string()),
+                json_hash: None,
+            };
             return show_cask_info(&args.name, &cask_info, &sync, &paths, &db).await;
         }
     }

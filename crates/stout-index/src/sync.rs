@@ -512,7 +512,18 @@ impl IndexSync {
                     "Formula {} not found in stout-index, trying Homebrew API",
                     name
                 );
-                self.fetch_formula_from_homebrew(name).await
+                match self.fetch_formula_from_homebrew(name).await {
+                    Ok(formula) => Ok(formula),
+                    Err(Error::FormulaNotFound(_)) => {
+                        // Final fallback: try brew info --json=v2 (for tap formulae)
+                        debug!(
+                            "Formula {} not found in Homebrew API, trying brew info",
+                            name
+                        );
+                        self.fetch_formula_from_brew_info(name).await
+                    }
+                    Err(e) => Err(e),
+                }
             }
             Err(e) => Err(e),
         }
@@ -571,6 +582,44 @@ impl IndexSync {
         Ok(Formula::from(homebrew_formula))
     }
 
+    /// Fetch a formula by running `brew info --json=v2` as a subprocess.
+    ///
+    /// This is the final fallback for formulae from Homebrew taps that are not
+    /// available in the stout-index or the official Homebrew API.
+    async fn fetch_formula_from_brew_info(&self, name: &str) -> Result<Formula> {
+        let output = tokio::task::spawn_blocking({
+            let name = name.to_string();
+            move || {
+                std::process::Command::new("brew")
+                    .args(["info", "--json=v2", &name])
+                    .output()
+            }
+        })
+        .await
+        .map_err(|e| Error::FormulaNotFound(format!("brew info spawn failed: {}", e)))?
+        .map_err(|e| Error::FormulaNotFound(format!("brew info failed: {}", e)))?;
+
+        if !output.status.success() {
+            return Err(Error::FormulaNotFound(format!(
+                "{} not found via brew info",
+                name
+            )));
+        }
+
+        let json: serde_json::Value =
+            serde_json::from_slice(&output.stdout).map_err(Error::Json)?;
+
+        let formula_data = json
+            .get("formulae")
+            .and_then(|f| f.get(0))
+            .ok_or_else(|| Error::FormulaNotFound(format!("No formula data for {}", name)))?;
+
+        let homebrew_formula: HomebrewFormula =
+            serde_json::from_value(formula_data.clone()).map_err(Error::Json)?;
+
+        Ok(Formula::from(homebrew_formula))
+    }
+
     /// Fetch and cache a formula
     pub async fn fetch_formula_cached(
         &self,
@@ -614,14 +663,34 @@ impl IndexSync {
     }
 
     /// Fetch a cask's full JSON data
+    ///
+    /// Tries the stout-index first, then falls back to Homebrew's official API
+    /// if the cask is not found in the index.
     pub async fn fetch_cask(&self, token: &str) -> Result<Cask> {
+        // Try stout-index first
+        match self.fetch_cask_from_index(token).await {
+            Ok(cask) => Ok(cask),
+            Err(Error::CaskNotFound(_)) => {
+                // Fall back to Homebrew API
+                debug!(
+                    "Cask {} not found in stout-index, trying Homebrew API",
+                    token
+                );
+                self.fetch_cask_from_homebrew_api(token).await
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Fetch a cask from the stout-index mirror
+    async fn fetch_cask_from_index(&self, token: &str) -> Result<Cask> {
         let first_char = token.chars().next().unwrap_or('_');
         let url = format!(
             "{}/casks/data/{}/{}.json.zst",
             self.base_url, first_char, token
         );
 
-        debug!("Fetching cask from {}", url);
+        debug!("Fetching cask from stout-index: {}", url);
 
         let response = self.client.get(&url).send().await?;
 
@@ -638,6 +707,28 @@ impl IndexSync {
 
         // Parse
         let cask: Cask = serde_json::from_slice(&json_bytes)?;
+
+        Ok(cask)
+    }
+
+    /// Fetch a cask from Homebrew's official API (fallback)
+    async fn fetch_cask_from_homebrew_api(&self, token: &str) -> Result<Cask> {
+        let url = format!("https://formulae.brew.sh/api/cask/{}.json", token);
+
+        debug!("Fetching cask from Homebrew API: {}", url);
+
+        let response = self.client.get(&url).send().await?;
+
+        if !response.status().is_success() {
+            return Err(Error::CaskNotFound(token.to_string()));
+        }
+
+        let json_bytes = response.bytes().await?;
+
+        let cask: Cask = serde_json::from_slice(&json_bytes).map_err(|e| {
+            warn!("Failed to parse Homebrew API response for {}: {}", token, e);
+            Error::Json(e)
+        })?;
 
         Ok(cask)
     }
