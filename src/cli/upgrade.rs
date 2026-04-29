@@ -672,6 +672,11 @@ pub async fn run(args: Args) -> Result<()> {
                 formula.revision,
                 candidate.explicitly_requested,
             );
+            if let Some(bottle) = formula.bottle_for_platform(&platform) {
+                if let Some(pkg) = installed.packages.get_mut(&candidate.name) {
+                    pkg.bottle_sha256 = Some(bottle.sha256.clone());
+                }
+            }
 
             println!(
                 "  {} {} {} → {}",

@@ -573,6 +573,11 @@ async fn install_formulas(
                 !step.is_dependency,
                 formula.runtime_deps().to_vec(),
             );
+            if let Some(bottle) = formula.bottle_for_platform(&platform) {
+                if let Some(pkg) = installed.packages.get_mut(&step.name) {
+                    pkg.bottle_sha256 = Some(bottle.sha256.clone());
+                }
+            }
             println!(
                 "  {} {} {} ({} files linked)",
                 style("✓").green(),

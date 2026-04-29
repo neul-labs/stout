@@ -53,7 +53,6 @@ pub async fn run(args: Args) -> Result<()> {
         config.security.to_security_policy(),
     )?;
 
-    // Detect platform
     let platform = super::detect_platform();
 
     for name in &args.formulas {
@@ -195,50 +194,65 @@ pub async fn run(args: Args) -> Result<()> {
 
             result.install_path
         } else {
-            // Download and extract bottle
+            // Bottle reinstall
             let bottle = formula
                 .bottle_for_platform(&platform)
                 .expect("bottle_for_platform returned None after None check");
 
-            println!("  {} Downloading bottle...", style("•").dim());
+            // If the installed bottle SHA256 matches the current formula's bottle
+            // and the Cellar directory still exists, skip re-extraction and just
+            // re-link. This avoids a redundant download/extract/relocate cycle
+            // when reinstalling the same bottle (e.g. to fix broken symlinks).
+            let can_skip_extraction =
+                old_pkg.bottle_sha256.as_ref() == Some(&bottle.sha256) && old_install_path.exists();
 
-            let cache = DownloadCache::new(&paths.stout_dir);
-            let client = DownloadClient::new(cache, 1)?;
-            let progress = Arc::new(ProgressReporter::new());
-
-            let bottle_spec = BottleSpec {
-                name: name.clone(),
-                version: formula.version.clone(),
-                platform: platform.clone(),
-                url: bottle.url.clone(),
-                sha256: bottle.sha256.clone(),
-            };
-
-            let bottle_paths = client
-                .download_bottles(vec![bottle_spec], progress)
-                .await
-                .context("Failed to download bottle")?;
-
-            let bottle_path = &bottle_paths[0];
-
-            println!("  {} Extracting...", style("•").dim());
-            let install_path = extract_bottle(bottle_path, &paths.cellar)?;
-
-            // Relocate Homebrew placeholders to actual paths
-            if let Err(e) = relocate_bottle(&install_path, &paths.prefix) {
-                eprintln!(
-                    "  {} Warning: relocation failed: {}",
-                    style("!").yellow(),
-                    e
+            if can_skip_extraction {
+                println!(
+                    "  {} Bottle unchanged, skipping download and extraction",
+                    style("•").dim()
                 );
-            }
+                old_install_path.clone()
+            } else {
+                println!("  {} Downloading bottle...", style("•").dim());
 
-            // Cleanup bottle if not keeping
-            if !args.keep_bottles {
-                let _ = std::fs::remove_file(bottle_path);
-            }
+                let cache = DownloadCache::new(&paths.stout_dir);
+                let client = DownloadClient::new(cache, 1)?;
+                let progress = Arc::new(ProgressReporter::new());
 
-            install_path
+                let bottle_spec = BottleSpec {
+                    name: name.clone(),
+                    version: formula.version.clone(),
+                    platform: platform.clone(),
+                    url: bottle.url.clone(),
+                    sha256: bottle.sha256.clone(),
+                };
+
+                let bottle_paths = client
+                    .download_bottles(vec![bottle_spec], progress)
+                    .await
+                    .context("Failed to download bottle")?;
+
+                let bottle_path = &bottle_paths[0];
+
+                println!("  {} Extracting...", style("•").dim());
+                let install_path = extract_bottle(bottle_path, &paths.cellar)?;
+
+                // Relocate Homebrew placeholders to actual paths
+                if let Err(e) = relocate_bottle(&install_path, &paths.prefix) {
+                    eprintln!(
+                        "  {} Warning: relocation failed: {}",
+                        style("!").yellow(),
+                        e
+                    );
+                }
+
+                // Cleanup bottle if not keeping
+                if !args.keep_bottles {
+                    let _ = std::fs::remove_file(bottle_path);
+                }
+
+                install_path
+            }
         };
 
         // Get the actual installed version from the install path
@@ -291,6 +305,12 @@ pub async fn run(args: Args) -> Result<()> {
                 formula.revision,
                 old_pkg.requested,
             );
+            // Store bottle SHA256 for future reinstall optimization
+            if let Some(bottle) = formula.bottle_for_platform(&platform) {
+                if let Some(pkg) = installed.packages.get_mut(name) {
+                    pkg.bottle_sha256 = Some(bottle.sha256.clone());
+                }
+            }
         }
 
         // Remove old version from cellar if different

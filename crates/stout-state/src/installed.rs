@@ -26,6 +26,9 @@ pub struct InstalledPackage {
     /// Quick flag for HEAD detection
     #[serde(default)]
     pub is_head: bool,
+    /// SHA256 of the installed bottle (for reinstall optimization)
+    #[serde(default)]
+    pub bottle_sha256: Option<String>,
 }
 
 fn default_installed_by() -> String {
@@ -111,6 +114,7 @@ impl InstalledPackages {
                 dependencies,
                 head_sha: None,
                 is_head: version.starts_with("HEAD"),
+                bottle_sha256: None,
             },
         );
     }
@@ -141,6 +145,7 @@ impl InstalledPackages {
                 dependencies,
                 head_sha: None,
                 is_head: version.starts_with("HEAD"),
+                bottle_sha256: None,
             },
         );
     }
@@ -169,6 +174,7 @@ impl InstalledPackages {
                 dependencies,
                 head_sha: Some(full_sha.to_string()),
                 is_head: true,
+                bottle_sha256: None,
             },
         );
     }
