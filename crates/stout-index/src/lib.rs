@@ -14,6 +14,7 @@ mod delta;
 mod error;
 mod formula;
 mod query;
+mod ruby_formula;
 mod schema;
 mod signature;
 mod sync;
@@ -27,6 +28,7 @@ pub use delta::{DeltaManifest, DeltaSync, SyncMetadata, SyncStats, UpdateStatus}
 pub use error::{Error, Result};
 pub use formula::{Bottle, Dependency, DependencyType, Dependent, Formula, FormulaInfo};
 pub use query::Query;
+pub use ruby_formula::parse_ruby_formula;
 pub use signature::{
     compute_file_sha256, compute_sha256, SignatureVerifier, SignedManifest, TrustedKeys,
     VerificationResult, DEFAULT_PUBLIC_KEY_HEX,
