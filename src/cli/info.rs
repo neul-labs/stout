@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use clap::Args as ClapArgs;
 use console::style;
 use stout_index::{Database, IndexSync};
-use stout_state::{Config, Paths};
+use stout_state::{Config, InstalledPackages, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -44,7 +44,7 @@ pub async fn run(args: Args) -> Result<()> {
     // Try cask (unless --formula specified)
     if !args.formula {
         if let Some(cask_info) = db.get_cask(&args.name)? {
-            return show_cask_info(&args.name, &cask_info, &sync, &paths).await;
+            return show_cask_info(&args.name, &cask_info, &sync, &paths, &db).await;
         }
     }
 
@@ -84,7 +84,7 @@ async fn show_formula_info(
     info: &stout_index::FormulaInfo,
     sync: &IndexSync,
     paths: &Paths,
-    _db: &Database,
+    db: &Database,
 ) -> Result<()> {
     // Fetch full formula data
     let formula = sync
@@ -135,6 +135,89 @@ async fn show_formula_info(
         }
     }
 
+    // Dependents (packages that depend on this formula)
+    let dependents = db.get_dependents(&formula.name, &[])?;
+    if !dependents.is_empty() {
+        let installed_pkgs = InstalledPackages::load(paths)?;
+        let installed_count = dependents
+            .iter()
+            .filter(|d| installed_pkgs.is_installed(&d.formula))
+            .count();
+
+        println!("\n{}:", style("Dependents").cyan());
+
+        let mut runtime_deps: Vec<&stout_index::Dependent> = Vec::new();
+        let mut build_deps: Vec<&stout_index::Dependent> = Vec::new();
+        let mut other_deps: Vec<&stout_index::Dependent> = Vec::new();
+
+        for dep in &dependents {
+            match dep.dep_type {
+                stout_index::DependencyType::Runtime | stout_index::DependencyType::Recommended => {
+                    runtime_deps.push(dep)
+                }
+                stout_index::DependencyType::Build => build_deps.push(dep),
+                _ => other_deps.push(dep),
+            }
+        }
+
+        for (i, dep) in runtime_deps.iter().enumerate() {
+            let is_last =
+                i == runtime_deps.len() - 1 && build_deps.is_empty() && other_deps.is_empty();
+            let prefix = if is_last { "└──" } else { "├──" };
+            let marker = if installed_pkgs.is_installed(&dep.formula) {
+                style("✓").green()
+            } else {
+                style("○").dim()
+            };
+            println!(
+                "  {} {} {} {}",
+                prefix,
+                marker,
+                dep.formula,
+                style("(runtime)").dim()
+            );
+        }
+        for (i, dep) in build_deps.iter().enumerate() {
+            let is_last = i == build_deps.len() - 1 && other_deps.is_empty();
+            let prefix = if is_last { "└──" } else { "├──" };
+            let marker = if installed_pkgs.is_installed(&dep.formula) {
+                style("✓").green()
+            } else {
+                style("○").dim()
+            };
+            println!(
+                "  {} {} {} {}",
+                prefix,
+                marker,
+                dep.formula,
+                style("(build)").dim()
+            );
+        }
+        for (i, dep) in other_deps.iter().enumerate() {
+            let is_last = i == other_deps.len() - 1;
+            let prefix = if is_last { "└──" } else { "├──" };
+            let marker = if installed_pkgs.is_installed(&dep.formula) {
+                style("✓").green()
+            } else {
+                style("○").dim()
+            };
+            println!(
+                "  {} {} {} {}",
+                prefix,
+                marker,
+                dep.formula,
+                style(format!("({})", dep.dep_type.as_str())).dim()
+            );
+        }
+
+        println!(
+            "  {} {}/{} installed",
+            style("→").dim(),
+            installed_count,
+            dependents.len()
+        );
+    }
+
     // Bottles
     if !formula.bottles.is_empty() {
         println!("\n{}:", style("Bottles").cyan());
@@ -177,6 +260,7 @@ async fn show_cask_info(
     info: &stout_index::CaskInfo,
     sync: &IndexSync,
     paths: &Paths,
+    db: &Database,
 ) -> Result<()> {
     // Fetch full cask data
     let cask = sync
@@ -245,6 +329,58 @@ async fn show_cask_info(
             let is_last = i == cask.depends_on.cask.len() - 1;
             let prefix = if is_last { "└──" } else { "├──" };
             println!("  {} {} {}", prefix, dep, style("(cask)").dim());
+        }
+    }
+
+    // Dependents (formulas that this cask's formula dependencies depend on)
+    let formula_deps = &cask.depends_on.formula;
+    if !formula_deps.is_empty() {
+        let mut all_dependents: Vec<stout_index::Dependent> = Vec::new();
+        for dep in formula_deps {
+            if let Ok(deps) = db.get_dependents(dep, &[]) {
+                all_dependents.extend(deps);
+            }
+        }
+        // Deduplicate
+        all_dependents.sort_by(|a, b| a.formula.cmp(&b.formula));
+        all_dependents.dedup_by(|a, b| a.formula == b.formula);
+
+        if !all_dependents.is_empty() {
+            let cask_dependents = db.get_cask_dependents(token)?;
+            println!("\n{}:", style("Required by").cyan());
+            for dep in &all_dependents {
+                let marker = style("•").dim();
+                println!(
+                    "  {} {} {}",
+                    marker,
+                    dep.formula,
+                    style(format!("({})", dep.dep_type.as_str())).dim()
+                );
+            }
+            if !cask_dependents.is_empty() {
+                for cask_dep in &cask_dependents {
+                    println!(
+                        "  {} {} {}",
+                        style("•").green(),
+                        cask_dep,
+                        style("(cask)").dim()
+                    );
+                }
+            }
+        }
+    } else {
+        // Cask has no formula deps, but may have cask dependents
+        let cask_dependents = db.get_cask_dependents(token)?;
+        if !cask_dependents.is_empty() {
+            println!("\n{}:", style("Required by").cyan());
+            for cask_dep in &cask_dependents {
+                println!(
+                    "  {} {} {}",
+                    style("•").green(),
+                    cask_dep,
+                    style("(cask)").dim()
+                );
+            }
         }
     }
 

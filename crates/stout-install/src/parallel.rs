@@ -243,7 +243,7 @@ impl ParallelInstaller {
         // Combine results
         let results: Vec<PackageInstallResult> = extracted
             .into_iter()
-            .zip(linked.into_iter())
+            .zip(linked)
             .map(
                 |((name, install_path), (_, linked_files))| PackageInstallResult {
                     name,

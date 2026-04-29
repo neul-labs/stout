@@ -566,11 +566,12 @@ async fn install_formulas(
                 InstallReceipt::new_bottle(&formula.tap, !step.is_dependency, runtime_deps);
             write_receipt(&result.install_path, &receipt)?;
 
-            installed.add(
+            installed.add_with_deps(
                 &step.name,
                 &step.version,
                 formula.revision,
                 !step.is_dependency,
+                formula.runtime_deps().to_vec(),
             );
             println!(
                 "  {} {} {} ({} files linked)",
@@ -642,11 +643,12 @@ async fn install_formulas(
                 InstallReceipt::new_source(&formula.tap, !step.is_dependency, runtime_deps);
             write_receipt(&result.install_path, &receipt)?;
 
-            installed.add(
+            installed.add_with_deps(
                 &step.name,
                 &step.version,
                 formula.revision,
                 !step.is_dependency,
+                formula.runtime_deps().to_vec(),
             );
 
             let _ = std::fs::remove_dir_all(&work_dir);
