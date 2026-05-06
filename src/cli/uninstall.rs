@@ -9,6 +9,8 @@ use stout_index::{Database, DependencyType};
 use stout_install::{remove_package, scan_cellar, scan_cellar_package, unlink_package};
 use stout_state::{InstalledPackages, Paths};
 
+use super::services;
+
 #[derive(ClapArgs)]
 pub struct Args {
     /// Packages to uninstall (formulas or casks)
@@ -37,12 +39,12 @@ pub struct Args {
 }
 
 /// Find all packages that depend on the given package.
-///
-/// Checks three sources:
-/// 1. InstalledPackages (stout-tracked, always available)
-/// 2. Database (if available — full formula index)
-/// 3. Cellar receipts (fallback for brew-installed packages)
-fn find_dependents(name: &str, installed: &InstalledPackages, paths: &Paths) -> Vec<String> {
+fn find_dependents(
+    name: &str,
+    installed: &InstalledPackages,
+    paths: &Paths,
+    db: Option<&Database>,
+) -> Vec<String> {
     let mut dependents = HashSet::new();
 
     // Source 1: stout-tracked packages
@@ -52,12 +54,11 @@ fn find_dependents(name: &str, installed: &InstalledPackages, paths: &Paths) -> 
         }
     }
 
-    // Source 2: Database (if available)
-    if let Ok(db) = Database::open(paths.index_db()) {
-        if let Ok(db_dependents) = db.get_dependents(
-            name,
-            &[DependencyType::Runtime, DependencyType::Recommended],
-        ) {
+    // Source 2: Database (if provided)
+    if let Some(database) = db {
+        if let Ok(db_dependents) =
+            database.get_dependents(name, DependencyType::default_dependent_types())
+        {
             for dep in db_dependents {
                 // Only count as a dependent if it's actually installed
                 if installed.is_installed(&dep.formula) || paths.cellar.join(&dep.formula).exists()
@@ -99,6 +100,7 @@ pub async fn run(args: Args) -> Result<()> {
     let paths = Paths::default();
     let mut installed = InstalledPackages::load(&paths)?;
     let cask_state_path = paths.stout_dir.join("casks.json");
+    let db = Database::open(paths.index_db()).ok();
 
     for name in &args.formulas {
         // Determine if this is a formula or cask
@@ -111,7 +113,14 @@ pub async fn run(args: Args) -> Result<()> {
         if args.cask {
             uninstall_cask(name, &cask_state_path, &paths, args.zap, args.dry_run).await?;
         } else if args.formula || is_formula_installed {
-            uninstall_formula(name, &mut installed, &paths, args.force, args.dry_run)?;
+            uninstall_formula(
+                name,
+                &mut installed,
+                &paths,
+                db.as_ref(),
+                args.force,
+                args.dry_run,
+            )?;
         } else if is_cask_installed {
             uninstall_cask(name, &cask_state_path, &paths, args.zap, args.dry_run).await?;
         } else {
@@ -130,6 +139,7 @@ fn uninstall_formula(
     name: &str,
     installed: &mut InstalledPackages,
     paths: &Paths,
+    db: Option<&Database>,
     force: bool,
     dry_run: bool,
 ) -> Result<()> {
@@ -139,7 +149,7 @@ fn uninstall_formula(
             // Targeted sync: check if already removed from Cellar
             if let Some(cellar_pkg) = scan_cellar_package(&paths.cellar, name)? {
                 // Check dependents even for untracked packages
-                let dependents = find_dependents(name, installed, paths);
+                let dependents = find_dependents(name, installed, paths, db);
                 if !dependents.is_empty() && !force {
                     eprintln!(
                         "{} {} is a dependency of: {}",
@@ -178,6 +188,7 @@ fn uninstall_formula(
                     );
 
                     let install_path = paths.package_path(name, &cellar_pkg.version);
+                    services::stop_package_service(name, &install_path);
                     let _ = unlink_package(&install_path, &paths.prefix);
                     let _ = remove_package(&paths.cellar, name, &cellar_pkg.version);
 
@@ -220,7 +231,7 @@ fn uninstall_formula(
     }
 
     // Dependency safety check: find all packages that depend on this one
-    let dependents = find_dependents(name, installed, paths);
+    let dependents = find_dependents(name, installed, paths, db);
 
     if !dependents.is_empty() && !force {
         eprintln!(
@@ -255,6 +266,9 @@ fn uninstall_formula(
         "{}...",
         style(format!("Uninstalling {} {}", name, pkg.version)).cyan()
     );
+
+    // Stop service if one is running
+    services::stop_package_service(name, &install_path);
 
     // Unlink
     unlink_package(&install_path, &paths.prefix)?;

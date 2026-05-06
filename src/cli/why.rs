@@ -146,10 +146,9 @@ fn find_dependency_paths(
     // Supplement with database-sourced reverse dependencies
     if let Some(database) = db {
         for name in installed.names() {
-            if let Ok(dependents) = database.get_dependents(
-                name,
-                &[DependencyType::Runtime, DependencyType::Recommended],
-            ) {
+            if let Ok(dependents) =
+                database.get_dependents(name, DependencyType::default_dependent_types())
+            {
                 for dep in dependents {
                     if installed.is_installed(&dep.formula) {
                         reverse_deps

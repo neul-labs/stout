@@ -241,12 +241,47 @@ async fn install_formulas(
     let graph = DependencyGraph::build_from_db(db, &formula_refs, false)?;
 
     // Create install plan
-    let plan = InstallPlan::from_graph(
+    let mut plan = InstallPlan::from_graph(
         &graph,
         &formula_refs,
         |name| db.get_formula(name).ok().flatten(),
         |name| installed.is_installed(name),
     )?;
+
+    // Verify "already installed" packages actually exist in the Cellar.
+    // If the Cellar was externally modified (e.g. brew uninstall or manual rm),
+    // the state file is stale — remove from state and re-add to the install plan.
+    let mut stale_packages: Vec<String> = Vec::new();
+    for name in &plan.already_installed {
+        if let Some(pkg) = installed.get(name) {
+            let install_path = paths.cellar.join(name).join(&pkg.version);
+            if !install_path.exists() {
+                stale_packages.push(name.clone());
+            }
+        }
+    }
+
+    for name in &stale_packages {
+        plan.already_installed.remove(name);
+        if let Some(info) = db.get_formula(name).ok().flatten() {
+            let is_dep = !plan.requested.contains(name);
+            if is_dep {
+                plan.dependencies.insert(name.clone());
+            }
+            plan.steps.push(InstallStep {
+                name: name.clone(),
+                version: info.version.clone(),
+                is_dependency: is_dep,
+            });
+        }
+        installed.remove(name);
+        println!(
+            "  {} {} {}",
+            style("→").yellow(),
+            name,
+            style("(stale state, will reinstall)").dim()
+        );
+    }
 
     // Show plan
     for step in plan.new_packages() {
