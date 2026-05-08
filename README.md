@@ -131,26 +131,32 @@ stout doctor
 
 ### Cask Support (Applications)
 
-stout can also install macOS applications (casks) and Linux apps (AppImage, Flatpak):
+stout can also install macOS applications (casks) and Linux apps (AppImage, Flatpak). Use `--cask` to specify cask operations:
 
 ```bash
+# Install an application (auto-detected)
+stout install firefox
+
+# Explicitly install as cask
+stout install --cask firefox
+
 # Search for applications
-stout cask search firefox
-
-# Install an application
-stout cask install firefox
-
-# List installed applications
-stout cask list
+stout search --cask firefox
 
 # Get application info
-stout cask info visual-studio-code
+stout info --cask visual-studio-code
+
+# List installed applications
+stout list --cask
 
 # Uninstall an application
-stout cask uninstall firefox
+stout uninstall --cask firefox
 
-# Upgrade applications
-stout cask upgrade
+# Check for outdated applications
+stout outdated --cask
+
+# Upgrade applications only
+stout upgrade --cask
 ```
 
 ## Commands
@@ -212,13 +218,13 @@ stout implements 35+ commands with full Homebrew CLI compatibility:
 
 | Command | brew Equivalent | Description |
 |---------|-----------------|-------------|
-| `stout cask install <app>` | `brew install --cask` | Install applications |
-| `stout cask uninstall <app>` | `brew uninstall --cask` | Uninstall applications |
-| `stout cask search <query>` | `brew search --cask` | Search for applications |
-| `stout cask info <app>` | `brew info --cask` | Show application information |
-| `stout cask list` | `brew list --cask` | List installed applications |
-| `stout cask outdated` | `brew outdated --cask` | Show outdated applications |
-| `stout cask upgrade [app]` | `brew upgrade --cask` | Upgrade applications |
+| `stout install --cask <app>` | `brew install --cask` | Install applications |
+| `stout uninstall --cask <app>` | `brew uninstall --cask` | Uninstall applications |
+| `stout search --cask <query>` | `brew search --cask` | Search for applications |
+| `stout info --cask <app>` | `brew info --cask` | Show application information |
+| `stout list --cask` | `brew list --cask` | List installed applications |
+| `stout outdated --cask` | `brew outdated --cask` | Show outdated applications |
+| `stout upgrade --cask` | `brew upgrade --cask` | Upgrade applications |
 
 ### Bundle & Snapshot
 

@@ -150,11 +150,38 @@ impl DependencyType {
             Self::Recommended => "recommended",
         }
     }
+
+    /// Dependency types checked by default when finding dependents.
+    pub fn default_dependent_types() -> &'static [DependencyType] {
+        &[DependencyType::Runtime, DependencyType::Recommended]
+    }
+}
+
+impl std::str::FromStr for DependencyType {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "runtime" => DependencyType::Runtime,
+            "build" => DependencyType::Build,
+            "test" => DependencyType::Test,
+            "optional" => DependencyType::Optional,
+            "recommended" => DependencyType::Recommended,
+            _ => DependencyType::Runtime,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Dependency {
     pub name: String,
+    pub dep_type: DependencyType,
+}
+
+/// A dependent (reverse dependency) — a formula that depends on the target
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Dependent {
+    pub formula: String,
     pub dep_type: DependencyType,
 }
 

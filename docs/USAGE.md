@@ -141,6 +141,9 @@ This checks:
 - Formula index
 - Homebrew prefix and Cellar
 - Installed packages state
+- Homebrew drift
+- Unrelocated placeholders
+- Code signatures (macOS)
 
 ## Command Reference
 
@@ -296,8 +299,10 @@ Checks system health and configuration:
 - Installed packages state
 - Homebrew drift (packages in Cellar/Caskroom not tracked by stout)
 - Unrelocated Homebrew placeholders
+- Code signatures on all Mach-O binaries (macOS)
 
-Use `--fix` to automatically run sync and resolve drift.
+Use `--fix` to automatically run sync, relocate unresolved placeholders,
+re-sign binaries with invalid signatures, and reinstall corrupted packages.
 
 ### stout completions
 
@@ -596,139 +601,113 @@ Subcommands:
 
 ## Cask Commands (Applications)
 
-stout can also manage applications (casks) on macOS and Linux. Casks are packaged macOS applications (DMG, PKG, ZIP) or Linux apps (AppImage, Flatpak).
+stout can also manage applications (casks) on macOS and Linux. Casks are packaged macOS applications (DMG, PKG, ZIP) or Linux apps (AppImage, Flatpak). All cask operations use `--cask` on the top-level commands.
 
-### stout cask install
-
-Install applications:
+### Installing Applications
 
 ```bash
-stout cask install [OPTIONS] <CASKS>...
+# Install (auto-detected as cask)
+stout install firefox
 
-Arguments:
-  <CASKS>...  Applications to install
+# Explicitly install as cask
+stout install --cask firefox
 
-Options:
-  -f, --force      Force reinstall if already installed
-  --no-verify      Skip checksum verification
-  --appdir <DIR>   Custom application directory (default: /Applications)
-  --dry-run        Show what would be installed
+# Install with options
+stout install --cask --no-verify firefox
+
+# Custom application directory
+stout install --cask --appdir ~/Apps firefox
 ```
 
-Example:
+### Uninstalling Applications
 
 ```bash
-stout cask install visual-studio-code firefox slack
+# Uninstall
+stout uninstall --cask firefox
+
+# Remove with thorough cleanup (preferences, caches)
+stout uninstall --cask --zap firefox
 ```
 
-### stout cask uninstall
-
-Uninstall applications:
+### Searching for Applications
 
 ```bash
-stout cask uninstall [OPTIONS] <CASKS>...
+# Search casks only
+stout search --cask browser
 
-Arguments:
-  <CASKS>...  Applications to uninstall
-
-Options:
-  --zap         Remove preferences and caches (thorough cleanup)
-  -f, --force   Force uninstall
+# Search both formulas and casks (default)
+stout search browser
 ```
 
-### stout cask search
-
-Search for applications:
+### Application Info
 
 ```bash
-stout cask search [OPTIONS] <QUERY>
-
-Arguments:
-  <QUERY>  Search query
-
-Options:
-  --json  Output as JSON
+# Show cask info
+stout info --cask visual-studio-code
 ```
 
-### stout cask info
-
-Show application information:
+### Listing Applications
 
 ```bash
-stout cask info [OPTIONS] <CASK>
+# List installed casks
+stout list --cask
 
-Arguments:
-  <CASK>  Application to show info for
+# List with versions
+stout list --cask --versions
 
-Options:
-  --format <FORMAT>  Output format (text, json)
+# List both formulas and casks (default)
+stout list
 ```
 
-### stout cask list
-
-List installed applications:
+### Checking for Updates
 
 ```bash
-stout cask list [OPTIONS]
+# Check both formulas and casks (default)
+stout outdated
 
-Options:
-  -v, --versions  Show version information
-  --json          Output as JSON
+# Check casks only
+stout outdated --cask
+
+# Check formulas only
+stout outdated --formula
 ```
 
-### stout cask outdated
-
-Show applications with available updates:
+### Upgrading Applications
 
 ```bash
-stout cask outdated [OPTIONS]
+# Upgrade all (formulas + casks)
+stout upgrade
 
-Options:
-  --json  Output as JSON
-```
+# Upgrade casks only
+stout upgrade --cask
 
-### stout cask upgrade
-
-Upgrade installed applications:
-
-```bash
-stout cask upgrade [OPTIONS] [CASKS]...
-
-Arguments:
-  [CASKS]...  Specific applications to upgrade (default: all)
-
-Options:
-  -f, --force    Force upgrade
-  --dry-run      Show what would be upgraded
+# Upgrade specific cask
+stout upgrade firefox
 ```
 
 ### Cask Examples
 
 ```bash
-# Search for browsers
-stout cask search browser
-
 # Install popular applications
-stout cask install visual-studio-code firefox slack discord
+stout install visual-studio-code firefox slack discord
 
 # View application details
-stout cask info visual-studio-code
+stout info --cask visual-studio-code
 
 # List installed applications with versions
-stout cask list --versions
+stout list --cask --versions
 
 # Check for updates
-stout cask outdated
+stout outdated --cask
 
 # Upgrade all applications
-stout cask upgrade
-
-# Upgrade specific applications
-stout cask upgrade firefox slack
+stout upgrade --cask
 
 # Uninstall with thorough cleanup
-stout cask uninstall --zap discord
+stout uninstall --cask --zap discord
 ```
+
+> **Note**: `stout cask <command>` is deprecated. Use `stout <command> --cask` instead.
 
 ### Linux Application Support
 

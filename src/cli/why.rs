@@ -5,7 +5,7 @@ use clap::Args as ClapArgs;
 use console::style;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet, VecDeque};
-use stout_index::Database;
+use stout_index::{Database, DependencyType};
 use stout_state::{Config, InstalledPackages, Paths};
 
 #[derive(ClapArgs)]
@@ -86,7 +86,7 @@ pub async fn run(args: Args) -> Result<()> {
     }
 
     // Find dependency paths from requested packages to this formula
-    let dep_paths = find_dependency_paths(&args.formula, &installed, args.all);
+    let dep_paths = find_dependency_paths(&args.formula, &installed, Some(&db), args.all);
 
     if args.json {
         let output = WhyJson {
@@ -127,6 +127,7 @@ pub async fn run(args: Args) -> Result<()> {
 fn find_dependency_paths(
     target: &str,
     installed: &InstalledPackages,
+    db: Option<&Database>,
     find_all: bool,
 ) -> Vec<Vec<String>> {
     let mut paths = Vec::new();
@@ -139,6 +140,30 @@ fn find_dependency_paths(
                 .entry(dep.clone())
                 .or_default()
                 .push(name.clone());
+        }
+    }
+
+    // Supplement with database-sourced reverse dependencies
+    if let Some(database) = db {
+        for name in installed.names() {
+            if let Ok(dependents) =
+                database.get_dependents(name, DependencyType::default_dependent_types())
+            {
+                for dep in dependents {
+                    if installed.is_installed(&dep.formula) {
+                        reverse_deps
+                            .entry(name.to_string())
+                            .or_default()
+                            .push(dep.formula);
+                    }
+                }
+            }
+        }
+
+        // Deduplicate reverse deps entries
+        for dependents in reverse_deps.values_mut() {
+            dependents.sort();
+            dependents.dedup();
         }
     }
 

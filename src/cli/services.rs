@@ -325,7 +325,7 @@ async fn cleanup_services() -> Result<()> {
 }
 
 /// Find service files (launchd plists or systemd units) for a package
-fn find_service_files(install_path: &std::path::Path) -> Vec<PathBuf> {
+pub fn find_service_files(install_path: &std::path::Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
 
     // Check for launchd plists
@@ -343,6 +343,49 @@ fn find_service_files(install_path: &std::path::Path) -> Vec<PathBuf> {
     }
 
     files
+}
+
+/// Stop a running launchd service for a package by unloading its plist files.
+/// Returns true if any service was found and stopped.
+pub fn stop_package_service(name: &str, install_path: &std::path::Path) -> bool {
+    let service_files = find_service_files(install_path);
+    if service_files.is_empty() {
+        return false;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        for plist in &service_files {
+            let output = std::process::Command::new("launchctl")
+                .args(["unload", "-w"])
+                .arg(plist)
+                .output();
+
+            match output {
+                Ok(o) if o.status.success() => {}
+                Ok(o) => {
+                    let stderr = String::from_utf8_lossy(&o.stderr);
+                    eprintln!("  {} {}", style("Warning:").yellow(), stderr.trim());
+                }
+                Err(e) => {
+                    eprintln!(
+                        "  {} Failed to stop service for {}: {}",
+                        style("Warning:").yellow(),
+                        name,
+                        e
+                    );
+                }
+            }
+        }
+        println!("  {} Stopped service for {}", style("✓").green(), name);
+        true
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (name, service_files);
+        false
+    }
 }
 
 /// Simple glob matching

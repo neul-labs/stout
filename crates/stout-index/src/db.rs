@@ -2,9 +2,10 @@
 
 use crate::cask::CaskInfo;
 use crate::error::Result;
-use crate::formula::{Dependency, DependencyType, FormulaInfo};
+use crate::formula::{Dependency, DependencyType, Dependent, FormulaInfo};
 use crate::schema::{meta_keys, CREATE_SCHEMA};
 use rusqlite::{params, Connection, OptionalExtension};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use tracing::debug;
 
@@ -201,19 +202,57 @@ impl Database {
             .query_map([formula], |row| {
                 let name: String = row.get(0)?;
                 let dep_type_str: String = row.get(1)?;
-                let dep_type = match dep_type_str.as_str() {
-                    "runtime" => DependencyType::Runtime,
-                    "build" => DependencyType::Build,
-                    "test" => DependencyType::Test,
-                    "optional" => DependencyType::Optional,
-                    "recommended" => DependencyType::Recommended,
-                    _ => DependencyType::Runtime,
-                };
+                let dep_type: DependencyType =
+                    dep_type_str.parse().unwrap_or(DependencyType::Runtime);
                 Ok(Dependency { name, dep_type })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(deps)
+    }
+
+    /// Get formulas that depend on the given package (reverse dependencies)
+    pub fn get_dependents(
+        &self,
+        dep_name: &str,
+        dep_types: &[DependencyType],
+    ) -> Result<Vec<Dependent>> {
+        let sql = if dep_types.is_empty() {
+            "SELECT formula, dep_type FROM dependencies WHERE dep_name = ?".to_string()
+        } else {
+            let placeholders: Vec<&str> = dep_types.iter().map(|_| "?").collect();
+            format!(
+                "SELECT formula, dep_type FROM dependencies WHERE dep_name = ? AND dep_type IN ({})",
+                placeholders.join(", ")
+            )
+        };
+
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows: Vec<Dependent> = if dep_types.is_empty() {
+            stmt.query_map([dep_name], row_to_dependent)?
+                .collect::<std::result::Result<Vec<_>, _>>()?
+        } else {
+            let params: Vec<Box<dyn rusqlite::types::ToSql>> =
+                std::iter::once(Box::new(dep_name.to_string()) as Box<dyn rusqlite::types::ToSql>)
+                    .chain(dep_types.iter().map(|dt| {
+                        Box::new(dt.as_str().to_string()) as Box<dyn rusqlite::types::ToSql>
+                    }))
+                    .collect();
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> =
+                params.iter().map(|p| p.as_ref()).collect();
+            stmt.query_map(param_refs.as_slice(), row_to_dependent)?
+                .collect::<std::result::Result<Vec<_>, _>>()?
+        };
+        Ok(rows)
+    }
+
+    /// Get casks that depend on the given formula
+    pub fn get_cask_dependents(&self, dep_name: &str) -> Result<Vec<String>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT cask FROM cask_dependencies WHERE dep_name = ?")?;
+        let rows = stmt.query_map([dep_name], |row| row.get::<_, String>(0))?;
+        Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
     }
 
     /// Get available platforms for a formula
@@ -423,6 +462,112 @@ impl Database {
             tx: self.conn.transaction()?,
         })
     }
+
+    /// Import casks from another database, replacing all existing casks
+    ///
+    /// This handles schema differences between the source database and the local schema.
+    pub fn import_casks_from(&mut self, source: &Database) -> Result<u32> {
+        // Clear existing casks and dependencies
+        self.conn.execute("DELETE FROM cask_dependencies", [])?;
+        self.conn.execute("DELETE FROM casks", [])?;
+
+        // Query the source database schema to detect available columns
+        let source_columns: HashSet<String> = source
+            .conn
+            .prepare("PRAGMA table_info(casks)")?
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<std::result::Result<_, _>>()?;
+
+        let mut count = 0u32;
+        const BATCH_SIZE: usize = 1000;
+
+        // Build a query that works with the source schema
+        // The source may have different columns than our local schema
+        let has_artifact_type = source_columns.contains("artifact_type");
+
+        let query = if has_artifact_type {
+            r#"
+            SELECT token, name, version, desc, homepage, tap,
+                   deprecated, disabled, artifact_type, json_hash
+            FROM casks
+            ORDER BY token
+            LIMIT ? OFFSET ?
+            "#
+        } else {
+            r#"
+            SELECT token, name, version, desc, homepage, tap,
+                   deprecated, disabled, NULL as artifact_type, json_hash
+            FROM casks
+            ORDER BY token
+            LIMIT ? OFFSET ?
+            "#
+        };
+
+        let mut offset = 0;
+
+        loop {
+            let mut stmt = source.conn.prepare(query)?;
+            let casks: Vec<CaskInfo> = stmt
+                .query_map(params![BATCH_SIZE as i64, offset as i64], |row| {
+                    Ok(CaskInfo {
+                        token: row.get(0)?,
+                        name: row.get(1)?,
+                        version: row.get(2)?,
+                        desc: row.get(3)?,
+                        homepage: row.get(4)?,
+                        tap: row.get(5)?,
+                        deprecated: row.get(6)?,
+                        disabled: row.get(7)?,
+                        artifact_type: row.get(8)?,
+                        json_hash: row.get(9)?,
+                    })
+                })?
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+
+            if casks.is_empty() {
+                break;
+            }
+
+            let tx = self.conn.transaction()?;
+            for cask in &casks {
+                tx.execute(
+                    r#"
+                    INSERT INTO casks
+                    (token, name, version, desc, homepage, tap, deprecated, disabled, artifact_type, json_hash)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    "#,
+                    params![
+                        cask.token,
+                        cask.name,
+                        cask.version,
+                        cask.desc,
+                        cask.homepage,
+                        cask.tap,
+                        cask.deprecated,
+                        cask.disabled,
+                        cask.artifact_type,
+                        cask.json_hash,
+                    ],
+                )?;
+                count += 1;
+            }
+            tx.commit()?;
+
+            offset += BATCH_SIZE;
+            if casks.len() < BATCH_SIZE {
+                break;
+            }
+        }
+
+        Ok(count)
+    }
+}
+
+fn row_to_dependent(row: &rusqlite::Row<'_>) -> rusqlite::Result<Dependent> {
+    let formula: String = row.get(0)?;
+    let dep_type_str: String = row.get(1)?;
+    let dep_type: DependencyType = dep_type_str.parse().unwrap_or(DependencyType::Runtime);
+    Ok(Dependent { formula, dep_type })
 }
 
 /// A database transaction for bulk operations

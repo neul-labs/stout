@@ -22,9 +22,10 @@ stout install <package>...
 | `--build-from-source` | Compile from source instead of using bottles |
 | `--force` | Install even if already installed |
 | `--ignore-dependencies` | Skip dependency installation |
-| `--only-dependencies` | Install only dependencies, not the package |
-| `--cask` | Install as a cask (application) |
-| `--quiet` | Suppress output |
+| `--cask` | Treat all packages as casks |
+| `--formula` | Treat all packages as formulas |
+| `--no-verify` | Skip checksum verification (casks) |
+| `--appdir=<dir>` | Custom application directory (casks) |
 | `--dry-run` | Preview what would be installed |
 | `--keep-bottles` | Keep downloaded bottles after installation |
 | `-j, --jobs=<n>` | Number of parallel jobs for source builds |
@@ -66,7 +67,9 @@ stout uninstall <package>...
 |--------|-------------|
 | `--force` | Delete all installed versions |
 | `--ignore-dependencies` | Don't fail if dependents exist |
-| `--zap` | Remove all files (casks only) |
+| `--cask` | Treat as cask (application) |
+| `--formula` | Treat as formula |
+| `--zap` | Remove all files including preferences (casks only) |
 
 **Examples:**
 
@@ -91,7 +94,7 @@ stout reinstall <package>...
 |--------|-------------|
 | `--HEAD` | Reinstall from git HEAD |
 | `--build-from-source` | Compile from source |
-| `--force` | Reinstall even if up to date |
+| `--keep-bottles` | Keep downloaded bottles after installation |
 
 **Examples:**
 
@@ -101,6 +104,9 @@ stout reinstall jq
 
 # Reinstall as HEAD build
 stout reinstall --HEAD neovim
+
+# Reinstall from source
+stout reinstall --build-from-source neovim
 ```
 
 ---
@@ -122,6 +128,8 @@ Without arguments, upgrades all outdated packages.
 | `--dry-run` | Show what would be upgraded |
 | `--fetch-HEAD` | Fetch upstream repository for HEAD installs |
 | `--greedy` | Upgrade casks with auto-updates |
+| `--cask` | Upgrade casks only |
+| `--formula` | Upgrade formulas only |
 
 **Examples:**
 
@@ -237,7 +245,8 @@ stout outdated
 | `--fetch-HEAD` | Check HEAD packages for updates |
 | `--json` | Output as JSON |
 | `--quiet` | Only show package names |
-| `--cask` | Check casks instead of formulas |
+| `--cask` | Check casks only |
+| `--formula` | Check formulas only |
 
 **Examples:**
 
@@ -287,7 +296,8 @@ Uses FTS5 full-text search for fast results.
 | Option | Description |
 |--------|-------------|
 | `--desc` | Search in descriptions |
-| `--cask` | Search casks instead of formulas |
+| `--cask` | Search casks only |
+| `--formula` | Search formulas only |
 | `--json` | Output as JSON |
 
 **Examples:**
@@ -315,6 +325,7 @@ stout info <package>
 | `--json` | Output as JSON |
 | `--installed` | Only show installed packages |
 | `--cask` | Show cask info |
+| `--formula` | Show formula info |
 
 **Examples:**
 
@@ -340,6 +351,7 @@ stout list
 | `--versions` | Show installed versions |
 | `--pinned` | Only show pinned packages |
 | `--cask` | List installed casks |
+| `--formula` | List installed formulas |
 | `--json` | Output as JSON |
 | `-1` | One package per line |
 | `--source <src>` | Filter by source: stout, brew, unknown |
@@ -544,12 +556,13 @@ Runs diagnostics and reports issues:
 - Installed packages state
 - Homebrew drift (packages in Cellar/Caskroom not tracked by stout)
 - Unrelocated Homebrew placeholders
+- Code signatures on all Mach-O binaries (macOS)
 
 **Options:**
 
 | Option | Description |
 |--------|-------------|
-| `--fix` | Automatically fix issues (runs sync for drift) |
+| `--fix` | Automatically fix issues (sync, relocate, re-sign, reinstall corrupted packages) |
 
 **Examples:**
 
@@ -639,6 +652,9 @@ stout completions <shell>
 
 ## Cask Commands
 
+> **Deprecated**: `stout cask <command>` is deprecated. Use `stout <command> --cask` instead.
+> The commands below still work but will print a deprecation warning.
+
 Casks are macOS applications and Linux apps.
 
 ### cask install
@@ -647,11 +663,15 @@ Casks are macOS applications and Linux apps.
 stout cask install <cask>...
 ```
 
+Use instead: `stout install --cask <cask>...`
+
 ### cask uninstall
 
 ```bash
 stout cask uninstall <cask>...
 ```
+
+Use instead: `stout uninstall --cask <cask>...`
 
 **Options:**
 
@@ -665,11 +685,15 @@ stout cask uninstall <cask>...
 stout cask search <query>
 ```
 
+Use instead: `stout search --cask <query>`
+
 ### cask info
 
 ```bash
 stout cask info <cask>
 ```
+
+Use instead: `stout info --cask <cask>`
 
 ### cask list
 
@@ -677,17 +701,23 @@ stout cask info <cask>
 stout cask list
 ```
 
+Use instead: `stout list --cask`
+
 ### cask outdated
 
 ```bash
 stout cask outdated
 ```
 
+Use instead: `stout outdated --cask`
+
 ### cask upgrade
 
 ```bash
 stout cask upgrade [cask]...
 ```
+
+Use instead: `stout upgrade --cask [cask]...`
 
 ---
 

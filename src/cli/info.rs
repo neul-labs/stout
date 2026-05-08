@@ -1,10 +1,12 @@
 //! Info command
 
+use std::collections::HashSet;
+
 use anyhow::{Context, Result};
 use clap::Args as ClapArgs;
 use console::style;
 use stout_index::{Database, IndexSync};
-use stout_state::{Config, Paths};
+use stout_state::{Config, InstalledPackages, Paths};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -14,6 +16,10 @@ pub struct Args {
     /// Show cask info (if both formula and cask exist)
     #[arg(long)]
     pub cask: bool,
+
+    /// Show formula info (if both formula and cask exist)
+    #[arg(long, conflicts_with = "cask")]
+    pub formula: bool,
 }
 
 pub async fn run(args: Args) -> Result<()> {
@@ -35,11 +41,48 @@ pub async fn run(args: Args) -> Result<()> {
         if let Some(info) = db.get_formula(&args.name)? {
             return show_formula_info(&args.name, &info, &sync, &paths, &db).await;
         }
+
+        // Formula not in index DB, try fetching directly via Homebrew
+        if let Ok(formula) = sync.fetch_formula(&args.name).await {
+            let formula_info = stout_index::FormulaInfo {
+                name: formula.name.clone(),
+                version: formula.version.clone(),
+                revision: formula.revision,
+                desc: formula.desc.clone(),
+                homepage: formula.homepage.clone(),
+                license: formula.license.clone(),
+                tap: formula.tap.clone(),
+                deprecated: false,
+                disabled: false,
+                has_bottle: !formula.bottles.is_empty(),
+                json_hash: None,
+            };
+            return show_formula_info(&args.name, &formula_info, &sync, &paths, &db).await;
+        }
     }
 
-    // Try cask
-    if let Some(cask_info) = db.get_cask(&args.name)? {
-        return show_cask_info(&args.name, &cask_info, &sync, &paths).await;
+    // Try cask (unless --formula specified)
+    if !args.formula {
+        if let Some(cask_info) = db.get_cask(&args.name)? {
+            return show_cask_info(&args.name, &cask_info, &sync, &paths, &db).await;
+        }
+
+        // Cask not in index DB, try fetching directly via Homebrew
+        if let Ok(cask) = sync.fetch_cask(&args.name).await {
+            let cask_info = stout_index::CaskInfo {
+                token: cask.token.clone(),
+                name: cask.name.first().cloned(),
+                version: cask.version.clone(),
+                desc: cask.desc.clone(),
+                homepage: cask.homepage.clone(),
+                tap: cask.tap.clone(),
+                deprecated: cask.deprecated,
+                disabled: cask.disabled,
+                artifact_type: Some(cask.primary_artifact_type().to_string()),
+                json_hash: None,
+            };
+            return show_cask_info(&args.name, &cask_info, &sync, &paths, &db).await;
+        }
     }
 
     // Not found - show suggestions
@@ -78,7 +121,7 @@ async fn show_formula_info(
     info: &stout_index::FormulaInfo,
     sync: &IndexSync,
     paths: &Paths,
-    _db: &Database,
+    db: &Database,
 ) -> Result<()> {
     // Fetch full formula data
     let formula = sync
@@ -129,6 +172,56 @@ async fn show_formula_info(
         }
     }
 
+    // Dependents (packages that depend on this formula)
+    let dependents = db.get_dependents(&formula.name, &[])?;
+    if !dependents.is_empty() {
+        let installed_pkgs = InstalledPackages::load(paths)?;
+        let installed_count = dependents
+            .iter()
+            .filter(|d| installed_pkgs.is_installed(&d.formula))
+            .count();
+
+        println!("\n{}:", style("Dependents").cyan());
+
+        // Group by type: runtime/recommended first, then build, then others
+        let mut runtime_deps: Vec<&stout_index::Dependent> = Vec::new();
+        let mut build_deps: Vec<&stout_index::Dependent> = Vec::new();
+        let mut other_deps: Vec<&stout_index::Dependent> = Vec::new();
+
+        for dep in &dependents {
+            match dep.dep_type {
+                stout_index::DependencyType::Runtime | stout_index::DependencyType::Recommended => {
+                    runtime_deps.push(dep)
+                }
+                stout_index::DependencyType::Build => build_deps.push(dep),
+                _ => other_deps.push(dep),
+            }
+        }
+
+        let total = dependents.len();
+        let mut idx = 0;
+        for dep in &runtime_deps {
+            print_dependent(dep, idx == total - 1, &installed_pkgs, "(runtime)");
+            idx += 1;
+        }
+        for dep in &build_deps {
+            print_dependent(dep, idx == total - 1, &installed_pkgs, "(build)");
+            idx += 1;
+        }
+        for dep in &other_deps {
+            let label = format!("({})", dep.dep_type.as_str());
+            print_dependent(dep, idx == total - 1, &installed_pkgs, &label);
+            idx += 1;
+        }
+
+        println!(
+            "  {} {}/{} installed",
+            style("→").dim(),
+            installed_count,
+            dependents.len()
+        );
+    }
+
     // Bottles
     if !formula.bottles.is_empty() {
         println!("\n{}:", style("Bottles").cyan());
@@ -166,11 +259,33 @@ async fn show_formula_info(
     Ok(())
 }
 
+fn print_dependent(
+    dep: &stout_index::Dependent,
+    is_last: bool,
+    installed: &InstalledPackages,
+    label: &str,
+) {
+    let prefix = if is_last { "└──" } else { "├──" };
+    let marker = if installed.is_installed(&dep.formula) {
+        style("✓").green()
+    } else {
+        style("○").dim()
+    };
+    println!(
+        "  {} {} {} {}",
+        prefix,
+        marker,
+        dep.formula,
+        style(label).dim()
+    );
+}
+
 async fn show_cask_info(
     token: &str,
     info: &stout_index::CaskInfo,
     sync: &IndexSync,
-    _paths: &Paths,
+    paths: &Paths,
+    db: &Database,
 ) -> Result<()> {
     // Fetch full cask data
     let cask = sync
@@ -242,6 +357,60 @@ async fn show_cask_info(
         }
     }
 
+    // Dependents (formulas that this cask's formula dependencies depend on)
+    let formula_deps = &cask.depends_on.formula;
+    if !formula_deps.is_empty() {
+        let mut seen = HashSet::new();
+        let mut all_dependents: Vec<stout_index::Dependent> = Vec::new();
+        for dep in formula_deps {
+            if let Ok(deps) = db.get_dependents(dep, &[]) {
+                for d in deps {
+                    if seen.insert(d.formula.clone()) {
+                        all_dependents.push(d);
+                    }
+                }
+            }
+        }
+
+        if !all_dependents.is_empty() {
+            let cask_dependents = db.get_cask_dependents(token)?;
+            println!("\n{}:", style("Required by").cyan());
+            for dep in &all_dependents {
+                let marker = style("•").dim();
+                println!(
+                    "  {} {} {}",
+                    marker,
+                    dep.formula,
+                    style(format!("({})", dep.dep_type.as_str())).dim()
+                );
+            }
+            if !cask_dependents.is_empty() {
+                for cask_dep in &cask_dependents {
+                    println!(
+                        "  {} {} {}",
+                        style("•").green(),
+                        cask_dep,
+                        style("(cask)").dim()
+                    );
+                }
+            }
+        }
+    } else {
+        // Cask has no formula deps, but may have cask dependents
+        let cask_dependents = db.get_cask_dependents(token)?;
+        if !cask_dependents.is_empty() {
+            println!("\n{}:", style("Required by").cyan());
+            for cask_dep in &cask_dependents {
+                println!(
+                    "  {} {} {}",
+                    style("•").green(),
+                    cask_dep,
+                    style("(cask)").dim()
+                );
+            }
+        }
+    }
+
     // Download URL
     if let Some(url) = cask.download_url() {
         println!("\n{:12} {}", style("URL:").dim(), url);
@@ -255,14 +424,24 @@ async fn show_cask_info(
         }
     }
 
-    // Install status (casks go to /Applications typically)
+    // Install status
     println!();
-    // Note: We'd need to check /Applications for casks
-    println!(
-        "{}: {}",
-        style("Installed").dim(),
-        style("Check /Applications").dim()
-    );
+    let cask_state_path = paths.stout_dir.join("casks.json");
+    if let Ok(installed_casks) = stout_cask::InstalledCasks::load(&cask_state_path) {
+        if let Some(inst) = installed_casks.get(token) {
+            println!(
+                "{}: {} {} ({})",
+                style("Installed").green().bold(),
+                style("Yes").green(),
+                style(&inst.version).dim(),
+                inst.artifact_path.display()
+            );
+        } else {
+            println!("{}: {}", style("Installed").dim(), style("No").dim());
+        }
+    } else {
+        println!("{}: {}", style("Installed").dim(), style("No").dim());
+    }
 
     println!();
     Ok(())

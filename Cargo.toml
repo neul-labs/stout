@@ -121,6 +121,7 @@ stout-audit.workspace = true
 stout-mirror.workspace = true
 
 tokio.workspace = true
+futures-util.workspace = true
 clap.workspace = true
 clap_complete.workspace = true
 serde.workspace = true
@@ -141,6 +142,7 @@ tar.workspace = true
 sha2.workspace = true
 hex.workspace = true
 walkdir = "2"
+rayon.workspace = true
 dirs.workspace = true
 
 [build-dependencies]
