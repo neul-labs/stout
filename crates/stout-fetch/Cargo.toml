@@ -3,7 +3,11 @@ name = "stout-fetch"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Download management for stout"
+description = "Async download manager with progress bars, parallel transfers, and SHA256 verification"
+readme = "README.md"
+repository.workspace = true
+keywords = ["download", "async", "http-client", "progress-bar", "cache"]
+categories = ["network-programming", "asynchronous"]
 
 [dependencies]
 reqwest.workspace = true

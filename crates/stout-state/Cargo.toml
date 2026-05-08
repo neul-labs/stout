@@ -3,7 +3,11 @@ name = "stout-state"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Local state management for stout"
+description = "Lightweight local state management for package installations and configuration"
+readme = "README.md"
+repository.workspace = true
+keywords = ["state-management", "configuration", "tracking", "package-manager", "json"]
+categories = ["config", "development-tools"]
 
 [dependencies]
 serde.workspace = true

@@ -3,7 +3,11 @@ name = "stout-cask"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Cask installation and management for stout"
+description = "Application installation for macOS and Linux casks (DMG, PKG, AppImage, Flatpak)"
+readme = "README.md"
+repository.workspace = true
+keywords = ["cask", "application-installer", "macos", "dmg", "appimage"]
+categories = ["development-tools", "os::macos-apis"]
 
 [dependencies]
 stout-index.workspace = true

@@ -3,7 +3,11 @@ name = "stout-resolve"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Dependency resolution for stout"
+description = "Dependency graph resolution with topological ordering and circular dependency detection"
+readme = "README.md"
+repository.workspace = true
+keywords = ["dependency-resolution", "topological-sort", "package-manager", "graph", "homebrew"]
+categories = ["algorithms", "development-tools"]
 
 [dependencies]
 stout-index.workspace = true

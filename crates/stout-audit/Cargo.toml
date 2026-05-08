@@ -3,7 +3,11 @@ name = "stout-audit"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Vulnerability auditing for stout packages"
+description = "Vulnerability scanning and security auditing for installed packages"
+readme = "README.md"
+repository.workspace = true
+keywords = ["security", "vulnerability-scanning", "cve", "audit", "package-security"]
+categories = ["development-tools", "cryptography"]
 
 [dependencies]
 stout-index.workspace = true

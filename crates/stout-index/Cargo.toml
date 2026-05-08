@@ -3,7 +3,11 @@ name = "stout-index"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "SQLite index management for stout"
+description = "SQLite-backed index for Homebrew formula and cask metadata with FTS5 full-text search"
+readme = "README.md"
+repository.workspace = true
+keywords = ["homebrew", "package-manager", "sqlite", "fts5", "index"]
+categories = ["database"]
 
 [dependencies]
 rusqlite.workspace = true

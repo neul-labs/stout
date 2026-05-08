@@ -3,7 +3,11 @@ name = "stout-bundle"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Brewfile parsing and bundle management for stout"
+description = "Brewfile parsing, bundle management, and environment snapshots"
+readme = "README.md"
+repository.workspace = true
+keywords = ["brewfile", "bundle", "declarative", "snapshot", "package-management"]
+categories = ["development-tools", "parsing"]
 
 [dependencies]
 stout-index.workspace = true
