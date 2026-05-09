@@ -8,7 +8,7 @@
 class Stout < Formula
   desc "Fast, Rust-based Homebrew-compatible package manager"
   homepage "https://github.com/neul-labs/stout"
-  version "0.2.1"
+  version "0.2.2"
   license "MIT"
 
   on_macos do

@@ -392,11 +392,14 @@ jobs:
           echo "Publishing stout..."
           cargo publish --allow-dirty || echo "stout may already be published"
 
-  # Publish to npm
+  # Publish to npm (with OIDC provenance)
   publish-npm:
     name: Publish to npm
     needs: release
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -414,21 +417,22 @@ jobs:
 
       - name: Copy LICENSE and README
         working-directory: packaging/npm
-        run: |
-          cp ../../LICENSE .
-          # README already exists in npm package
+        run: cp ../../LICENSE .
 
-      - name: Publish to npm
+      - name: Publish to npm with provenance
         working-directory: packaging/npm
-        run: npm publish --access public
+        run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  # Publish to PyPI
+  # Publish to PyPI (with OIDC Trusted Publishing)
   publish-pypi:
     name: Publish to PyPI
     needs: release
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -436,9 +440,6 @@ jobs:
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.11'
-
-      - name: Install build tools
-        run: pip install build twine
 
       - name: Update package version
         working-directory: packaging/pypi
@@ -453,14 +454,15 @@ jobs:
 
       - name: Build package
         working-directory: packaging/pypi
-        run: python -m build
+        run: |
+          pip install build
+          python -m build
 
       - name: Publish to PyPI
-        working-directory: packaging/pypi
-        run: twine upload dist/*
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc # v1.12.4
+        with:
+          packages-dir: packaging/pypi/dist/
+          print-hash: true
 
   # Publish to RubyGems
   publish-gem:
