@@ -6,7 +6,7 @@ license.workspace = true
 description = "Dependency graph resolution with topological ordering and circular dependency detection"
 readme = "README.md"
 repository.workspace = true
-keywords = ["dependency-resolution", "topological-sort", "package-manager", "graph", "homebrew"]
+keywords = ["dependency", "resolver", "package-manager", "graph", "homebrew"]
 categories = ["algorithms", "development-tools"]
 
 [dependencies]
