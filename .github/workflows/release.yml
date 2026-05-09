@@ -31,7 +31,7 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact: stout-aarch64-apple-darwin
-          - os: macos-13
+          - os: macos-15
             target: x86_64-apple-darwin
             artifact: stout-x86_64-apple-darwin
 
@@ -227,6 +227,114 @@ jobs:
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-homebrew:
+    name: Publish to Homebrew Tap
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: artifacts
+
+      - name: Collect and hash release artifacts
+        id: hashes
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+          mkdir -p hashes
+          for artifact_dir in artifacts/stout-*; do
+            if [ -d "$artifact_dir" ]; then
+              cp "$artifact_dir"/*.tar.gz hashes/ 2>/dev/null || true
+            fi
+          done
+
+          echo "=== SHA256 Hashes ==="
+          for f in hashes/*.tar.gz; do
+            sha256sum "$f"
+          done
+
+          echo "macos_arm64=$(sha256sum hashes/stout-aarch64-apple-darwin.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "macos_x86_64=$(sha256sum hashes/stout-x86_64-apple-darwin.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "linux_arm64=$(sha256sum hashes/stout-aarch64-unknown-linux-gnu.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "linux_x86_64=$(sha256sum hashes/stout-x86_64-unknown-linux-gnu.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: neul-labs/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update Homebrew formula
+        run: |
+          VERSION="${{ steps.hashes.outputs.version }}"
+          FORMULA="homebrew-tap/Formula/stout.rb"
+
+          cat > "$FORMULA" <<'EOF'
+          # typed: false
+          # frozen_string_literal: true
+
+          class Stout < Formula
+            desc "Fast, Rust-based Homebrew-compatible package manager"
+            homepage "https://github.com/neul-labs/stout"
+            version "VERSION_PLACEHOLDER"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/neul-labs/stout/releases/download/vVERSION_PLACEHOLDER/stout-aarch64-apple-darwin.tar.gz"
+                sha256 "MACOS_ARM64_PLACEHOLDER"
+              end
+              on_intel do
+                url "https://github.com/neul-labs/stout/releases/download/vVERSION_PLACEHOLDER/stout-x86_64-apple-darwin.tar.gz"
+                sha256 "MACOS_X86_64_PLACEHOLDER"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "https://github.com/neul-labs/stout/releases/download/vVERSION_PLACEHOLDER/stout-aarch64-unknown-linux-gnu.tar.gz"
+                sha256 "LINUX_ARM64_PLACEHOLDER"
+              end
+              on_intel do
+                url "https://github.com/neul-labs/stout/releases/download/vVERSION_PLACEHOLDER/stout-x86_64-unknown-linux-gnu.tar.gz"
+                sha256 "LINUX_X86_64_PLACEHOLDER"
+              end
+            end
+
+            def install
+              bin.install "stout"
+              generate_completions_from_executable(bin/"stout", "completions")
+              man1.install Dir["man/*.1"] if Dir.exist?("man")
+            end
+
+            test do
+              assert_match "stout #{version}", shell_output("#{bin}/stout --version")
+              assert_match "formulas", shell_output("#{bin}/stout doctor 2>&1", 1)
+            end
+          end
+          EOF
+
+          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/g" "$FORMULA"
+          sed -i "s/MACOS_ARM64_PLACEHOLDER/${{ steps.hashes.outputs.macos_arm64 }}/g" "$FORMULA"
+          sed -i "s/MACOS_X86_64_PLACEHOLDER/${{ steps.hashes.outputs.macos_x86_64 }}/g" "$FORMULA"
+          sed -i "s/LINUX_ARM64_PLACEHOLDER/${{ steps.hashes.outputs.linux_arm64 }}/g" "$FORMULA"
+          sed -i "s/LINUX_X86_64_PLACEHOLDER/${{ steps.hashes.outputs.linux_x86_64 }}/g" "$FORMULA"
+
+          echo "=== Updated Formula ==="
+          cat "$FORMULA"
+
+      - name: Commit and push formula
+        working-directory: homebrew-tap
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/stout.rb
+          git commit -m "stout ${{ steps.hashes.outputs.version }}"
+          git push origin HEAD:main
 
   publish-crates:
     name: Publish to crates.io
