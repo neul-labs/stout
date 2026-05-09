@@ -6,7 +6,7 @@ license.workspace = true
 description = "Application installation for macOS and Linux casks (DMG, PKG, AppImage, Flatpak)"
 readme = "README.md"
 repository.workspace = true
-keywords = ["cask", "application-installer", "macos", "dmg", "appimage"]
+keywords = ["cask", "installer", "macos", "dmg", "appimage"]
 categories = ["development-tools", "os::macos-apis"]
 
 [dependencies]
