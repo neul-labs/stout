@@ -5,6 +5,9 @@ A fast, Rust-based Homebrew-compatible package manager.
 [![Build](https://github.com/neul-labs/stout/actions/workflows/ci.yml/badge.svg)](https://github.com/neul-labs/stout/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Documentation](https://img.shields.io/badge/docs-docs.neullabs.com-blue)](https://docs.neullabs.com/stout)
+[![npm](https://img.shields.io/npm/v/stout-pkg)](https://www.npmjs.com/package/stout-pkg)
+[![PyPI](https://img.shields.io/pypi/v/stout-pkg)](https://pypi.org/project/stout-pkg/)
+[![crates.io](https://img.shields.io/crates/v/stout)](https://crates.io/crates/stout)
 
 ## Why stout?
 
@@ -58,6 +61,25 @@ STOUT_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/neul-labs/stou
 
 # Skip PATH modification
 STOUT_NO_MODIFY_PATH=1 curl -fsSL https://raw.githubusercontent.com/neul-labs/stout/main/install.sh | bash
+```
+
+### Package Managers
+
+You can also install stout via your preferred package manager:
+
+**npm:**
+```bash
+npm install -g stout-pkg
+```
+
+**pip:**
+```bash
+pip install stout-pkg
+```
+
+**cargo:**
+```bash
+cargo install stout
 ```
 
 ### Manual Download
