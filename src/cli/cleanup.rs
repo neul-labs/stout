@@ -175,11 +175,14 @@ fn clean_all_downloads(
 
             // If not scrubbing, skip downloads for installed packages
             if !scrub {
-                // Parse package name from filename (format: name-version-platform.tar.gz)
-                if let Some(pkg_name) = filename.split('-').next() {
-                    if installed.is_installed(pkg_name) {
-                        continue;
-                    }
+                // Check if this file belongs to an installed package
+                // Filename format: name-version-platform.tar.gz
+                // Since package names can contain hyphens, check each installed package
+                let is_for_installed = installed
+                    .names()
+                    .any(|pkg_name| is_download_for_package(&filename, pkg_name));
+                if is_for_installed {
+                    continue;
                 }
             }
 
@@ -207,6 +210,25 @@ fn clean_all_downloads(
     }
 
     Ok((total_size, count))
+}
+
+/// Check if a download filename is for a specific package
+/// Filename format: name-version-platform.tar.gz
+/// Package names can contain hyphens, so we check if the filename starts with "name-"
+fn is_download_for_package(filename: &str, pkg_name: &str) -> bool {
+    // Remove .tar.gz extension if present
+    let base_name = filename.strip_suffix(".tar.gz").unwrap_or(filename);
+
+    // Check if the filename starts with "package-" (with hyphen to avoid partial matches)
+    base_name.starts_with(&format!("{}-", pkg_name))
+}
+
+/// Check if a cask artifact filename is for a specific cask
+/// Filename format: name.<ext> (e.g. firefox.dmg, slack.zip)
+/// Cask names can contain hyphens, so we check if the filename starts with "name."
+fn is_cask_artifact_for_cask(filename: &str, cask_name: &str) -> bool {
+    // Check if the filename starts with "cask." (with dot to avoid partial matches)
+    filename.starts_with(&format!("{}.", cask_name))
 }
 
 /// Preview what old downloads would be removed
@@ -272,11 +294,13 @@ fn clean_all_cask_artifacts(
 
         // If not scrubbing, skip artifacts for installed casks
         if !scrub {
-            // Filename format: <token>.<ext> (e.g. firefox.dmg, slack.zip)
-            if let Some(token) = filename.split('.').next() {
-                if installed_casks.is_installed(token) {
-                    continue;
-                }
+            // Check if this artifact belongs to an installed cask
+            // Filename format: name.<ext> (e.g. firefox.dmg, slack.zip)
+            let is_for_installed = installed_casks
+                .tokens()
+                .any(|cask_name| is_cask_artifact_for_cask(&filename, cask_name));
+            if is_for_installed {
+                continue;
             }
         }
 
