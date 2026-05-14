@@ -32,6 +32,22 @@ impl Database {
         Ok(db)
     }
 
+    /// Open an existing database without initializing or migrating its schema.
+    ///
+    /// Use this when reading a database file produced by an external builder
+    /// (e.g. the published cask index CDN) whose schema may differ from the
+    /// current local schema. Running [`Self::open`] on such a file would
+    /// execute `CREATE INDEX` statements against columns that may not exist.
+    pub fn open_existing(path: impl AsRef<Path>) -> Result<Self> {
+        let path = path.as_ref().to_path_buf();
+        debug!(
+            "Opening existing database at {} (no schema init)",
+            path.display()
+        );
+        let conn = Connection::open(&path)?;
+        Ok(Self { conn, path })
+    }
+
     /// Open an in-memory database (for testing)
     pub fn open_memory() -> Result<Self> {
         let conn = Connection::open_in_memory()?;

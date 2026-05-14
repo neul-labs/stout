@@ -5,8 +5,8 @@ use std::collections::HashSet;
 use anyhow::{Context, Result};
 use clap::Args as ClapArgs;
 use console::style;
-use stout_index::{Database, IndexSync};
-use stout_state::{Config, InstalledPackages, Paths};
+use stout_index::{Database, Formula, IndexSync};
+use stout_state::{Config, InstalledPackages, Paths, TapManager};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -85,6 +85,26 @@ pub async fn run(args: Args) -> Result<()> {
         }
     }
 
+    // Not found in index — search configured taps
+    if !args.cask {
+        let tap_manager = TapManager::load(&paths)?;
+        for tap in tap_manager.list() {
+            let tap_parts: Vec<&str> = tap.name.split('/').collect();
+            if tap_parts.len() == 2 {
+                let tap_user = tap_parts[0];
+                let tap_repo = if tap_parts[1].starts_with("homebrew-") {
+                    &tap_parts[1]["homebrew-".len()..]
+                } else {
+                    tap_parts[1]
+                };
+                let full_name = format!("{}/{}/{}", tap_user, tap_repo, args.name);
+                if let Ok(formula) = sync.fetch_formula(&full_name).await {
+                    return display_formula_info(&formula, &paths, &db);
+                }
+            }
+        }
+    }
+
     // Not found - show suggestions
     let formula_suggestions = db.find_similar(&args.name, 3)?;
     let cask_suggestions = db.find_similar_casks(&args.name, 3)?;
@@ -123,12 +143,14 @@ async fn show_formula_info(
     paths: &Paths,
     db: &Database,
 ) -> Result<()> {
-    // Fetch full formula data
     let formula = sync
         .fetch_formula_cached(name, info.json_hash.as_deref())
         .await
         .context("Failed to fetch formula details")?;
+    display_formula_info(&formula, paths, db)
+}
 
+fn display_formula_info(formula: &Formula, paths: &Paths, db: &Database) -> Result<()> {
     // Display
     println!();
     println!(
@@ -241,15 +263,25 @@ async fn show_formula_info(
         }
     }
 
-    // Install status
+    // Install status — check both Cellar filesystem and InstalledPackages state
+    // (tap formulas are recorded under the tap-qualified name, e.g. "user/tap/formula")
     println!();
-    let installed = paths.is_installed(&formula.name, &formula.version);
+    let installed_pkgs = InstalledPackages::load(paths).unwrap_or_default();
+    let tap_qualified = format!("{}/{}", formula.tap, formula.name);
+    let installed = paths.is_installed(&formula.name, &formula.version)
+        || installed_pkgs.is_installed(&formula.name)
+        || installed_pkgs.is_installed(&tap_qualified);
     if installed {
+        let version = installed_pkgs
+            .get(&formula.name)
+            .or_else(|| installed_pkgs.get(&tap_qualified))
+            .map(|p| p.version.as_str())
+            .unwrap_or(&formula.version);
         println!(
             "{}: {} {}",
             style("Installed").green(),
             formula.name,
-            formula.version
+            version
         );
     } else {
         println!("{}: {}", style("Installed").dim(), style("No").dim());

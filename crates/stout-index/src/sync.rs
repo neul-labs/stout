@@ -15,13 +15,15 @@ use tracing::{debug, info, warn};
 
 /// Validate a package name for safe use in file paths
 /// Returns an error if the name contains path traversal characters or is empty
+/// Allows slashes for tap formulas (e.g., user/tap/formula)
 pub fn validate_package_name(name: &str) -> Result<()> {
     if name.is_empty() {
         return Err(Error::InvalidInput(
             "package name cannot be empty".to_string(),
         ));
     }
-    if name.contains("..") || name.contains('/') || name.contains('\0') {
+    // Reject path traversal and null characters, but allow slashes for tap formulas
+    if name.contains("..") || name.contains('\0') {
         return Err(Error::InvalidInput(format!(
             "package name '{}' contains invalid characters for file path",
             name
@@ -483,8 +485,11 @@ impl IndexSync {
         let temp_path = db_path.as_ref().with_extension("casks.db.tmp");
         std::fs::write(&temp_path, &decompressed)?;
 
-        // Open both databases and merge casks
-        let cask_db = Database::open(&temp_path)?;
+        // Open both databases and merge casks. The downloaded cask index is
+        // opened without schema init because its schema may diverge from the
+        // current local schema (e.g. older builds may lack newer columns or
+        // indexes).
+        let cask_db = Database::open_existing(&temp_path)?;
         let mut main_db = Database::open(db_path.as_ref())?;
 
         // Import casks from cask_db to main_db
@@ -503,6 +508,18 @@ impl IndexSync {
     /// Tries the stout-index first, then falls back to Homebrew's official API
     /// if the formula is not found in the index.
     pub async fn fetch_formula(&self, name: &str) -> Result<Formula> {
+        // Check if this is a tap formula (format: user/tap/formula)
+        let parts: Vec<&str> = name.split('/').collect();
+        if parts.len() == 3 {
+            debug!("Fetching tap formula: {}", name);
+            let tap_user = parts[0];
+            let tap_repo = parts[1];
+            let formula_name = parts[2];
+            return self
+                .fetch_tap_formula(tap_user, tap_repo, formula_name)
+                .await;
+        }
+
         // Try stout-index first
         match self.fetch_formula_from_index(name).await {
             Ok(formula) => Ok(formula),
@@ -629,10 +646,12 @@ impl IndexSync {
         // Validate package name to prevent path traversal
         validate_package_name(name)?;
 
+        // Convert slashes to dashes for safe cache filenames (tap formulas: user/tap/formula → user-tap-formula)
+        let safe_name = name.replace('/', "-");
         let cache_path = self
             .cache_dir
             .join("formulas")
-            .join(format!("{}.json", name));
+            .join(format!("{}.json", safe_name));
 
         // Check cache
         if let Some(hash) = expected_hash {
@@ -770,5 +789,75 @@ impl IndexSync {
         std::fs::write(&cache_path, &json)?;
 
         Ok(cask)
+    }
+
+    /// Validate that a tap's GitHub repository exists.
+    pub async fn validate_tap_repo(&self, tap_user: &str, tap_repo: &str) -> Result<()> {
+        let url = format!("https://github.com/{}/homebrew-{}", tap_user, tap_repo);
+
+        debug!("Validating tap repo at {}", url);
+
+        let response = self.client.head(&url).send().await?;
+
+        if !response.status().is_success() {
+            return Err(Error::InvalidInput(format!(
+                "Tap '{}/{}' not found at {} (HTTP {})",
+                tap_user,
+                tap_repo,
+                url,
+                response.status()
+            )));
+        }
+
+        Ok(())
+    }
+
+    /// Fetch a formula from a third-party tap by downloading and parsing
+    /// its Ruby formula file from GitHub.
+    pub async fn fetch_tap_formula(
+        &self,
+        tap_user: &str,
+        tap_repo: &str,
+        name: &str,
+    ) -> Result<Formula> {
+        // Validate package name to prevent path traversal
+        validate_package_name(name)?;
+
+        // Try different repository naming conventions and branches
+        // Homebrew taps use the convention: user/homebrew-repo
+        // But some taps may use user/repo directly
+        let repo_patterns = vec![
+            format!("homebrew-{}", tap_repo), // Standard: homebrew-repo
+            tap_repo.to_string(),             // Fallback: repo directly
+        ];
+
+        // Try different directory names (Formula vs HomebrewFormula)
+        let dir_names = vec!["Formula", "HomebrewFormula"];
+
+        for repo_name in &repo_patterns {
+            for branch in &["main", "master"] {
+                for dir_name in &dir_names {
+                    let url = format!(
+                        "https://raw.githubusercontent.com/{}/{}/{}/{}/{}.rb",
+                        tap_user, repo_name, branch, dir_name, name
+                    );
+
+                    debug!("Trying to fetch tap formula from {}", url);
+
+                    let response = self.client.get(&url).send().await?;
+
+                    if response.status().is_success() {
+                        let content = response.text().await?;
+                        let tap_name = format!("{}/{}", tap_user, tap_repo);
+                        return crate::ruby_formula::parse_ruby_formula(&content, &tap_name, name);
+                    }
+                }
+            }
+        }
+
+        Err(Error::FormulaNotFound(format!(
+            "{}/{} formula '{}' not found on GitHub",
+            tap_user, tap_repo, name
+        )))
     }
 }

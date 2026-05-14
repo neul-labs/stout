@@ -3,18 +3,19 @@
 use anyhow::{bail, Context, Result};
 use clap::Args as ClapArgs;
 use console::style;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
 const CASK_INSTALL_TIMEOUT_SECS: u64 = 300;
 use stout_fetch::{BottleSpec, DownloadCache, DownloadClient, ProgressReporter};
-use stout_index::{Database, Formula, IndexSync};
+use stout_index::{Database, Formula, FormulaInfo, IndexSync};
 use stout_install::{
     link_package, scan_cellar_package, write_receipt, BottleInfo, BuildConfig, HeadBuildConfig,
     HeadBuilder, InstallReceipt, ParallelInstaller, RuntimeDependency, SourceBuilder,
 };
 use stout_resolve::{DependencyGraph, InstallPlan, InstallStep};
-use stout_state::{Config, InstalledPackages, Paths};
+use stout_state::{Config, InstalledPackages, Paths, TapManager};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -124,7 +125,13 @@ pub async fn run(args: Args) -> Result<()> {
             casks.push(name.clone());
         } else if args.formula {
             // Explicitly marked as formula
-            if db.get_formula(name)?.is_none() {
+            // Check if this is a tap formula first
+            let is_tap_formula = name.matches('/').count() == 2;
+
+            if is_tap_formula {
+                // Tap formulas aren't in the database
+                formulas.push(name.clone());
+            } else if db.get_formula(name)?.is_none() {
                 let suggestions = db.find_similar(name, 3)?;
                 eprintln!(
                     "\n{} formula '{}' not found",
@@ -138,89 +145,276 @@ pub async fn run(args: Args) -> Result<()> {
                     }
                 }
                 std::process::exit(1);
+            } else {
+                formulas.push(name.clone());
             }
-            formulas.push(name.clone());
         } else {
-            let is_formula = db.get_formula(name)?.is_some();
-            let is_cask = db.get_cask(name)?.is_some();
+            // Check if this is a tap formula (format: user/tap/formula)
+            let is_tap_formula = name.matches('/').count() == 2;
 
-            match (is_formula, is_cask) {
-                (true, true) => {
-                    // Name conflict - ask user
-                    eprintln!(
-                        "\n{} '{}' exists as both a formula and a cask.",
-                        style("!").yellow(),
-                        name
-                    );
-                    eprintln!(
-                        "  {} Use '--cask' to install the cask, or specify explicitly:",
-                        style("Tip:").dim()
-                    );
-                    eprintln!(
-                        "    {} stout install {}       # formula (default)",
-                        style("$").dim(),
-                        name
-                    );
-                    eprintln!(
-                        "    {} stout install --cask {} # cask",
-                        style("$").dim(),
-                        name
-                    );
-                    std::process::exit(1);
-                }
-                (true, false) => formulas.push(name.clone()),
-                (false, true) => casks.push(name.clone()),
-                (false, false) => {
-                    // Try to find suggestions in both formulas and casks
-                    let formula_suggestions = db.find_similar(name, 3)?;
-                    let cask_suggestions = db.find_similar_casks(name, 3)?;
+            if is_tap_formula {
+                // Tap formulas aren't in the database, so treat as formula without validation
+                formulas.push(name.clone());
+            } else {
+                let is_formula = db.get_formula(name)?.is_some();
+                let is_cask = db.get_cask(name)?.is_some();
 
-                    eprintln!(
-                        "\n{} package '{}' not found",
-                        style("error:").red().bold(),
-                        name
-                    );
-
-                    if !formula_suggestions.is_empty() {
-                        eprintln!("\n{} (formulas):", style("Did you mean?").yellow());
-                        for s in &formula_suggestions {
-                            eprintln!("  {} {}", style("•").dim(), s);
-                        }
+                match (is_formula, is_cask) {
+                    (true, true) => {
+                        // Name conflict - ask user
+                        eprintln!(
+                            "\n{} '{}' exists as both a formula and a cask.",
+                            style("!").yellow(),
+                            name
+                        );
+                        eprintln!(
+                            "  {} Use '--cask' to install the cask, or specify explicitly:",
+                            style("Tip:").dim()
+                        );
+                        eprintln!(
+                            "    {} stout install {}       # formula (default)",
+                            style("$").dim(),
+                            name
+                        );
+                        eprintln!(
+                            "    {} stout install --cask {} # cask",
+                            style("$").dim(),
+                            name
+                        );
+                        std::process::exit(1);
                     }
-
-                    if !cask_suggestions.is_empty() {
-                        eprintln!("\n{} (casks):", style("Did you mean?").yellow());
-                        for s in &cask_suggestions {
-                            eprintln!("  {} {}", style("•").dim(), s);
-                        }
+                    (true, false) => formulas.push(name.clone()),
+                    (false, true) => casks.push(name.clone()),
+                    (false, false) => {
+                        // Don't fail immediately - try to find in taps during install phase
+                        // For now, just mark as a regular formula to check later
+                        formulas.push(name.clone());
                     }
-                    std::process::exit(1);
                 }
             }
         }
     }
 
     // Install formulas
+    let mut total: usize = 0;
     if !formulas.is_empty() {
-        install_formulas(&args, &formulas, &db, &config, &paths).await?;
+        total += install_formulas(&args, &formulas, &db, &config, &paths).await?;
     }
 
     // Install casks
     if !casks.is_empty() {
-        install_casks(&args, &casks, &db, &config, &paths).await?;
+        total += install_casks(&args, &casks, &db, &config, &paths).await?;
     }
 
     let elapsed = start.elapsed();
-    let total = formulas.len() + casks.len();
-    println!(
-        "\n{} {} {} in {:.1}s",
-        style("Installed").green().bold(),
-        total,
-        if total == 1 { "package" } else { "packages" },
-        elapsed.as_secs_f64()
-    );
+    if total > 0 {
+        println!(
+            "\n{} {} {} in {:.1}s",
+            style("Installed").green().bold(),
+            total,
+            if total == 1 { "package" } else { "packages" },
+            elapsed.as_secs_f64()
+        );
+    }
 
     Ok(())
+}
+
+/// Recursively copy a directory tree, preserving permissions.
+fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> anyhow::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+        if src_path.is_dir() {
+            copy_dir_all(&src_path, &dst_path)?;
+        } else {
+            std::fs::copy(&src_path, &dst_path)?;
+            if let Ok(meta) = src_path.metadata() {
+                let _ = std::fs::set_permissions(&dst_path, meta.permissions());
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Install tap formula contents into the cellar.
+///
+/// Copies the full archive tree into `libexec/{formula_name}/` and creates
+/// relative symlinks in `bin/` for each executable at the root of libexec.
+/// This matches what Homebrew does for formulas that use `libexec.install Dir["*"]`
+/// followed by `bin.install_symlink`, and ensures that `$FindBin::Bin`-relative
+/// paths (e.g. Perl's `use lib "$FindBin::Bin/lib"`) resolve correctly.
+fn install_tap_formula_contents(
+    content_root: &std::path::Path,
+    install_path: &std::path::Path,
+    formula_name: &str,
+) -> anyhow::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let libexec_dir = install_path.join("libexec").join(formula_name);
+    copy_dir_all(content_root, &libexec_dir)?;
+
+    let bin_dir = install_path.join("bin");
+    std::fs::create_dir_all(&bin_dir)?;
+
+    // Symlink root-level executables from bin/ → ../libexec/{formula_name}/{file}
+    for entry in std::fs::read_dir(&libexec_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_file() {
+            if let Ok(meta) = path.metadata() {
+                if meta.permissions().mode() & 0o111 != 0 {
+                    let file_name = entry.file_name();
+                    let rel = std::path::PathBuf::from(format!(
+                        "../libexec/{}/{}",
+                        formula_name,
+                        file_name.to_string_lossy()
+                    ));
+                    let link = bin_dir.join(&file_name);
+                    if link.exists() || link.symlink_metadata().is_ok() {
+                        std::fs::remove_file(&link)?;
+                    }
+                    std::os::unix::fs::symlink(&rel, &link)?;
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn install_tap_formulas(
+    args: &Args,
+    formulas: &[String],
+    config: &Config,
+    paths: &Paths,
+    installed: &mut InstalledPackages,
+) -> Result<usize> {
+    let sync = IndexSync::with_security_policy(
+        Some(&config.index.base_url),
+        &paths.stout_dir,
+        config.security.to_security_policy(),
+    )?;
+
+    let platform = super::detect_platform();
+
+    println!(
+        "\n{} {} tap {}...",
+        style("Installing").cyan(),
+        formulas.len(),
+        if formulas.len() == 1 {
+            "formula"
+        } else {
+            "formulas"
+        }
+    );
+
+    for name in formulas {
+        println!("  {} {}", style("Installing").yellow(), name);
+
+        let formula = sync
+            .fetch_formula(name)
+            .await
+            .context(format!("Failed to fetch tap formula {}", name))?;
+
+        // For tap formulas, extract just the formula name (last component) for cellar paths
+        // This keeps the cellar structure consistent with Homebrew (package name only, not full tap path)
+        let formula_name = name.split('/').next_back().unwrap_or(name.as_str());
+
+        // For tap formulas, treat pre-built binaries (from stable URL) as if they were bottles
+        // Extract and link them directly instead of building from source
+        if let Some(stable_url) = &formula.urls.stable {
+            // Use a safe name for the cache (slashes replaced with dashes)
+            let safe_formula_name = formula_name.replace('/', "-");
+
+            let cache = DownloadCache::new(&paths.stout_dir);
+            let client = DownloadClient::new(cache, 1)?;
+
+            let bottle_spec = BottleSpec {
+                name: safe_formula_name.clone(),
+                version: formula.version.clone(),
+                platform: platform.clone(),
+                url: stable_url.url.clone(),
+                sha256: stable_url.sha256.clone().unwrap_or_default(),
+            };
+
+            let bottle_paths = client
+                .download_bottles(vec![bottle_spec], Arc::new(ProgressReporter::new()))
+                .await
+                .context(format!("Failed to download {}", name))?;
+
+            if let Some(bottle_path) = bottle_paths.first() {
+                // For tap formulas, the archive may not be in Homebrew bottle format
+                // Extract as a simple tar archive
+                let extract_dir = paths.stout_dir.join("tap-extract").join(&safe_formula_name);
+                std::fs::create_dir_all(&extract_dir)?;
+
+                // Extract the archive
+                let output = std::process::Command::new("tar")
+                    .arg("-xzf")
+                    .arg(bottle_path)
+                    .current_dir(&extract_dir)
+                    .output()?;
+
+                if !output.status.success() {
+                    bail!(
+                        "Failed to extract {}: {}",
+                        formula_name,
+                        String::from_utf8_lossy(&output.stderr)
+                    );
+                }
+
+                // Create install directory (use formula_name without tap path)
+                let install_path = paths.cellar.join(formula_name).join(&formula.version);
+                std::fs::create_dir_all(&install_path)?;
+
+                // Handle archives that extract to a single top-level directory
+                let content_root = {
+                    let entries: Vec<_> = std::fs::read_dir(&extract_dir)?
+                        .filter_map(|e| e.ok())
+                        .collect();
+                    if entries.len() == 1 && entries[0].path().is_dir() {
+                        entries[0].path()
+                    } else {
+                        extract_dir.clone()
+                    }
+                };
+
+                install_tap_formula_contents(&content_root, &install_path, formula_name)?;
+
+                // Link the installation to the prefix
+                link_package(&install_path, &paths.prefix)?;
+
+                let receipt = InstallReceipt::new_bottle(&formula.tap, true, Vec::new());
+                write_receipt(&install_path, &receipt)?;
+
+                installed.add_with_deps(
+                    name,
+                    &formula.version,
+                    formula.revision,
+                    true,
+                    formula.runtime_deps().to_vec(),
+                );
+
+                println!("  {} {}", style("✓").green(), name,);
+
+                // Cleanup extract directory
+                let _ = std::fs::remove_dir_all(&extract_dir);
+
+                // Cleanup bottle
+                if !args.keep_bottles && bottle_path.exists() {
+                    let _ = std::fs::remove_file(bottle_path);
+                }
+            }
+        } else {
+            bail!("No installation method available for {}", name);
+        }
+    }
+
+    installed.save(paths)?;
+    Ok(formulas.len())
 }
 
 async fn install_formulas(
@@ -229,11 +423,124 @@ async fn install_formulas(
     db: &Database,
     config: &Config,
     paths: &Paths,
-) -> Result<()> {
-    let formula_refs: Vec<&str> = formulas.iter().map(|s| s.as_str()).collect();
+) -> Result<usize> {
+    // Separate tap formulas (format: user/tap/formula) from regular formulas
+    let mut regular_formulas = Vec::new();
+    let mut tap_formulas = Vec::new();
+
+    for formula in formulas {
+        if formula.matches('/').count() == 2 {
+            tap_formulas.push(formula.clone());
+        } else {
+            regular_formulas.push(formula.clone());
+        }
+    }
 
     // Load installed packages
     let mut installed = InstalledPackages::load(paths)?;
+    let mut installed_count: usize = 0;
+
+    // For tap formulas, we can't use the dependency graph since they're not in the database.
+    // Just fetch them directly and install without resolving dependencies.
+    if !tap_formulas.is_empty() {
+        installed_count +=
+            install_tap_formulas(args, &tap_formulas, config, paths, &mut installed).await?;
+    }
+
+    // If there are no regular formulas, we're done
+    if regular_formulas.is_empty() {
+        return Ok(installed_count);
+    }
+
+    // Check if any regular formulas are missing from the database - they might be in taps
+    let tap_manager = TapManager::load(paths)?;
+
+    // Formulas found via CDN fallback that aren't in the local DB.
+    // Keyed by bare formula name; used as a fallback in the from_graph get_info closure
+    // so the plan is built correctly even when the DB doesn't have the entry.
+    let mut cdn_formula_info: HashMap<String, Formula> = HashMap::new();
+
+    let mut final_formulas = Vec::new();
+    for formula_name in regular_formulas {
+        if db.get_formula(&formula_name)?.is_none() {
+            // Formula not in database, might be in a tap
+            let mut found_in_tap = false;
+
+            // Try each tap to find the formula
+            for tap in tap_manager.list() {
+                // Parse the tap name (e.g., "SyntheticAutonomicMind/homebrew-SAM" -> "user", "repo")
+                let tap_parts: Vec<&str> = tap.name.split('/').collect();
+                if tap_parts.len() == 2 {
+                    let tap_user = tap_parts[0];
+                    let tap_repo = if tap_parts[1].starts_with("homebrew-") {
+                        &tap_parts[1][9..] // Remove "homebrew-" prefix
+                    } else {
+                        tap_parts[1]
+                    };
+
+                    let full_name = format!("{}/{}/{}", tap_user, tap_repo, formula_name);
+                    // Use the main sync — fetch_tap_formula fetches from GitHub directly
+                    // so the base URL doesn't matter for 3-part names.
+                    let main_sync = IndexSync::with_security_policy(
+                        Some(&config.index.base_url),
+                        &paths.stout_dir,
+                        config.security.to_security_policy(),
+                    )?;
+                    if main_sync.fetch_formula(&full_name).await.is_ok() {
+                        tap_formulas.push(full_name);
+                        found_in_tap = true;
+                        break;
+                    }
+                }
+            }
+
+            if !found_in_tap {
+                // Last resort: try the CDN index and then the Homebrew API.
+                let index_sync = IndexSync::with_security_policy(
+                    Some(&config.index.base_url),
+                    &paths.stout_dir,
+                    config.security.to_security_policy(),
+                )?;
+                match index_sync.fetch_formula(&formula_name).await {
+                    Ok(formula) => {
+                        let platform = super::detect_platform();
+                        if formula.bottle_for_platform(&platform).is_some() {
+                            // Has a bottle — use the regular bottle install path.
+                            // Store the formula so from_graph's get_info closure can find it.
+                            cdn_formula_info.insert(formula_name.clone(), formula);
+                            final_formulas.push(formula_name);
+                        } else {
+                            // No bottle — treat as a tap formula (downloads stable URL directly).
+                            tap_formulas.push(formula_name);
+                        }
+                    }
+                    Err(_) => {
+                        eprintln!(
+                            "\n{} formula '{}' not found in index or any configured tap",
+                            style("error:").red().bold(),
+                            formula_name
+                        );
+                        bail!("Formula '{}' not found", formula_name);
+                    }
+                }
+            }
+        } else {
+            final_formulas.push(formula_name);
+        }
+    }
+
+    let formula_refs: Vec<&str> = final_formulas.iter().map(|s| s.as_str()).collect();
+
+    // Install tap formulas (both originally-3-part and CDN-discovered-no-bottle)
+    if !tap_formulas.is_empty() {
+        installed_count +=
+            install_tap_formulas(args, &tap_formulas, config, paths, &mut installed).await?;
+    }
+
+    // If there are no more regular formulas after separation, we're done
+    if formula_refs.is_empty() {
+        return Ok(installed_count);
+    }
 
     // Build dependency graph
     println!("\n{}...", style("Resolving dependencies").cyan());
@@ -244,7 +551,23 @@ async fn install_formulas(
     let mut plan = InstallPlan::from_graph(
         &graph,
         &formula_refs,
-        |name| db.get_formula(name).ok().flatten(),
+        |name| {
+            db.get_formula(name).ok().flatten().or_else(|| {
+                cdn_formula_info.get(name).map(|f| FormulaInfo {
+                    name: f.name.clone(),
+                    version: f.version.clone(),
+                    revision: f.revision,
+                    desc: f.desc.clone(),
+                    homepage: f.homepage.clone(),
+                    license: f.license.clone(),
+                    tap: f.tap.clone(),
+                    deprecated: f.flags.deprecated,
+                    disabled: f.flags.disabled,
+                    has_bottle: !f.bottles.is_empty(),
+                    json_hash: None,
+                })
+            })
+        },
         |name| installed.is_installed(name),
     )?;
 
@@ -315,12 +638,12 @@ async fn install_formulas(
     }
 
     if plan.is_empty() {
-        return Ok(());
+        return Ok(installed_count);
     }
 
     if args.dry_run {
         println!("\n{}", style("Dry run - no changes made.").yellow());
-        return Ok(());
+        return Ok(installed_count);
     }
 
     // Targeted Cellar pre-check: detect packages already in Cellar at target version
@@ -820,7 +1143,8 @@ async fn install_formulas(
         }
     }
 
-    Ok(())
+    installed_count += bottle_installs.len() + source_installs.len() + head_installs.len();
+    Ok(installed_count)
 }
 
 async fn install_casks(
@@ -829,7 +1153,7 @@ async fn install_casks(
     db: &Database,
     config: &Config,
     paths: &Paths,
-) -> Result<()> {
+) -> Result<usize> {
     println!(
         "\n{} {} {}...",
         style("Installing").cyan(),
@@ -870,12 +1194,13 @@ async fn install_casks(
             }
             bail!("Failed to download {} cask(s)", errors.len());
         }
-        return Ok(());
+        return Ok(0);
     }
 
     // Phase 2: Install all casks sequentially (terminal access for sudo, etc.)
     let mut installed_casks =
         stout_cask::InstalledCasks::load(&cask_state_path).unwrap_or_default();
+    let mut installed_count: usize = 0;
 
     for dl in downloads {
         if let Some(e) = &dl.error {
@@ -952,6 +1277,7 @@ async fn install_casks(
                     artifacts: vec![],
                 };
                 installed_casks.add(&dl.token, installed);
+                installed_count += 1;
 
                 // Register in Caskroom so sync sees the correct version
                 if let Err(e) = stout_install::cask_scan::register_cask_in_caskroom(
@@ -994,7 +1320,7 @@ async fn install_casks(
         bail!("Failed to install {} cask(s)", errors.len());
     }
 
-    Ok(())
+    Ok(installed_count)
 }
 
 /// Result of downloading a single cask artifact.

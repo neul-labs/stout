@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{RwLock, Semaphore};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 /// GitHub Container Registry API v2 URL prefix for Homebrew bottles
 const GHCR_V2_URL_PREFIX: &str = "https://ghcr.io/v2/";
@@ -133,6 +133,12 @@ impl DownloadClient {
     ) -> Result<PathBuf> {
         // Check cache first
         if let Some(path) = self.cache.get_bottle(name, version, platform)? {
+            // When no checksum is available (e.g. tap formulas without an
+            // indexed sha256), trust the cached file rather than refetching.
+            if expected_sha256.is_empty() {
+                debug!("Using cached bottle for {} (no checksum to verify)", name);
+                return Ok(path);
+            }
             // Verify cached file
             if crate::verify::verify_sha256(&path, expected_sha256).is_ok() {
                 debug!("Using cached bottle for {}", name);
@@ -176,9 +182,18 @@ impl DownloadClient {
             pb.set_position(bytes.len() as u64);
         }
 
-        // Verify checksum
+        // Verify checksum when one is available. Some sources (e.g. tap
+        // formulas indexed without a sha256) provide an empty expected hash;
+        // in that case we record the actual hash for traceability and accept
+        // the download rather than failing with a meaningless "expected ,
+        // got ..." error.
         let actual_sha256 = sha256_bytes(&bytes);
-        if actual_sha256 != expected_sha256 {
+        if expected_sha256.is_empty() {
+            warn!(
+                "No checksum available for {} ({}); accepting download with sha256 {}",
+                name, url, actual_sha256
+            );
+        } else if actual_sha256 != expected_sha256 {
             return Err(Error::ChecksumMismatch {
                 path: url.to_string(),
                 expected: expected_sha256.to_string(),
