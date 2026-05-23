@@ -8,7 +8,7 @@ use std::io::Write;
 use std::path::Path;
 use stout_index::Database;
 use stout_install::cellar::scan_cellar;
-use stout_install::{relocate_bottle, scan_cellar_unrelocated};
+use stout_install::{relocate_bottle, scan_unrelocated_files};
 use stout_state::{Config, InstalledPackages, Paths};
 
 #[derive(ClapArgs)]
@@ -16,6 +16,155 @@ pub struct Args {
     /// Automatically fix issues that can be repaired
     #[arg(long)]
     pub fix: bool,
+}
+
+/// Results from fixing upgrade-related issues
+#[derive(Debug, Default)]
+pub struct UpgradeFixResults {
+    pub placeholders_fixed: usize,
+    pub signatures_fixed: usize,
+    pub packages_reinstalled: Vec<String>,
+    #[cfg(target_os = "macos")]
+    pub packages_with_broken_sigs: Vec<(String, usize)>, // (pkg_name, broken_count)
+}
+
+/// Check and optionally fix issues: unresolved placeholders and invalid code signatures.
+/// If packages is empty, checks/fixes all packages in Cellar (used by doctor).
+/// If packages is non-empty, checks/fixes only those packages (used by upgrade).
+/// If should_fix is false, only scans and counts issues without modifying files.
+/// If should_fix is true, applies fixes and reinstalls packages with unfixable signatures.
+pub async fn fix_upgrade_issues(
+    packages: Vec<String>,
+    paths: &Paths,
+    should_fix: bool,
+) -> Result<UpgradeFixResults> {
+    let mut results = UpgradeFixResults::default();
+
+    let cellar_packages = scan_cellar(&paths.cellar)?;
+
+    // Determine which packages to check
+    let target_packages: Vec<_> = if packages.is_empty() {
+        // Check all packages if none specified
+        cellar_packages.iter().map(|p| p.name.clone()).collect()
+    } else {
+        packages
+    };
+
+    // Check/fix unresolved placeholders
+    for pkg_name in &target_packages {
+        if let Some(pkg) = cellar_packages.iter().find(|p| &p.name == pkg_name) {
+            if should_fix {
+                if let Ok(count) = relocate_bottle(&pkg.path, &paths.prefix) {
+                    results.placeholders_fixed += count;
+                }
+            } else {
+                // When not fixing, scan for unresolved placeholders without modifying them
+                if let Ok(unrelocated) = scan_unrelocated_files(&pkg.path) {
+                    results.placeholders_fixed += unrelocated.len();
+                }
+            }
+        }
+    }
+
+    // Check/fix code signatures on macOS and reinstall if necessary
+    #[cfg(target_os = "macos")]
+    {
+        let mut packages_to_reinstall = Vec::new();
+
+        for pkg_name in &target_packages {
+            if let Some(pkg) = cellar_packages.iter().find(|p| &p.name == pkg_name) {
+                if should_fix {
+                    let (fixed, still_broken) = check_and_fix_signatures(&pkg.path);
+                    results.signatures_fixed += fixed;
+                    if !still_broken.is_empty() {
+                        results
+                            .packages_with_broken_sigs
+                            .push((pkg_name.clone(), still_broken.len()));
+                        packages_to_reinstall.push(pkg_name.clone());
+                    }
+                } else {
+                    // When not fixing, only scan for broken signatures
+                    let broken = find_broken_signatures(&pkg.path);
+                    if !broken.is_empty() {
+                        results
+                            .packages_with_broken_sigs
+                            .push((pkg_name.clone(), broken.len()));
+                    }
+                }
+            }
+        }
+
+        // Reinstall packages that still have broken signatures (only when fixing)
+        if should_fix && !packages_to_reinstall.is_empty() {
+            let reinstall_args = crate::cli::reinstall::Args {
+                formulas: packages_to_reinstall.clone(),
+                build_from_source: false,
+                head: false,
+                keep_bottles: false,
+            };
+            match crate::cli::reinstall::run(reinstall_args).await {
+                Ok(_) => {
+                    results.packages_reinstalled = packages_to_reinstall;
+                }
+                Err(e) => {
+                    return Err(e);
+                }
+            }
+        }
+    }
+
+    Ok(results)
+}
+
+/// Find all Mach-O binary files in a package directory.
+#[cfg(target_os = "macos")]
+fn walk_macho_files(pkg_path: &std::path::Path) -> Vec<std::path::PathBuf> {
+    use walkdir::WalkDir;
+
+    WalkDir::new(pkg_path)
+        .into_iter()
+        .filter_entry(|e| e.file_name().to_str().is_some_and(|n| !n.starts_with('.')))
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let metadata = std::fs::symlink_metadata(entry.path()).ok()?;
+            if !metadata.is_file() {
+                return None;
+            }
+            if !is_macho_file(entry.path()) {
+                return None;
+            }
+            Some(entry.path().to_path_buf())
+        })
+        .collect()
+}
+
+/// Find all files with invalid code signatures in a package directory.
+#[cfg(target_os = "macos")]
+fn find_broken_signatures(pkg_path: &std::path::Path) -> Vec<std::path::PathBuf> {
+    walk_macho_files(pkg_path)
+        .into_iter()
+        .filter(|path| !verify_codesign(path))
+        .collect()
+}
+
+/// Check and fix code signatures for a package directory.
+/// Returns (fixed_count, still_broken_files)
+#[cfg(target_os = "macos")]
+fn check_and_fix_signatures(pkg_path: &std::path::Path) -> (usize, Vec<std::path::PathBuf>) {
+    let broken = find_broken_signatures(pkg_path);
+
+    let mut fixed = 0usize;
+    let mut still_broken = Vec::new();
+
+    for file in broken {
+        if resign_file(&file) {
+            fixed += 1;
+        } else {
+            still_broken.push(file);
+        }
+    }
+
+    (fixed, still_broken)
 }
 
 pub async fn run(args: Args) -> Result<()> {
@@ -219,211 +368,110 @@ pub async fn run(args: Args) -> Result<()> {
         }
     }
 
-    // Check for unresolved Homebrew placeholders
+    // Check for unresolved placeholders and invalid signatures
     print!("  Checking for unresolved placeholders... ");
     std::io::stdout().flush().ok();
-    if let Some(ref cellar_packages) = cellar_packages {
-        let affected_packages = scan_cellar_unrelocated(cellar_packages);
-
-        let total_files: usize = affected_packages.iter().map(|(_, _, count)| count).sum();
-
-        if affected_packages.is_empty() {
-            println!("{}", style("✓").green());
-        } else if args.fix {
-            println!();
-            let mut fixed = 0usize;
-            for (name, path, _) in &affected_packages {
-                match relocate_bottle(path, &paths.prefix) {
-                    Ok(count) if count > 0 => {
-                        fixed += count;
+    if cellar_packages.is_none() {
+        println!("{}", style("skipped (no Cellar)").dim());
+    } else {
+        println!();
+        // Use fix_upgrade_issues with should_fix flag to control behavior
+        match fix_upgrade_issues(vec![], &paths, args.fix).await {
+            Ok(results) => {
+                if args.fix {
+                    // Report what was fixed
+                    if results.placeholders_fixed > 0 {
                         println!(
-                            "    {} relocated {} files in {}",
+                            "    {} Relocated {} placeholder files",
                             style("✓").green(),
-                            count,
-                            name
+                            results.placeholders_fixed
                         );
                     }
-                    Ok(_) => {}
-                    Err(e) => {
-                        println!("    {} {}: {}", style("✗").red(), name, e);
+                    if results.signatures_fixed > 0 {
+                        println!(
+                            "    {} Re-signed {} files",
+                            style("✓").green(),
+                            results.signatures_fixed
+                        );
                     }
-                }
-            }
-            if fixed > 0 {
-                println!(
-                    "    {} Fixed {} files across {} packages",
-                    style("✓").green(),
-                    fixed,
-                    affected_packages.len()
-                );
-            }
-        } else {
-            println!(
-                "{}",
-                style(format!(
-                    "{} files in {} packages",
-                    total_files,
-                    affected_packages.len()
-                ))
-                .yellow()
-            );
-            for (name, _, count) in &affected_packages {
-                println!(
-                    "    {} {} ({} files with @@HOMEBREW_*@@)",
-                    style("⚠").yellow(),
-                    name,
-                    count
-                );
-            }
-            println!(
-                "    {}",
-                style("Run 'stout doctor --fix' to relocate").dim()
-            );
-            issues += 1;
-        }
-    } else {
-        println!("{}", style("skipped (no Cellar)").dim());
-    }
-
-    // Check code signatures (macOS only)
-    #[cfg(target_os = "macos")]
-    {
-        use rayon::prelude::*;
-        use walkdir::WalkDir;
-        print!("  Checking code signatures... ");
-        std::io::stdout().flush().ok();
-        if let Some(ref cellar_packages) = cellar_packages {
-            let affected: Vec<(String, Vec<std::path::PathBuf>)> = cellar_packages
-                .par_iter()
-                .filter_map(|pkg| {
-                    let mut invalid_files = Vec::new();
-                    for entry in WalkDir::new(&pkg.path).into_iter().filter_entry(|e| {
-                        e.file_name().to_str().is_some_and(|n| !n.starts_with('.'))
-                    }) {
-                        let entry = match entry {
-                            Ok(e) => e,
-                            Err(_) => continue,
-                        };
-
-                        let metadata = match std::fs::symlink_metadata(entry.path()) {
-                            Ok(m) => m,
-                            Err(_) => continue,
-                        };
-
-                        if !metadata.is_file() {
-                            continue;
-                        }
-
-                        if !is_macho_file(entry.path()) {
-                            continue;
-                        }
-
-                        if !verify_codesign(entry.path()) {
-                            invalid_files.push(entry.path().to_path_buf());
-                        }
+                    if !results.packages_reinstalled.is_empty() {
+                        println!(
+                            "    {} Reinstalled {} corrupted package(s)",
+                            style("✓").green(),
+                            results.packages_reinstalled.len()
+                        );
                     }
-
-                    if invalid_files.is_empty() {
-                        None
+                    if results.placeholders_fixed == 0
+                        && results.signatures_fixed == 0
+                        && results.packages_reinstalled.is_empty()
+                    {
+                        println!("    {} No issues found", style("✓").green());
+                    }
+                } else {
+                    // Report what needs fixing
+                    if results.placeholders_fixed == 0 {
+                        println!(
+                            "    {} No unresolved placeholders found",
+                            style("✓").green()
+                        );
                     } else {
-                        Some((pkg.name.clone(), invalid_files))
-                    }
-                })
-                .collect();
-
-            if affected.is_empty() {
-                println!("{}", style("✓").green());
-            } else if args.fix {
-                println!();
-                // Attempt re-signing; track which packages still have issues
-                let corrupted_packages: std::sync::Mutex<Vec<(String, usize)>> =
-                    std::sync::Mutex::new(Vec::new());
-                let mut fixed = 0usize;
-                let mut failed = 0usize;
-
-                for (name, files) in &affected {
-                    let mut pkg_fixed = 0usize;
-                    let mut pkg_failed = 0usize;
-                    for file in files {
-                        if resign_file(file) {
-                            pkg_fixed += 1;
-                        } else {
-                            pkg_failed += 1;
-                        }
-                    }
-                    fixed += pkg_fixed;
-                    if pkg_failed > 0 {
-                        corrupted_packages
-                            .lock()
-                            .unwrap()
-                            .push((name.clone(), pkg_failed));
-                    }
-                    failed += pkg_failed;
-                }
-
-                if fixed > 0 {
-                    println!("    {} Re-signed {} file(s)", style("✓").green(), fixed,);
-                }
-                let corrupted = corrupted_packages.into_inner().unwrap();
-                if !corrupted.is_empty() {
-                    let names: Vec<String> =
-                        corrupted.iter().map(|(name, _)| name.clone()).collect();
-                    println!(
-                        "    {} {} corrupted file(s) across {} package(s), reinstalling...",
-                        style("→").cyan(),
-                        failed,
-                        corrupted.len(),
-                    );
-                    for (name, count) in &corrupted {
-                        println!("      {} {} ({} file(s))", style("•").dim(), name, count);
-                    }
-                    let reinstall_args = crate::cli::reinstall::Args {
-                        formulas: names,
-                        build_from_source: false,
-                        head: false,
-                        keep_bottles: false,
-                    };
-                    if let Err(e) = crate::cli::reinstall::run(reinstall_args).await {
-                        println!("    {} Reinstall failed: {}", style("✗").red(), e);
+                        println!(
+                            "    {} {} unresolved placeholders",
+                            style("⚠").yellow(),
+                            results.placeholders_fixed
+                        );
                         issues += 1;
                     }
+
+                    // Report signature issues (macOS only)
+                    #[cfg(target_os = "macos")]
+                    {
+                        if results.packages_with_broken_sigs.is_empty() {
+                            println!("    {} No invalid signatures found", style("✓").green());
+                        } else {
+                            let total_sigs: usize = results
+                                .packages_with_broken_sigs
+                                .iter()
+                                .map(|(_, c)| c)
+                                .sum();
+                            println!(
+                                "    {} {} files with invalid signatures",
+                                style("⚠").yellow(),
+                                total_sigs
+                            );
+                            for (name, count) in &results.packages_with_broken_sigs {
+                                println!("      {} {} ({} files)", style("•").dim(), name, count);
+                            }
+                            issues += 1;
+                        }
+                    }
+
+                    #[cfg(target_os = "macos")]
+                    let has_broken_sigs = !results.packages_with_broken_sigs.is_empty();
+                    #[cfg(not(target_os = "macos"))]
+                    let has_broken_sigs = false;
+
+                    if results.placeholders_fixed > 0 || has_broken_sigs {
+                        println!(
+                            "    {}",
+                            style("Run 'stout doctor --fix' to fix all issues").dim()
+                        );
+                    }
                 }
-            } else {
-                let total_files: usize = affected.iter().map(|(_, f): &(_, Vec<_>)| f.len()).sum();
-                println!(
-                    "{}",
-                    style(format!(
-                        "{} files in {} packages",
-                        total_files,
-                        affected.len()
-                    ))
-                    .yellow()
-                );
-                for (name, files) in &affected {
-                    println!(
-                        "    {} {} ({} files)",
-                        style("⚠").yellow(),
-                        name,
-                        files.len()
-                    );
-                }
-                println!(
-                    "    {}",
-                    style("Run 'stout doctor --fix' to re-sign and reinstall corrupted files")
-                        .dim()
-                );
+            }
+            Err(e) => {
+                println!("    {} Failed to check issues: {}", style("✗").red(), e);
                 issues += 1;
             }
-        } else {
-            println!("{}", style("skipped (no Cellar)").dim());
         }
     }
+
+    // Code signatures check is now integrated above (macOS only)
 
     // Check dynamic library dependencies (macOS only)
     #[cfg(target_os = "macos")]
     {
         use rayon::prelude::*;
-        use walkdir::WalkDir;
 
         print!("  Checking dynamic library dependencies... ");
         std::io::stdout().flush().ok();
@@ -434,24 +482,8 @@ pub async fn run(args: Args) -> Result<()> {
                 .par_iter()
                 .filter_map(|pkg| {
                     let mut seen = std::collections::HashSet::new();
-                    for entry in WalkDir::new(&pkg.path).into_iter().filter_entry(|e| {
-                        e.file_name().to_str().is_some_and(|n| !n.starts_with('.'))
-                    }) {
-                        let entry = match entry {
-                            Ok(e) => e,
-                            Err(_) => continue,
-                        };
-                        let metadata = match std::fs::symlink_metadata(entry.path()) {
-                            Ok(m) => m,
-                            Err(_) => continue,
-                        };
-                        if !metadata.is_file() {
-                            continue;
-                        }
-                        if !is_macho_file(entry.path()) {
-                            continue;
-                        }
-                        for dylib in missing_dylibs(entry.path(), &paths.prefix) {
+                    for file in walk_macho_files(&pkg.path) {
+                        for dylib in missing_dylibs(&file, &paths.prefix) {
                             seen.insert(dylib);
                         }
                     }

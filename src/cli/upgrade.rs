@@ -15,7 +15,7 @@ use stout_install::{
     unlink_package, write_receipt, InstallReceipt, RuntimeDependency,
 };
 use stout_state::{Config, InstalledPackages, Paths};
-use tracing::warn;
+use tracing::{debug, warn};
 
 // 5-minute timeout per cask install (covers large app bundles like Handbrake/Raycast)
 const CASK_INSTALL_TIMEOUT_SECS: u64 = 300;
@@ -65,7 +65,11 @@ pub async fn run(args: Args) -> Result<()> {
         match crate::cli::sync::apply_changes(&mut installed, &sync_changes, &paths, false) {
             Ok(count) if count > 0 => {
                 installed.save(&paths)?;
-                println!("  {} Cleaned up {} orphaned state entries", style("✓").cyan(), count);
+                println!(
+                    "  {} Cleaned up {} orphaned state entries",
+                    style("✓").cyan(),
+                    count
+                );
             }
             _ => {}
         }
@@ -562,7 +566,8 @@ pub async fn run(args: Args) -> Result<()> {
     }
 
     // Download and upgrade formulas (if any)
-    let mut upgrade_errors: Vec<(String, String)> = Vec::new();
+    let mut had_upgrade_errors = false;
+    let mut affected_packages: Vec<String> = Vec::new();
 
     if !bottle_specs.is_empty() {
         // Download all bottles in parallel
@@ -592,29 +597,51 @@ pub async fn run(args: Args) -> Result<()> {
             let install_path = match extract_bottle(bottle_path, &paths.cellar) {
                 Ok(path) => path,
                 Err(e) => {
-                    upgrade_errors
-                        .push((candidate.name.clone(), format!("extraction failed: {}", e)));
+                    println!(
+                        "  {} {} - {}",
+                        style("✗").red(),
+                        style(&candidate.name).yellow(),
+                        style(format!("extraction failed: {}", e)).dim()
+                    );
+                    had_upgrade_errors = true;
+                    affected_packages.push(candidate.name.clone());
                     continue;
                 }
             };
 
             // Relocate Homebrew placeholders to actual paths
-            if let Err(e) = relocate_bottle(&install_path, &paths.prefix) {
-                // Non-fatal - package may still work, but log the issue
-                warn!(
-                    "Failed to relocate placeholders in {}: {}",
-                    candidate.name, e
-                );
+            match relocate_bottle(&install_path, &paths.prefix) {
+                Ok(0) => {
+                    // No placeholders needed relocation — this is fine
+                }
+                Ok(count) => {
+                    debug!("Relocated {} files in {}", count, candidate.name);
+                }
+                Err(e) => {
+                    // Non-fatal - package may still work, but warn explicitly
+                    println!(
+                        "  {} {} - {}",
+                        style("⚠").yellow(),
+                        style(&candidate.name).yellow(),
+                        style(format!("placeholder relocation failed: {}", e)).dim()
+                    );
+                    had_upgrade_errors = true;
+                    affected_packages.push(candidate.name.clone());
+                }
             }
 
             // Now that extraction succeeded, unlink and remove OLD version
             let old_install_path = paths.package_path(&candidate.name, &candidate.old_version);
             if old_install_path.exists() {
                 if let Err(e) = unlink_package(&old_install_path, &paths.prefix) {
-                    upgrade_errors.push((
-                        candidate.name.clone(),
-                        format!("unlink old version failed: {}", e),
-                    ));
+                    println!(
+                        "  {} {} - {}",
+                        style("✗").red(),
+                        style(&candidate.name).yellow(),
+                        style(format!("unlink old version failed: {}", e)).dim()
+                    );
+                    had_upgrade_errors = true;
+                    affected_packages.push(candidate.name.clone());
                     // Try to clean up the newly extracted version
                     let _ = remove_package(&paths.cellar, &candidate.name, &candidate.new_version);
                     continue;
@@ -632,7 +659,14 @@ pub async fn run(args: Args) -> Result<()> {
 
             // Link new version
             if let Err(e) = link_package(&install_path, &paths.prefix) {
-                upgrade_errors.push((candidate.name.clone(), format!("link failed: {}", e)));
+                println!(
+                    "  {} {} - {}",
+                    style("✗").red(),
+                    style(&candidate.name).yellow(),
+                    style(format!("link failed: {}", e)).dim()
+                );
+                had_upgrade_errors = true;
+                affected_packages.push(candidate.name.clone());
                 // Package is extracted but not linked - user can manually fix
                 continue;
             }
@@ -722,7 +756,8 @@ pub async fn run(args: Args) -> Result<()> {
                     style(&dl.token).yellow(),
                     style(e).dim()
                 );
-                upgrade_errors.push((dl.token.clone(), e.clone()));
+                had_upgrade_errors = true;
+                affected_packages.push(dl.token.clone());
             }
         }
 
@@ -761,10 +796,18 @@ pub async fn run(args: Args) -> Result<()> {
 
             match result {
                 Err(_elapsed) => {
-                    upgrade_errors.push((
-                        dl.token,
-                        format!("install timed out after {}s", CASK_INSTALL_TIMEOUT_SECS),
-                    ));
+                    println!(
+                        "  {} {} - {}",
+                        style("✗").red(),
+                        style(&dl.token).yellow(),
+                        style(format!(
+                            "install timed out after {}s",
+                            CASK_INSTALL_TIMEOUT_SECS
+                        ))
+                        .dim()
+                    );
+                    had_upgrade_errors = true;
+                    affected_packages.push(dl.token.clone());
                 }
                 Ok(Ok(Ok(install_path))) => {
                     casks_upgraded += 1;
@@ -795,10 +838,24 @@ pub async fn run(args: Args) -> Result<()> {
                     );
                 }
                 Ok(Ok(Err(e))) => {
-                    upgrade_errors.push((dl.token, format!("install failed: {}", e)));
+                    println!(
+                        "  {} {} - {}",
+                        style("✗").red(),
+                        style(&dl.token).yellow(),
+                        style(format!("install failed: {}", e)).dim()
+                    );
+                    had_upgrade_errors = true;
+                    affected_packages.push(dl.token.clone());
                 }
                 Ok(Err(e)) => {
-                    upgrade_errors.push((dl.token, format!("spawn error: {}", e)));
+                    println!(
+                        "  {} {} - {}",
+                        style("✗").red(),
+                        style(&dl.token).yellow(),
+                        style(format!("spawn error: {}", e)).dim()
+                    );
+                    had_upgrade_errors = true;
+                    affected_packages.push(dl.token.clone());
                 }
             }
         }
@@ -809,50 +866,57 @@ pub async fn run(args: Args) -> Result<()> {
         }
     }
 
-    // Report any upgrade errors
-    if !upgrade_errors.is_empty() {
-        println!(
-            "\n{} {} {} failed:",
-            style("!").yellow(),
-            upgrade_errors.len(),
-            if upgrade_errors.len() == 1 {
-                "package"
-            } else {
-                "packages"
-            }
-        );
-        for (name, reason) in &upgrade_errors {
-            println!(
-                "  {} {} - {}",
-                style("✗").red(),
-                style(name).yellow(),
-                style(reason).dim()
-            );
-        }
-    }
-
     let elapsed = start.elapsed();
     let total = formulas_to_upgrade.len() + casks_upgraded + already_upgraded.len();
-    print!(
+    println!(
         "\n{} {} {} in {:.1}s",
         style("Upgraded").green().bold(),
         total,
         if total == 1 { "package" } else { "packages" },
         elapsed.as_secs_f64()
     );
-    if !failed_fetches.is_empty() || !upgrade_errors.is_empty() {
-        let total_failed = failed_fetches.len() + upgrade_errors.len();
-        print!(
-            ", {} {} failed",
-            style(total_failed).yellow(),
-            if total_failed == 1 {
-                "package"
-            } else {
-                "packages"
+
+    // Fix issues in affected packages (placeholders, code signatures)
+    if had_upgrade_errors && !affected_packages.is_empty() {
+        println!(
+            "\n{}...",
+            style("Fixing issues in affected packages").cyan()
+        );
+
+        match crate::cli::doctor::fix_upgrade_issues(affected_packages, &paths, true).await {
+            Ok(results) => {
+                if results.placeholders_fixed > 0 {
+                    println!(
+                        "  {} Fixed {} placeholder files",
+                        style("✓").green(),
+                        results.placeholders_fixed
+                    );
+                }
+                if results.signatures_fixed > 0 {
+                    println!(
+                        "  {} Re-signed {} files",
+                        style("✓").green(),
+                        results.signatures_fixed
+                    );
+                }
+                if !results.packages_reinstalled.is_empty() {
+                    println!(
+                        "  {} Reinstalled {} packages with corrupted signatures",
+                        style("✓").green(),
+                        results.packages_reinstalled.len()
+                    );
+                }
             }
+            Err(e) => {
+                println!("  {} Could not auto-fix issues: {}", style("⚠").yellow(), e);
+            }
+        }
+
+        println!(
+            "{}",
+            style("  For additional checks (dependencies), run 'stout doctor --fix'").dim()
         );
     }
-    println!();
 
     Ok(())
 }

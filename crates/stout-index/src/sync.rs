@@ -483,8 +483,11 @@ impl IndexSync {
         let temp_path = db_path.as_ref().with_extension("casks.db.tmp");
         std::fs::write(&temp_path, &decompressed)?;
 
-        // Open both databases and merge casks
-        let cask_db = Database::open(&temp_path)?;
+        // Open both databases and merge casks. The downloaded cask index is
+        // opened without schema init because its schema may diverge from the
+        // current local schema (e.g. older builds may lack newer columns or
+        // indexes).
+        let cask_db = Database::open_existing(&temp_path)?;
         let mut main_db = Database::open(db_path.as_ref())?;
 
         // Import casks from cask_db to main_db

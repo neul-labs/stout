@@ -4,7 +4,7 @@ use crate::cask::CaskInfo;
 use crate::error::Result;
 use crate::formula::{Dependency, DependencyType, Dependent, FormulaInfo};
 use crate::schema::{meta_keys, CREATE_SCHEMA};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use tracing::debug;
@@ -30,6 +30,23 @@ impl Database {
         db.init_schema()?;
 
         Ok(db)
+    }
+
+    /// Open an existing database without initializing or migrating its schema.
+    ///
+    /// Use this when reading a database file produced by an external builder
+    /// (e.g. the published cask index CDN) whose schema may differ from the
+    /// current local schema. Running [`Self::open`] on such a file would
+    /// execute `CREATE INDEX` statements against columns that may not exist.
+    /// The connection is opened in read-only mode as a safety measure.
+    pub fn open_existing(path: impl AsRef<Path>) -> Result<Self> {
+        let path = path.as_ref().to_path_buf();
+        debug!(
+            "Opening existing database at {} (read-only, no schema init)",
+            path.display()
+        );
+        let conn = Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        Ok(Self { conn, path })
     }
 
     /// Open an in-memory database (for testing)
