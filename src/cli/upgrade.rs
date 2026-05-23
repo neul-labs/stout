@@ -56,6 +56,23 @@ pub async fn run(args: Args) -> Result<()> {
 
     let config = Config::load(&paths)?;
 
+    // Sync state with Cellar/Caskroom before upgrading
+    // This removes orphaned entries that would otherwise accumulate
+    println!("\n{}...", style("Reconciling state").cyan());
+    let sync_changes = crate::cli::sync::detect_drift(&InstalledPackages::load(&paths)?, &paths)?;
+    if !sync_changes.is_empty() {
+        let mut installed = InstalledPackages::load(&paths)?;
+        match crate::cli::sync::apply_changes(&mut installed, &sync_changes, &paths, false) {
+            Ok(count) if count > 0 => {
+                installed.save(&paths)?;
+                println!("  {} Cleaned up {} orphaned state entries", style("✓").cyan(), count);
+            }
+            _ => {}
+        }
+    } else {
+        println!("  {} State is in sync", style("✓").green());
+    }
+
     // Auto-update index if needed (unless --no-update flag is set)
     let sync = IndexSync::with_security_policy(
         Some(&config.index.base_url),
