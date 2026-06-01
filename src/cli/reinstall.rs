@@ -265,7 +265,7 @@ pub async fn run(args: Args) -> Result<()> {
 
         // Link new version
         println!("  {} Linking...", style("•").dim());
-        link_package(&install_path, &paths.prefix)?;
+        link_package(&install_path, &paths.prefix, false)?;
 
         // Write receipt
         let runtime_deps: Vec<RuntimeDependency> = formula

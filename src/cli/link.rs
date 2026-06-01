@@ -11,17 +11,13 @@ pub struct Args {
     /// Formula to link
     pub formula: String,
 
-    /// Overwrite existing files
+    /// Overwrite existing files and symlinks
     #[arg(long)]
     pub overwrite: bool,
 
     /// Only show what would be linked without actually linking
     #[arg(long, short = 'n')]
     pub dry_run: bool,
-
-    /// Force linking even if already linked
-    #[arg(long, short = 'f')]
-    pub force: bool,
 }
 
 pub async fn run(args: Args) -> Result<()> {
@@ -51,7 +47,7 @@ pub async fn run(args: Args) -> Result<()> {
         return Ok(());
     }
 
-    let linked = link_package(&install_path, &paths.prefix)?;
+    let linked = link_package(&install_path, &paths.prefix, args.overwrite)?;
 
     if linked.is_empty() {
         println!("{}", style("No files to link.").dim());
