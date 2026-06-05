@@ -212,3 +212,56 @@ Use your package manager's uninstall command.
 
 - [Quick Start](quickstart.md) - Learn the basics
 - [Command Reference](commands.md) - See all available commands
+
+---
+
+## What `install.sh` Actually Does
+
+The bootstrap script at `install.sh` in the repository root is the recommended
+entry point. It honours a small set of environment variables:
+
+| Variable | Purpose |
+|----------|---------|
+| `STOUT_INSTALL_DIR` | Override the install directory (default `~/.local/bin`, falls back to `/usr/local/bin` if writable) |
+| `STOUT_VERSION` | Pin a specific release tag instead of `latest` |
+| `STOUT_NO_MODIFY_PATH` | Set to `1` to skip PATH modification of shell rc files |
+
+The script detects OS and architecture, downloads the matching tarball from the
+GitHub releases page, verifies the published SHA256 checksum, and unpacks the
+`stout` binary into the install directory.
+
+```bash
+# Install a specific release into /opt/bin without touching PATH
+STOUT_INSTALL_DIR=/opt/bin \
+STOUT_VERSION=v0.2.2 \
+STOUT_NO_MODIFY_PATH=1 \
+  curl -fsSL https://raw.githubusercontent.com/neul-labs/stout/main/install.sh | bash
+```
+
+---
+
+## Verifying a Downloaded Binary Manually
+
+If you prefer to bypass `install.sh`, the release artifacts on
+[github.com/neul-labs/stout/releases](https://github.com/neul-labs/stout/releases)
+include a `SHA256SUMS` file. Verify before installing:
+
+```bash
+# Apple Silicon example
+curl -LO https://github.com/neul-labs/stout/releases/latest/download/stout-aarch64-apple-darwin.tar.gz
+curl -LO https://github.com/neul-labs/stout/releases/latest/download/SHA256SUMS
+shasum -a 256 -c SHA256SUMS --ignore-missing
+tar -xzf stout-aarch64-apple-darwin.tar.gz
+install -m 0755 stout ~/.local/bin/stout
+```
+
+---
+
+## First Run Behaviour
+
+The first invocation creates `~/.stout/` containing the local state database
+and a default `config.toml`. If stout detects packages already installed in
+the Homebrew Cellar but not tracked in its state, it offers to import them in
+bulk via the same code path as `stout import`. Decline the prompt and stout
+will keep tracking only what you install through it; you can always run
+`stout import` later.

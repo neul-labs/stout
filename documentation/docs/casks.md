@@ -218,3 +218,55 @@ Uninstall the existing version first, or use `--force`:
 ```bash
 stout cask install --force some-app
 ```
+
+---
+
+## Preferred Syntax: `--cask` Flag
+
+The `stout cask <command>` subcommand exists for muscle-memory compatibility
+with `brew cask` but is deprecated in current releases. Each invocation now
+prints a deprecation notice pointing at the canonical form, which uses the
+`--cask` flag on the top-level command:
+
+| Deprecated | Preferred |
+|------------|-----------|
+| `stout cask install firefox` | `stout install --cask firefox` |
+| `stout cask uninstall firefox` | `stout uninstall --cask firefox` |
+| `stout cask search browser` | `stout search --cask browser` |
+| `stout cask info visual-studio-code` | `stout info --cask visual-studio-code` |
+| `stout cask list` | `stout list --cask` |
+| `stout cask outdated` | `stout outdated --cask` |
+| `stout cask upgrade` | `stout upgrade --cask` |
+
+Cask logic lives in the `stout-cask` crate and is dispatched from
+`src/cli/cask.rs` for the deprecated path and from each top-level command
+module for the canonical path.
+
+---
+
+## Linux Cask Handling
+
+On Linux the cask abstraction wraps three different distribution formats:
+
+| Format | Install target | Detection |
+|--------|----------------|-----------|
+| AppImage | `~/.local/share/appimages/<app>.AppImage` (chmod +x, symlinked into `~/.local/bin`) | `.AppImage` artefact in the cask manifest |
+| Flatpak | Delegated to the host `flatpak` CLI under the user installation | `flatpak` provider declared in the manifest |
+| Tarball/zip | Extracted into `~/.local/share/<app>/`, binaries symlinked into `~/.local/bin` | Default fallback |
+
+The same `--cask` flag is used regardless of which underlying format the
+package uses — stout picks the right backend based on the manifest.
+
+---
+
+## Quarantine and Code Signing (macOS)
+
+When stout installs a cask on macOS it preserves whatever code signature the
+upstream artefact carries and applies an `xattr` quarantine flag identical
+to what a browser download would attach. This means Gatekeeper still runs
+the first time you launch the app.
+
+`stout doctor` includes a Mach-O signature check that walks every binary
+under the Cellar and Caskroom and surfaces anything missing or invalid.
+Pair it with `stout doctor --fix` to re-sign or reinstall affected packages
+in one pass.

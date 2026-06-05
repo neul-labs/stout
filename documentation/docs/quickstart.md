@@ -300,3 +300,65 @@ stout --prefix=~/myproject/.stout install node@20 python@3.12
 - [Command Reference](commands.md) - Complete command documentation
 - [Configuration](configuration.md) - Customize stout settings
 - [Casks Guide](casks.md) - Working with applications
+
+---
+
+## Coexistence with Homebrew
+
+Stout's `install` writes the same `Cellar/<formula>/<version>/` layout as
+Homebrew, links into the same `bin/`, `lib/`, and `share/` directories under
+the configured prefix, and emits an `INSTALL_RECEIPT.json` compatible with
+the format `brew` reads. This is intentional — you can run both side-by-side
+on the same machine and either tool will see the other's packages.
+
+If you adopt stout on a machine that already has Homebrew, the recommended
+flow is:
+
+```bash
+# 1. Let stout discover what brew installed
+stout import
+
+# 2. Verify everything is tracked
+stout list --source brew
+
+# 3. From this point, install via stout for the speed wins
+stout install <new-package>
+```
+
+---
+
+## Source Builds
+
+Bottles (pre-built binaries) are the default. When a bottle is unavailable for
+your platform or you explicitly want to build, the source code path is gated
+behind `--build-from-source` and supports the same compiler-selection flags
+Homebrew uses:
+
+```bash
+stout install --build-from-source --jobs=8 --cc=clang --cxx=clang++ neovim
+```
+
+`--HEAD` implies `--build-from-source` and fetches the upstream VCS tip
+rather than the latest tagged release. Combine with `--keep-bottles` if you
+want to retain the downloaded archive after install for debugging.
+
+---
+
+## Resilience Shortcuts
+
+If something goes wrong mid-install, these are the quickest recovery moves
+before reaching for [Troubleshooting](troubleshooting.md):
+
+```bash
+# Refresh and re-verify the index
+stout update --force
+
+# Drop cached downloads and bottles
+stout cleanup -s
+
+# Re-create symlinks for a package that disappeared from PATH
+stout unlink <pkg> && stout link <pkg>
+
+# Detect and repair drift against the Cellar
+stout doctor --fix
+```

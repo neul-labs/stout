@@ -334,3 +334,57 @@ trusted_keys = [
     "your-company-public-key-base64"
 ]
 ```
+
+---
+
+## Configuration Precedence
+
+When the same setting is defined in multiple places, stout resolves it in
+the following order, with later sources overriding earlier ones:
+
+1. Compiled-in defaults
+2. `~/.stout/config.toml` (or the path in `STOUT_CONFIG`)
+3. Nearest `.stout.toml` walking up from the current directory
+4. Environment variables (`STOUT_*`)
+5. Command-line flags (`--prefix`, `--mirror`, `--verbose`, ...)
+
+This mirrors the precedence rules used by `clap` with the `env` feature
+enabled in `Cargo.toml`, so flag parity is automatic for any setting the
+binary exposes both as a flag and an env var.
+
+---
+
+## Inspecting Effective Settings
+
+`stout config` prints the merged configuration after applying every layer
+above, which is the quickest way to verify what the binary is actually
+using at runtime:
+
+```bash
+stout config            # human-readable summary
+stout config --path     # location of the loaded config file
+```
+
+The output includes the resolved prefix, cellar, cache directory, index
+URL, signature policy, and the list of trusted public keys — useful when
+diagnosing enterprise rollouts that depend on a private index.
+
+---
+
+## Storage Layout
+
+By default, stout keeps everything under `~/.stout/`:
+
+```
+~/.stout/
+├── config.toml         # user configuration (this file)
+├── state.db            # SQLite state: installed packages, pins, history
+├── cache/
+│   ├── index/          # downloaded SQLite index + signature
+│   ├── bottles/        # cached bottle tarballs (TTL: download_ttl)
+│   └── formula/        # individual formula JSON (TTL: formula_ttl)
+└── logs/               # optional audit log target
+```
+
+Override the cache directory with `STOUT_CACHE_DIR` or by adding
+`directory = "..."` under the `[cache]` table.

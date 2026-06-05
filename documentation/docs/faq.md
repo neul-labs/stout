@@ -294,3 +294,76 @@ See the [Contributing Guide](https://github.com/neul-labs/stout/blob/main/CONTRI
 ### Where do I report bugs?
 
 Open an issue at [github.com/neul-labs/stout/issues](https://github.com/neul-labs/stout/issues).
+
+---
+
+## Architecture & Internals
+
+### What's the on-disk size of the index?
+
+The compressed SQLite formula index is roughly 3 MB and includes the FTS5
+search vocabulary. Compare this to Homebrew's full git checkout, which is
+700 MB+ and grows continuously. The cask index is similar in shape; the
+optional CVE database used by `stout audit` adds another small SQLite
+file.
+
+### How does stout build the index?
+
+`scripts/sync.py` walks the official Homebrew API, normalises each formula
+into a JSON document, and writes it into the SQLite schema defined in the
+`stout-index` crate. Sibling scripts handle casks (`sync_casks.py`),
+Linux apps (`sync_linux_apps.py`), and CVE data (`sync_vulns.py`). The
+sync output is published to the
+[neul-labs/stout-index](https://github.com/neul-labs/stout-index)
+repository, which is what every client downloads via `stout update`.
+
+### What Rust version is required?
+
+The workspace `Cargo.toml` pins `rust-version = "1.85"`. Earlier versions
+will fail to compile from source.
+
+### Which crates make up stout?
+
+```
+stout (binary)
+├── stout-index    SQLite + FTS5 index, signature verification
+├── stout-resolve  Dependency graph and version selection
+├── stout-fetch    HTTPS downloads, checksum verification
+├── stout-install  Bottle extraction, relocation, symlinks, receipts
+├── stout-state    Local state DB, pins, history, prefix tracking
+├── stout-cask     Cask format handling (DMG/PKG/AppImage/Flatpak)
+├── stout-bundle   Brewfile, snapshots, lockfiles
+├── stout-audit    CVE scanning
+└── stout-mirror   Offline mirror create/serve/verify
+```
+
+Each crate is independently versioned alongside the top-level binary in
+the workspace.
+
+---
+
+## Distribution
+
+### Where can I get stout?
+
+Stout is published to several distribution channels simultaneously:
+
+- GitHub Releases (raw binaries + checksums)
+- npm: `stout-pkg`
+- PyPI: `stout-pkg`
+- crates.io: `stout`
+- Homebrew tap: `neul-labs/tap/stout`
+- Arch User Repository: `stout-bin`
+- Nix flake (in `packaging/nix/`)
+- `.deb` and `.rpm` packages on the releases page
+
+The release workflow builds each of these from the same Rust binary, so
+all channels ship the same artifact.
+
+### Why npm / pip wrappers for a Rust binary?
+
+The npm and pip packages are thin shims that download the appropriate
+pre-built binary on `postinstall`, then expose it on the user's PATH.
+This lets stout participate in workflows that already standardise on
+`package.json` or `requirements.txt` for tool installation without
+forcing users to learn yet another installer.

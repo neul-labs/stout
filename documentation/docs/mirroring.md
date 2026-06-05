@@ -313,3 +313,99 @@ Signatures have a maximum age. Re-create the mirror to get fresh signatures:
 ```bash
 stout mirror create ./new-mirror --from ./old-mirror
 ```
+
+---
+
+## How the Mirror is Laid Out
+
+The `stout-mirror` crate produces a self-describing directory. Every
+`stout mirror create` writes the same shape regardless of size:
+
+```
+my-mirror/
+├── manifest.json          # mirror metadata (created_at, generator version)
+├── index/
+│   ├── formulas.db        # SQLite formula index (FTS5 inside)
+│   ├── formulas.db.sig    # Ed25519 signature over formulas.db
+│   ├── casks.db           # cask index
+│   └── casks.db.sig
+├── bottles/
+│   └── <name>-<ver>.<platform>.bottle.tar.gz
+├── casks/
+│   └── <name>-<ver>.<artifact>
+└── vulns/
+    └── cve.db             # optional: included when audit data is mirrored
+```
+
+`stout mirror serve` simply exposes this tree over HTTP without any
+rewriting, which is why nginx, S3 website hosting, or any plain static
+file server works as a drop-in replacement once the directory is staged.
+
+---
+
+## Refreshing Without Re-Downloading Everything
+
+The `--from` flag re-uses an existing mirror as a cache when constructing a
+new one. Bottles whose SHA256 already matches the index are linked rather
+than re-fetched:
+
+```bash
+stout mirror create ./mirror-2026-06 \
+    --from ./mirror-2026-05 \
+    $(cat /etc/stout/approved-packages.txt)
+```
+
+Pair this with a cron job (or scheduled GitHub Action) to keep an offline
+mirror current with bounded bandwidth.
+
+---
+
+## Verification Walkthrough
+
+`stout mirror verify` is exhaustive and is the single command you want in a
+post-deploy validation step:
+
+1. Parse `manifest.json` and confirm the generator version matches.
+2. Verify the Ed25519 signature on each index file against the trusted keys.
+3. Walk every bottle / cask listed in the index and confirm:
+    - the file is present at the expected path,
+    - its SHA256 matches the value baked into the signed index,
+    - the file size matches the declared size.
+4. (Optional) verify CVE database integrity when `vulns/` is present.
+
+Any failure aborts with a non-zero exit code listing every affected file.
+This is the right place to gate a deployment: if `stout mirror verify`
+fails, do not flip the load balancer.
+
+---
+
+## Mirroring via Static Hosting (S3, GCS, B2)
+
+Because the mirror directory is purely static, you can publish it to object
+storage and front it with a CDN:
+
+```bash
+# Build locally
+stout mirror create ./mirror $(cat approved-packages.txt)
+stout mirror verify ./mirror
+
+# Sync to S3 with content-type hints
+aws s3 sync ./mirror s3://my-stout-mirror/ \
+    --delete \
+    --content-type-by-extension \
+    --metadata-directive REPLACE
+```
+
+Then point clients at the CDN edge:
+
+```toml
+[index]
+base_url = "https://stout-mirror.cdn.example.com/index"
+
+[mirror]
+url = "https://stout-mirror.cdn.example.com"
+```
+
+Because every file in the mirror is signed or checksummed, hosting it on
+untrusted infrastructure is safe — tampering will surface as a verification
+failure on the client.

@@ -1,8 +1,9 @@
 site_name: Stout
 site_description: A fast, Rust-based Homebrew-compatible package manager
-site_url: https://docs.neullabs.com/stout
+site_url: https://stout.docs.neullabs.com/
 repo_url: https://github.com/neul-labs/stout
 repo_name: neul-labs/stout
+edit_uri: edit/main/documentation/docs/
 
 theme:
   name: material

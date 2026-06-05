@@ -977,3 +977,64 @@ These options work with most commands:
 | `--json` | Output as JSON (where supported) |
 | `--help` | Show help for command |
 | `--version` | Show version |
+
+---
+
+## Command-to-Source Map
+
+Every subcommand documented above corresponds to a module under
+`src/cli/` in the repository. Use this when reading or contributing code:
+
+| Command group | CLI module |
+|---------------|------------|
+| `install`, `reinstall`, `uninstall` | `src/cli/install.rs`, `reinstall.rs`, `uninstall.rs` |
+| `upgrade`, `update`, `outdated`, `autoremove` | `src/cli/upgrade.rs`, `update.rs`, `outdated.rs`, `autoremove.rs` |
+| `search`, `info`, `list`, `deps`, `uses`, `why`, `home` | `src/cli/{search,info,list,deps,uses,why,home}.rs` |
+| `pin`, `unpin`, `link`, `unlink`, `switch`, `rollback` | `src/cli/{pin,unpin,link,unlink,switch,rollback}.rs` |
+| `cleanup`, `doctor`, `config`, `services`, `tap`, `history`, `completions` | `src/cli/{cleanup,doctor,config,services,tap,history,completions}.rs` |
+| `cask` (deprecated wrapper) | `src/cli/cask.rs` |
+| `bundle`, `snapshot`, `lock` | `src/cli/{bundle,snapshot,lock}.rs` |
+| `audit` | `src/cli/audit.rs` (delegates to `stout-audit` crate) |
+| `mirror` | `src/cli/mirror.rs` (delegates to `stout-mirror` crate) |
+| `prefix` | `src/cli/prefix.rs` |
+| `bottle`, `create`, `test`, `analytics` | `src/cli/{bottle,create,test,analytics}.rs` |
+| `sync`, `import`, `first_run` | `src/cli/{sync,import,first_run}.rs` |
+
+---
+
+## Exit Codes
+
+Stout follows standard Unix conventions:
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | Generic failure (network, IO, permission) |
+| `2` | Usage error (invalid flag or argument) |
+| `3` | Package not found |
+| `4` | Dependency resolution failure |
+| `5` | Signature or checksum verification failure |
+| `6` | Policy violation (e.g. unapproved package) |
+
+Scripts that wrap stout in CI pipelines should branch on the exit code
+rather than parsing human-readable output. Combine `--json` with `jq` for
+machine-friendly status reporting.
+
+---
+
+## Generating Help Pages Offline
+
+The binary ships its own help text. For scripted documentation or man pages:
+
+```bash
+# Plain --help for any command
+stout install --help
+stout doctor --help
+
+# Generate man pages (requires release build; uses clap_mangen)
+stout completions bash > completions.bash
+```
+
+The build script (`build.rs`) emits shell completions and man pages into the
+target directory during a release build, so the published tarballs already
+contain them under `completions/` and `share/man/`.

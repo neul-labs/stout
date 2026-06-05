@@ -125,3 +125,46 @@ Stout supports all common Homebrew operations:
 - [Quick Start](quickstart.md) - Get up and running in minutes
 - [Command Reference](commands.md) - Complete command documentation
 - [Configuration](configuration.md) - Customize stout behavior
+
+---
+
+## Architecture at a Glance
+
+Stout is organised as a Cargo workspace. The top-level `stout` binary in `src/`
+dispatches to a set of focused crates, each owning a slice of the lifecycle:
+
+| Crate | Responsibility |
+|-------|----------------|
+| `stout-index` | SQLite + FTS5 formula/cask index, signature verification |
+| `stout-resolve` | Dependency resolution and version selection |
+| `stout-fetch` | HTTPS bottle and cask downloads with checksum verification |
+| `stout-install` | Bottle extraction, relocation, symlinking, receipts |
+| `stout-state` | Local state (`~/.stout/state.db`), pins, history, prefixes |
+| `stout-cask` | macOS app bundle + Linux AppImage/Flatpak handling |
+| `stout-bundle` | Brewfile parsing, snapshots, lockfiles |
+| `stout-audit` | CVE database + vulnerability scanning |
+| `stout-mirror` | Offline mirror creation, serving, and verification |
+
+The CLI surface lives in `src/cli/` with one module per subcommand
+(`install.rs`, `doctor.rs`, `prefix.rs`, ...), so the command reference in
+this site maps 1:1 to source files in the repo.
+
+---
+
+## Repository Layout
+
+```
+stout/
+├── src/                 # CLI binary
+├── crates/              # Workspace crates (one per concern above)
+├── scripts/             # Index sync scripts (formulas, casks, Linux apps, CVEs)
+├── packaging/           # Distribution artifacts (Homebrew tap, AUR, Nix, deb/rpm)
+├── completions/         # Generated shell completions
+├── docs/                # Long-form design docs (SPEC, ARCHITECTURE, ROADMAP)
+└── documentation/       # This MkDocs site
+```
+
+The hand-written design documents in the root `docs/` directory remain the
+source of truth for the [technical specification](https://github.com/neul-labs/stout/blob/main/docs/SPEC.md),
+[architecture](https://github.com/neul-labs/stout/blob/main/docs/ARCHITECTURE.md),
+and [roadmap](https://github.com/neul-labs/stout/blob/main/docs/ROADMAP.md).

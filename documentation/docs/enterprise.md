@@ -343,4 +343,110 @@ Error: Package 'unapproved-pkg' is not in the approved list
 For enterprise support inquiries:
 
 - Email: enterprise@neul-labs.com
-- Documentation: https://docs.neullabs.com/stout/enterprise
+- Documentation: <https://stout.docs.neullabs.com/enterprise/>
+
+---
+
+## Lockfiles and Reproducible Rollouts
+
+`stout lock` produces a `stout.lock` file that pins every package — including
+transitive dependencies — to an exact version and SHA256 checksum. The
+`stout-bundle` crate parses this file and `stout lock install` replays it
+deterministically.
+
+A typical CI shape for fleet-wide rollouts:
+
+```bash
+# Once, on a maintainer's machine — commit Brewfile + stout.lock together
+stout bundle dump > Brewfile
+stout lock generate > stout.lock
+git add Brewfile stout.lock && git commit -m "Pin dev environment"
+```
+
+```bash
+# In CI / on every workstation
+stout update                  # refresh the index (no version drift; lock pins versions)
+stout lock install            # install the exact pinned set
+stout doctor                  # validate the install before declaring success
+```
+
+Lock files are forward-compatible: an old `stout.lock` will still install on
+a newer stout binary as long as the pinned bottles remain available in the
+index (or a mirror). For long-lived rollouts, mirror the bottles alongside
+the lockfile so availability never depends on upstream Homebrew.
+
+---
+
+## Policy Enforcement Surface
+
+The `[policy]` table is enforced inside `stout-resolve` before the resolver
+even contacts the network, so blocked packages fail fast and never appear in
+caches or mirrors. Enforcement covers:
+
+- Explicit installs (`stout install`)
+- Transitive dependencies pulled in by an allowed package
+- `stout bundle install` and `stout lock install`
+- Mirror creation (`stout mirror create` refuses to bundle blocked packages)
+
+Combine `allowed_packages` (whitelist) and `blocked_packages` (blacklist)
+as needed; the whitelist takes precedence when both are present.
+
+---
+
+## Centralised Audit Logging
+
+When `[audit] enabled = true` is set, every state-changing operation
+appends a JSON line to the configured log path. The schema is stable:
+
+```json
+{
+  "timestamp": "2026-06-05T12:00:00Z",
+  "action": "install",
+  "package": "jq",
+  "version": "1.7.1",
+  "user": "developer",
+  "prefix": "/opt/homebrew",
+  "success": true,
+  "duration_ms": 412
+}
+```
+
+Pipe it into journald, syslog, Splunk, or any line-oriented SIEM:
+
+```bash
+# Forward to journald
+tail -F /var/log/stout/audit.log | systemd-cat -t stout
+
+# Forward to a syslog collector
+tail -F /var/log/stout/audit.log | logger -t stout -n collector.internal -P 514
+```
+
+---
+
+## Rolling Out via Configuration Management
+
+For Ansible-style fleets, ship the binary and a templated `config.toml`:
+
+```yaml
+- name: Install stout
+  ansible.builtin.shell: |
+    curl -fsSL https://raw.githubusercontent.com/neul-labs/stout/main/install.sh | bash
+  environment:
+    STOUT_VERSION: "v0.2.2"
+    STOUT_INSTALL_DIR: "/usr/local/bin"
+    STOUT_NO_MODIFY_PATH: "1"
+
+- name: Drop org config
+  ansible.builtin.template:
+    src: stout-config.toml.j2
+    dest: "/etc/stout/config.toml"
+    mode: "0644"
+
+- name: Point users at it
+  ansible.builtin.lineinfile:
+    path: /etc/environment
+    line: 'STOUT_CONFIG=/etc/stout/config.toml'
+```
+
+`STOUT_CONFIG` overrides the per-user config path, which makes it easy to
+ship one organisation-wide policy file without touching every home directory.

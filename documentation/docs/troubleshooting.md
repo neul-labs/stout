@@ -397,3 +397,67 @@ If these solutions don't resolve your issue:
    - Output of `stout doctor`
 
 3. **Community help:** Discussions on GitHub
+
+---
+
+## Verbose Logging
+
+Stout uses `tracing` for structured logs. The `--verbose` flag is the user
+knob; the `RUST_LOG` environment variable is the developer escape hatch:
+
+```bash
+# User-level verbose output
+stout --verbose install jq
+
+# Crate-targeted developer logs
+RUST_LOG=stout_fetch=debug,stout_install=info stout install jq
+
+# Maximum noise (everything stout emits)
+RUST_LOG=stout=trace stout install jq 2> stout.log
+```
+
+The crate names in `RUST_LOG` match the workspace members: `stout_index`,
+`stout_resolve`, `stout_fetch`, `stout_install`, `stout_state`,
+`stout_cask`, `stout_bundle`, `stout_audit`, `stout_mirror`.
+
+---
+
+## Collecting a Diagnostic Bundle
+
+When opening an issue, attach the output of these commands rather than
+pasting fragments — it covers 90% of the questions a maintainer would
+otherwise ask:
+
+```bash
+{
+  stout --version
+  uname -a
+  stout config
+  stout doctor
+} > stout-diagnostic.txt 2>&1
+```
+
+If the failure is a download or signature problem, also include the
+output of a single retry under verbose logging:
+
+```bash
+RUST_LOG=stout=debug stout --verbose update --force >> stout-diagnostic.txt 2>&1
+```
+
+---
+
+## When `stout doctor --fix` Isn't Enough
+
+`stout doctor --fix` can repair drift, relocation, and re-sign issues in
+place but will refuse to touch anything it can't reason about. If it bails
+out, the next escalation steps in order are:
+
+1. `stout reinstall <pkg>` for individual packages flagged as corrupt.
+2. `stout sync --yes` to force the state DB to match the on-disk Cellar.
+3. `rm -rf ~/.stout/cache && stout update --force` to rebuild the index
+   cache from scratch.
+4. As a last resort, back up `~/.stout/state.db`, remove `~/.stout/`, and
+   re-run `stout import` to rebuild from the Cellar contents.
+
+Step 4 throws away pin and history information but never the actual
+installed packages, since those live under the Homebrew Cellar.
