@@ -3,6 +3,8 @@
 use crate::download::ArtifactType;
 use crate::error::{Error, Result};
 use crate::install::CaskInstallOptions;
+use console::style;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use stout_index::Cask;
@@ -106,9 +108,39 @@ fn install_from_pkg_sync(
         )));
     }
 
-    // PKG installation requires sudo - use installer command.
-    // Inherit stdin/stderr so the user sees sudo's password prompt.
-    // Discard stdout to suppress installer's verbose progress output.
+    // Notify the user that admin privileges are needed and for which app
+    eprintln!(
+        "  {} {} needs admin privileges to install {} (PKG installer)",
+        style("→").cyan(),
+        style("stout").bold(),
+        style(&cask.token).cyan(),
+    );
+    std::io::stderr().flush().ok();
+
+    // Pre-authenticate with sudo -v so credentials are cached for the session
+    // via sudo's built-in timestamp mechanism (~5 min default). Subsequent PKG
+    // installs within the same session will not re-prompt.
+    let status = Command::new("sudo")
+        .arg("-v")
+        .stdin(std::process::Stdio::inherit())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::inherit())
+        .status()
+        .map_err(|e| Error::CommandFailed {
+            cmd: "sudo".to_string(),
+            message: format!("failed to obtain admin privileges: {}", e),
+        })?;
+
+    if !status.success() {
+        return Err(Error::InstallFailed(
+            "Authentication cancelled — admin privileges required to install PKG packages"
+                .to_string(),
+        ));
+    }
+
+    // PKG installation requires sudo — use installer command. Sudo credentials
+    // were cached above so this won't re-prompt for a password. Discard stdout
+    // to suppress installer's verbose progress output.
     let mut child = Command::new("sudo")
         .args(["installer", "-pkg"])
         .arg(pkg_path)
