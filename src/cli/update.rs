@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use clap::Args as ClapArgs;
 use console::style;
 use indicatif::{ProgressBar, ProgressStyle};
-use stout_index::IndexSync;
+use stout_index::{Database, IndexSync};
 use stout_state::{Config, Paths};
 
 #[derive(ClapArgs)]
@@ -41,52 +41,72 @@ pub async fn run(args: Args) -> Result<()> {
         )?
     };
 
-    // Show progress spinner
-    let spinner = ProgressBar::new_spinner();
-    spinner.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.cyan} {msg}")
-            .unwrap()
-            .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
-    );
-    spinner.set_message("Fetching index...");
-    spinner.enable_steady_tick(std::time::Duration::from_millis(80));
+    // Open database to check current version
+    let existing_db = Database::open(paths.index_db());
 
-    // Download index
-    let manifest = sync
-        .sync_index(paths.index_db())
-        .await
-        .context("Failed to sync index")?;
+    let needs_update = match &existing_db {
+        Ok(db) => args.force || sync.check_update(db).await?.is_some(),
+        Err(_) => true, // No existing database, need to download
+    };
 
-    spinner.finish_and_clear();
+    if needs_update {
+        // Show progress spinner
+        let spinner = ProgressBar::new_spinner();
+        spinner.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.cyan} {msg}")
+                .unwrap()
+                .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
+        );
+        spinner.set_message("Fetching index...");
+        spinner.enable_steady_tick(std::time::Duration::from_millis(80));
 
-    // Show result
-    println!(
-        "\n{} to {} ({} formulas)",
-        style("Updated").green().bold(),
-        style(&manifest.version).cyan(),
-        manifest.formula_count()
-    );
+        // Download index
+        let manifest = sync
+            .sync_index(paths.index_db())
+            .await
+            .context("Failed to sync index")?;
 
-    // Show signature info
-    if let Some(signed_at) = manifest.signed_at {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        let age_hours = (now.saturating_sub(signed_at)) / 3600;
-        if manifest.signature.is_some() {
-            println!(
-                "{} {}",
-                style("✓ Signature verified").green(),
-                style(format!("(signed {}h ago)", age_hours)).dim()
-            );
+        spinner.finish_and_clear();
+
+        // Show result
+        println!(
+            "\n{} to {} ({} formulas)",
+            style("Updated").green().bold(),
+            style(&manifest.version).cyan(),
+            manifest.formula_count()
+        );
+
+        // Show signature info
+        if let Some(signed_at) = manifest.signed_at {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            let age_hours = (now.saturating_sub(signed_at)) / 3600;
+            if manifest.signature.is_some() {
+                println!(
+                    "{} {}",
+                    style("✓ Signature verified").green(),
+                    style(format!("(signed {}h ago)", age_hours)).dim()
+                );
+            }
         }
-    }
 
-    // Save manifest locally
-    let manifest_json = serde_json::to_string_pretty(&manifest)?;
-    std::fs::write(paths.manifest(), manifest_json)?;
+        // Save manifest locally
+        let manifest_json = serde_json::to_string_pretty(&manifest)?;
+        std::fs::write(paths.manifest(), manifest_json)?;
+    } else {
+        let db = existing_db?;
+        let version = db.version()?.unwrap_or_else(|| "unknown".to_string());
+        let count = db.formula_count().unwrap_or(0);
+        println!(
+            "\n{} {} ({} formulas)",
+            style("Up to date").green().bold(),
+            style(&version).cyan(),
+            count
+        );
+    }
 
     // Run Homebrew sync if configured
     if config.sync.sync_on_update {
