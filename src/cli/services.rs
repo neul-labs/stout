@@ -54,25 +54,12 @@ pub enum ServiceCommand {
     Cleanup,
 }
 
-/// Service status
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[allow(dead_code)]
-enum ServiceStatus {
-    Running,
-    Stopped,
-    Error,
-    Unknown,
-}
-
-impl std::fmt::Display for ServiceStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ServiceStatus::Running => write!(f, "started"),
-            ServiceStatus::Stopped => write!(f, "stopped"),
-            ServiceStatus::Error => write!(f, "error"),
-            ServiceStatus::Unknown => write!(f, "unknown"),
-        }
-    }
+/// Detailed service status information
+#[derive(Debug, Clone)]
+struct ServiceStatus {
+    running: bool,
+    loaded: bool,
+    schedulable: bool,
 }
 
 pub async fn run(args: Args) -> Result<()> {
@@ -109,21 +96,17 @@ async fn list_services() -> Result<()> {
         if !service_files.is_empty() {
             found_services = true;
             let status = get_service_status(name);
-            let status_style = match status {
-                ServiceStatus::Running => style("started").green(),
-                ServiceStatus::Stopped => style("stopped").dim(),
-                ServiceStatus::Error => style("error").red(),
-                ServiceStatus::Unknown => style("unknown").yellow(),
+            let status_style = if status.running {
+                style("started").green()
+            } else if status.loaded {
+                style("stopped").dim()
+            } else {
+                style("unknown").yellow()
             };
 
             println!(
                 "  {} {} ({}) - {}",
-                style(if status == ServiceStatus::Running {
-                    "●"
-                } else {
-                    "○"
-                })
-                .dim(),
+                style(if status.running { "●" } else { "○" }).dim(),
                 name,
                 &pkg.version,
                 status_style
@@ -298,7 +281,11 @@ async fn info_service(name: &str) -> Result<()> {
     );
 
     println!("  {}: {}", style("Version").dim(), pkg.version);
-    println!("  {}: {}", style("Status").dim(), get_service_status(name));
+
+    let status = get_service_status(name);
+    println!("  {}: {}", style("Running").dim(), status.running);
+    println!("  {}: {}", style("Loaded").dim(), status.loaded);
+    println!("  {}: {}", style("Schedulable").dim(), status.schedulable);
 
     if service_files.is_empty() {
         println!("  {}: none", style("Service files").dim());
@@ -422,16 +409,39 @@ fn get_service_status(name: &str) -> ServiceStatus {
 
         if let Ok(output) = output {
             let stdout = String::from_utf8_lossy(&output.stdout);
-            if stdout.contains(name) {
-                return ServiceStatus::Running;
+            for line in stdout.lines() {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 3 {
+                    let pid = parts[0];
+                    let status = parts[1];
+                    let label = parts[2];
+                    if label.contains(name) {
+                        let running = pid != "-";
+                        let loaded = true;
+                        let schedulable = status == "0" && !running;
+                        return ServiceStatus {
+                            running,
+                            loaded,
+                            schedulable,
+                        };
+                    }
+                }
             }
         }
-        ServiceStatus::Stopped
+        ServiceStatus {
+            running: false,
+            loaded: true,
+            schedulable: false,
+        }
     }
 
     #[cfg(not(target_os = "macos"))]
     {
         let _ = name;
-        ServiceStatus::Unknown
+        ServiceStatus {
+            running: false,
+            loaded: false,
+            schedulable: false,
+        }
     }
 }
