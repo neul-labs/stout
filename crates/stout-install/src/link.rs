@@ -18,6 +18,7 @@ use crate::extract::create_dir_all_force;
 pub fn link_package(
     install_path: impl AsRef<Path>,
     prefix: impl AsRef<Path>,
+    overwrite: bool,
 ) -> Result<Vec<PathBuf>> {
     let install_path = install_path.as_ref();
     let prefix = prefix.as_ref();
@@ -76,7 +77,7 @@ pub fn link_package(
                     let pkg_cellar = install_path.parent();
                     let is_same_package = pkg_cellar.is_some_and(|cellar| {
                         let canon = resolved.canonicalize().ok();
-                        canon.is_some_and(|r| r.starts_with(cellar))
+                        canon.is_some_and(|r| r.starts_with(cellar)) || resolved.starts_with(cellar)
                     });
 
                     if is_same_package {
@@ -85,6 +86,13 @@ pub fn link_package(
                             "Replacing stale same-package link: {} -> {}",
                             target.display(),
                             link_target.display()
+                        );
+                        std::fs::remove_file(&target)?;
+                    } else if overwrite {
+                        // --overwrite flag: remove and replace
+                        debug!(
+                            "Overwriting {}: symlink from another package",
+                            target.display()
                         );
                         std::fs::remove_file(&target)?;
                     } else {
@@ -106,17 +114,40 @@ pub fn link_package(
                     // through to create the new symlink below.
                 } else if target.is_file() && entry.is_file() {
                     if files_match(&target, &entry) {
+                        if overwrite {
+                            debug!(
+                                "Overwriting {}: replacing matching file with symlink",
+                                target.display()
+                            );
+                            std::fs::remove_file(&target)?;
+                        } else {
+                            debug!(
+                                "Skipping {}: regular file with matching content",
+                                target.display()
+                            );
+                            continue;
+                        }
+                    } else if overwrite {
                         debug!(
-                            "Skipping {}: regular file with matching content",
+                            "Overwriting {}: replacing file with symlink",
+                            target.display()
+                        );
+                        std::fs::remove_file(&target)?;
+                    } else {
+                        warn!(
+                            "Skipping {}: regular file exists with different content",
                             target.display()
                         );
                         continue;
                     }
-                    warn!(
-                        "Skipping {}: regular file exists with different content",
-                        target.display()
-                    );
-                    continue;
+                } else if overwrite {
+                    if target.is_dir() {
+                        debug!("Overwriting {}: removing directory", target.display());
+                        std::fs::remove_dir_all(&target)?;
+                    } else {
+                        debug!("Overwriting {}: removing existing entry", target.display());
+                        std::fs::remove_file(&target)?;
+                    }
                 } else {
                     // Directory or other type - can't compare, just warn
                     warn!(

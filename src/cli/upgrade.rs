@@ -658,7 +658,7 @@ pub async fn run(args: Args) -> Result<()> {
             }
 
             // Link new version
-            if let Err(e) = link_package(&install_path, &paths.prefix) {
+            if let Err(e) = link_package(&install_path, &paths.prefix, false) {
                 println!(
                     "  {} {} - {}",
                     style("✗").red(),

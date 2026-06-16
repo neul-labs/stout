@@ -208,7 +208,7 @@ fn test_link_package_creates_symlinks() {
     std::fs::write(bin_dir.join("wget"), "#!/bin/bash\necho wget").unwrap();
 
     // Link it
-    let linked = link_package(&pkg_path, &prefix).unwrap();
+    let linked = link_package(&pkg_path, &prefix, false).unwrap();
 
     // Should have created symlinks
     assert!(!linked.is_empty());
@@ -232,7 +232,7 @@ fn test_link_package_creates_opt_link() {
     let pkg_path = cellar.join("wget").join("1.24.5");
     std::fs::create_dir_all(&pkg_path).unwrap();
 
-    link_package(&pkg_path, &prefix).unwrap();
+    link_package(&pkg_path, &prefix, false).unwrap();
 
     // opt/wget should exist and be a symlink
     let opt_link = prefix.join("opt").join("wget");
@@ -260,7 +260,7 @@ fn test_link_multiple_dirs() {
     std::fs::write(pkg_path.join("lib").join("libmy.so"), "library").unwrap();
     std::fs::write(pkg_path.join("include").join("my.h"), "header").unwrap();
 
-    let linked = link_package(&pkg_path, &prefix).unwrap();
+    let linked = link_package(&pkg_path, &prefix, false).unwrap();
 
     // Should have linked files from all directories (plus opt link)
     assert!(linked.len() >= 4);
@@ -280,7 +280,7 @@ fn test_unlink_package() {
     std::fs::write(pkg_path.join("bin").join("wget"), "binary").unwrap();
 
     // Link then unlink
-    link_package(&pkg_path, &prefix).unwrap();
+    link_package(&pkg_path, &prefix, false).unwrap();
 
     let bin_link = prefix.join("bin").join("wget");
     assert!(bin_link.symlink_metadata().is_ok());
@@ -308,7 +308,7 @@ fn test_link_skips_existing_non_symlinks() {
     std::fs::write(prefix.join("bin").join("wget"), "existing binary").unwrap();
 
     // Link should succeed but skip the existing file
-    let linked = link_package(&pkg_path, &prefix).unwrap();
+    let linked = link_package(&pkg_path, &prefix, false).unwrap();
 
     // bin/wget should not be in linked (was skipped) - check for the full path
     let bin_wget = prefix.join("bin").join("wget");
@@ -329,7 +329,7 @@ fn test_link_empty_package() {
     std::fs::create_dir_all(&pkg_path).unwrap();
 
     // Should succeed but return opt link only
-    let linked = link_package(&pkg_path, &prefix).unwrap();
+    let linked = link_package(&pkg_path, &prefix, false).unwrap();
     assert!(linked.iter().any(|p| p.to_string_lossy().contains("opt")));
 }
 

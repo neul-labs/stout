@@ -183,12 +183,11 @@ impl ParallelInstaller {
                 let install_path = pkg.install_path.clone();
                 let prefix_clone = prefix.clone();
 
-                let linked =
-                    tokio::task::spawn_blocking(move || link_package(&install_path, &prefix_clone))
-                        .await
-                        .map_err(|e| {
-                            crate::error::Error::Other(format!("Task join error: {}", e))
-                        })??;
+                let linked = tokio::task::spawn_blocking(move || {
+                    link_package(&install_path, &prefix_clone, false)
+                })
+                .await
+                .map_err(|e| crate::error::Error::Other(format!("Task join error: {}", e)))??;
 
                 debug!("Linked {} ({} files)", name, linked.len());
                 Ok::<_, crate::error::Error>((name, linked))
