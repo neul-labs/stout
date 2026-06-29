@@ -263,9 +263,16 @@ pub async fn run(args: Args) -> Result<()> {
             .unwrap_or(&formula.version)
             .to_string();
 
-        // Link new version
+        // Link new version — use overwrite since we own this package
         println!("  {} Linking...", style("•").dim());
-        link_package(&install_path, &paths.prefix, false)?;
+        let result = link_package(&install_path, &paths.prefix, true)?;
+        if !result.overwritten.is_empty() {
+            println!(
+                "  {} {} conflicting symlink(s) overwritten",
+                style("⚠").yellow(),
+                result.overwritten.len()
+            );
+        }
 
         // Write receipt
         let runtime_deps: Vec<RuntimeDependency> = formula
