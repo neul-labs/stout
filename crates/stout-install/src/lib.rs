@@ -40,6 +40,6 @@ pub use extract::{
     extract_bottle, relocate_bottle, remove_package, scan_cellar_unrelocated,
     scan_unrelocated_files,
 };
-pub use link::{link_package, unlink_package};
+pub use link::{link_package, unlink_package, LinkResult};
 pub use parallel::{BottleInfo, LinkInfo, PackageInstallResult, ParallelConfig, ParallelInstaller};
 pub use receipt::{write_receipt, InstallReceipt, RuntimeDependency};

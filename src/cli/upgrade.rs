@@ -657,18 +657,30 @@ pub async fn run(args: Args) -> Result<()> {
                 }
             }
 
-            // Link new version
-            if let Err(e) = link_package(&install_path, &paths.prefix, false) {
-                println!(
-                    "  {} {} - {}",
-                    style("✗").red(),
-                    style(&candidate.name).yellow(),
-                    style(format!("link failed: {}", e)).dim()
-                );
-                had_upgrade_errors = true;
-                affected_packages.push(candidate.name.clone());
-                // Package is extracted but not linked - user can manually fix
-                continue;
+            // Link new version — use overwrite since we own this package
+            match link_package(&install_path, &paths.prefix, true) {
+                Ok(result) => {
+                    if !result.overwritten.is_empty() {
+                        println!(
+                            "  {} {} - {} conflicting symlink(s) overwritten",
+                            style("⚠").yellow(),
+                            style(&candidate.name).yellow(),
+                            result.overwritten.len()
+                        );
+                    }
+                }
+                Err(e) => {
+                    println!(
+                        "  {} {} - {}",
+                        style("✗").red(),
+                        style(&candidate.name).yellow(),
+                        style(format!("link failed: {}", e)).dim()
+                    );
+                    had_upgrade_errors = true;
+                    affected_packages.push(candidate.name.clone());
+                    // Package is extracted but not linked - user can manually fix
+                    continue;
+                }
             }
 
             // Write receipt

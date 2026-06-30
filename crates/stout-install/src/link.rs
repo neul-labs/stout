@@ -12,6 +12,15 @@ const LINK_DIRS: &[&str] = &[
 
 use crate::extract::create_dir_all_force;
 
+/// Result of linking a package
+#[derive(Debug, Default)]
+pub struct LinkResult {
+    /// Files that were linked
+    pub linked: Vec<PathBuf>,
+    /// Files that were overwritten (cross-package conflicts removed)
+    pub overwritten: Vec<PathBuf>,
+}
+
 /// Link a package from Cellar to prefix
 ///
 /// Creates symlinks: `<prefix>/bin/wget` -> `../Cellar/wget/1.24.5/bin/wget`
@@ -19,11 +28,25 @@ pub fn link_package(
     install_path: impl AsRef<Path>,
     prefix: impl AsRef<Path>,
     overwrite: bool,
-) -> Result<Vec<PathBuf>> {
+) -> Result<LinkResult> {
     let install_path = install_path.as_ref();
     let prefix = prefix.as_ref();
 
     let mut linked = Vec::new();
+    let mut overwritten = Vec::new();
+
+    macro_rules! overwrite_or_skip {
+        ($overwrite_body:expr, $skip_body:expr, $target:expr) => {
+            if overwrite {
+                debug!("Overwriting {}: removing existing entry", $target.display());
+                $overwrite_body;
+                overwritten.push($target.clone());
+            } else {
+                $skip_body;
+                continue;
+            }
+        };
+    }
 
     for dir in LINK_DIRS {
         let source_dir = install_path.join(dir);
@@ -88,22 +111,19 @@ pub fn link_package(
                             link_target.display()
                         );
                         std::fs::remove_file(&target)?;
-                    } else if overwrite {
-                        // --overwrite flag: remove and replace
-                        debug!(
-                            "Overwriting {}: symlink from another package",
-                            target.display()
-                        );
-                        std::fs::remove_file(&target)?;
                     } else {
-                        // Owned by a different package — warn and skip
-                        warn!(
-                            "Skipping {}: symlink points to {} instead of {}",
-                            target.display(),
-                            link_target.display(),
-                            entry.display()
+                        overwrite_or_skip!(
+                            std::fs::remove_file(&target)?,
+                            {
+                                warn!(
+                                    "Skipping {}: symlink points to {} instead of {}",
+                                    target.display(),
+                                    link_target.display(),
+                                    entry.display()
+                                );
+                            },
+                            target
                         );
-                        continue;
                     }
                 }
 
@@ -114,47 +134,46 @@ pub fn link_package(
                     // through to create the new symlink below.
                 } else if target.is_file() && entry.is_file() {
                     if files_match(&target, &entry) {
-                        if overwrite {
-                            debug!(
-                                "Overwriting {}: replacing matching file with symlink",
-                                target.display()
-                            );
-                            std::fs::remove_file(&target)?;
-                        } else {
-                            debug!(
-                                "Skipping {}: regular file with matching content",
-                                target.display()
-                            );
-                            continue;
-                        }
-                    } else if overwrite {
-                        debug!(
-                            "Overwriting {}: replacing file with symlink",
-                            target.display()
+                        overwrite_or_skip!(
+                            std::fs::remove_file(&target)?,
+                            {
+                                debug!(
+                                    "Skipping {}: regular file with matching content",
+                                    target.display()
+                                );
+                            },
+                            target
                         );
-                        std::fs::remove_file(&target)?;
                     } else {
-                        warn!(
-                            "Skipping {}: regular file exists with different content",
-                            target.display()
+                        overwrite_or_skip!(
+                            std::fs::remove_file(&target)?,
+                            {
+                                warn!(
+                                    "Skipping {}: regular file exists with different content",
+                                    target.display()
+                                );
+                            },
+                            target
                         );
-                        continue;
-                    }
-                } else if overwrite {
-                    if target.is_dir() {
-                        debug!("Overwriting {}: removing directory", target.display());
-                        std::fs::remove_dir_all(&target)?;
-                    } else {
-                        debug!("Overwriting {}: removing existing entry", target.display());
-                        std::fs::remove_file(&target)?;
                     }
                 } else {
-                    // Directory or other type - can't compare, just warn
-                    warn!(
-                        "Skipping {}: already exists (not a symlink)",
-                        target.display()
+                    overwrite_or_skip!(
+                        {
+                            if target.is_dir() {
+                                debug!("Overwriting {}: removing directory", target.display());
+                                std::fs::remove_dir_all(&target)?;
+                            } else {
+                                std::fs::remove_file(&target)?;
+                            }
+                        },
+                        {
+                            warn!(
+                                "Skipping {}: already exists (not a symlink)",
+                                target.display()
+                            );
+                        },
+                        target
                     );
-                    continue;
                 }
             }
 
@@ -220,7 +239,10 @@ pub fn link_package(
         }
     }
 
-    Ok(linked)
+    Ok(LinkResult {
+        linked,
+        overwritten,
+    })
 }
 
 /// Unlink a package

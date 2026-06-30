@@ -47,12 +47,24 @@ pub async fn run(args: Args) -> Result<()> {
         return Ok(());
     }
 
-    let linked = link_package(&install_path, &paths.prefix, args.overwrite)?;
+    let result = link_package(&install_path, &paths.prefix, args.overwrite)?;
 
-    if linked.is_empty() {
+    if result.linked.is_empty() {
         println!("{}", style("No files to link.").dim());
     } else {
-        println!("{} Linked {} files", style("✓").green(), linked.len());
+        println!(
+            "{} Linked {} files",
+            style("✓").green(),
+            result.linked.len()
+        );
+    }
+
+    if !result.overwritten.is_empty() {
+        println!(
+            "{} Overwrote {} conflicting files",
+            style("⚠").yellow(),
+            result.overwritten.len()
+        );
     }
 
     Ok(())

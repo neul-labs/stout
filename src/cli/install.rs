@@ -385,7 +385,7 @@ async fn install_tap_formulas(
                 install_tap_formula_contents(&content_root, &install_path, formula_name)?;
 
                 // Link the installation to the prefix
-                link_package(&install_path, &paths.prefix, false)?;
+                let _link_result = link_package(&install_path, &paths.prefix, false)?;
 
                 let receipt = InstallReceipt::new_bottle(&formula.tap, true, Vec::new());
                 write_receipt(&install_path, &receipt)?;
@@ -936,13 +936,24 @@ async fn install_formulas(
                     pkg.bottle_sha256 = Some(bottle.sha256.clone());
                 }
             }
-            println!(
-                "  {} {} {} ({} files linked)",
-                style("✓").green(),
-                step.name,
-                step.version,
-                result.linked_files.len()
-            );
+            if result.overwritten_files.is_empty() {
+                println!(
+                    "  {} {} {} ({} files linked)",
+                    style("✓").green(),
+                    step.name,
+                    step.version,
+                    result.linked_files.len()
+                );
+            } else {
+                println!(
+                    "  {} {} {} ({} files linked, {} overwritten)",
+                    style("✓").green(),
+                    step.name,
+                    step.version,
+                    result.linked_files.len(),
+                    result.overwritten_files.len()
+                );
+            }
         }
     }
 
@@ -985,7 +996,7 @@ async fn install_formulas(
                 .await
                 .context(format!("Failed to build {} from source", step.name))?;
 
-            link_package(&result.install_path, &paths.prefix, false)?;
+            let _link_result = link_package(&result.install_path, &paths.prefix, false)?;
 
             let runtime_deps: Vec<RuntimeDependency> = formula
                 .runtime_deps()
@@ -1051,7 +1062,7 @@ async fn install_formulas(
                 .await
                 .context(format!("Failed to build {} from HEAD", step.name))?;
 
-            link_package(&result.install_path, &paths.prefix, false)?;
+            let _link_result = link_package(&result.install_path, &paths.prefix, false)?;
 
             let runtime_deps: Vec<RuntimeDependency> = formula
                 .runtime_deps()

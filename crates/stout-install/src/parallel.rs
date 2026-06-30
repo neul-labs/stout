@@ -5,7 +5,7 @@
 
 use crate::error::Result;
 use crate::extract::{extract_bottle, relocate_bottle};
-use crate::link::link_package;
+use crate::link::{link_package, LinkResult};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Semaphore;
@@ -44,6 +44,8 @@ pub struct PackageInstallResult {
     pub install_path: PathBuf,
     /// Linked files
     pub linked_files: Vec<PathBuf>,
+    /// Files that were overwritten due to conflicts
+    pub overwritten_files: Vec<PathBuf>,
 }
 
 /// Parallel installer for multiple packages
@@ -156,7 +158,7 @@ impl ParallelInstaller {
         &self,
         packages: Vec<LinkInfo>,
         prefix: &Path,
-    ) -> Result<Vec<(String, Vec<PathBuf>)>> {
+    ) -> Result<Vec<(String, LinkResult)>> {
         info!(
             "Linking {} packages with {} concurrent workers",
             packages.len(),
@@ -183,18 +185,18 @@ impl ParallelInstaller {
                 let install_path = pkg.install_path.clone();
                 let prefix_clone = prefix.clone();
 
-                let linked = tokio::task::spawn_blocking(move || {
+                let result = tokio::task::spawn_blocking(move || {
                     link_package(&install_path, &prefix_clone, false)
                 })
                 .await
                 .map_err(|e| crate::error::Error::Other(format!("Task join error: {}", e)))??;
 
-                debug!("Linked {} ({} files)", name, linked.len());
-                Ok::<_, crate::error::Error>((name, linked))
+                debug!("Linked {} ({} files)", name, result.linked.len());
+                Ok::<_, crate::error::Error>((name, result))
             });
         }
 
-        let mut results: Vec<(String, Vec<PathBuf>)> = Vec::new();
+        let mut results: Vec<(String, LinkResult)> = Vec::new();
         while let Some(result) = join_set.join_next().await {
             match result {
                 Ok(Ok(item)) => results.push(item),
@@ -204,7 +206,7 @@ impl ParallelInstaller {
         }
 
         // Restore original order
-        let mut ordered: Vec<(String, Vec<PathBuf>)> = Vec::with_capacity(results.len());
+        let mut ordered: Vec<(String, LinkResult)> = Vec::with_capacity(results.len());
         for name in &order {
             if let Some(pos) = results.iter().position(|(n, _)| n == name) {
                 ordered.push(results.remove(pos));
@@ -244,10 +246,11 @@ impl ParallelInstaller {
             .into_iter()
             .zip(linked)
             .map(
-                |((name, install_path), (_, linked_files))| PackageInstallResult {
+                |((name, install_path), (_, link_result))| PackageInstallResult {
                     name,
                     install_path,
-                    linked_files,
+                    linked_files: link_result.linked,
+                    overwritten_files: link_result.overwritten,
                 },
             )
             .collect();
