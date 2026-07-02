@@ -1,6 +1,6 @@
 # stout
 
-A fast, Rust-based Homebrew-compatible package manager.
+**stout is a drop-in replacement for the Homebrew CLI that's 10-100x faster.** A fast, Rust-based package manager that eliminates Ruby entirely for instant search, info, and parallel installs — fully compatible with your existing `brew` setup.
 
 [![Build](https://github.com/neul-labs/stout/actions/workflows/ci.yml/badge.svg)](https://github.com/neul-labs/stout/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -8,6 +8,8 @@ A fast, Rust-based Homebrew-compatible package manager.
 [![npm](https://img.shields.io/npm/v/stout-pkg)](https://www.npmjs.com/package/stout-pkg)
 [![PyPI](https://img.shields.io/pypi/v/stout-pkg)](https://pypi.org/project/stout-pkg/)
 [![crates.io](https://img.shields.io/crates/v/stout)](https://crates.io/crates/stout)
+
+**[Website](https://stout.neullabs.com) · [Documentation](https://docs.neullabs.com/stout) · [GitHub](https://github.com/neul-labs/stout)**
 
 ## Why stout?
 
@@ -499,6 +501,18 @@ stout achieves its speed through several optimizations:
 3. **Compressed index**: ~3MB download vs 700MB+ git repo
 4. **Parallel downloads**: Concurrent bottle fetching with Tokio
 5. **On-demand fetching**: Only download what you need
+
+## Part of the Neul Labs toolchain
+
+stout is part of the Neul Labs command-line & filesystem toolchain:
+
+| Project | What it does |
+|---------|--------------|
+| [recurl](https://github.com/neul-labs/recurl) | curl that just works — drop-in replacement with automatic anti-bot bypass. |
+| [rewget](https://github.com/neul-labs/rewget) | wget, but it works everywhere. |
+| [stratafs](https://github.com/neul-labs/stratafs) | A semantic filesystem for AI-era search. |
+
+Explore the full toolchain at [neullabs.com](https://www.neullabs.com).
 
 ## License
 

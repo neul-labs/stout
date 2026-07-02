@@ -102,7 +102,7 @@ description = "A fast, Rust-based Homebrew-compatible package manager"
 keywords = ["homebrew", "package-manager", "cli", "brew", "macos"]
 categories = ["command-line-utilities", "development-tools"]
 documentation = "https://docs.neullabs.com/stout"
-homepage = "https://github.com/neul-labs/stout"
+homepage = "https://stout.neullabs.com"
 readme = "README.md"
 
 [[bin]]
@@ -156,7 +156,7 @@ strip = true
 
 # Debian packaging configuration (cargo-deb)
 [package.metadata.deb]
-maintainer = "Neul Labs <hello@neul.com>"
+maintainer = "Neul Labs <contact@neullabs.com>"
 copyright = "2024, Neul Labs"
 license-file = ["LICENSE", "0"]
 extended-description = """\

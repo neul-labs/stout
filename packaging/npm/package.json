@@ -10,12 +10,12 @@
     "linux",
     "cli"
   ],
-  "homepage": "https://github.com/neul-labs/stout",
+  "homepage": "https://stout.neullabs.com",
   "bugs": {
     "url": "https://github.com/neul-labs/stout/issues"
   },
   "license": "MIT",
-  "author": "Neul Labs <hello@neul.com>",
+  "author": "Neul Labs <contact@neullabs.com>",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/neul-labs/stout.git"
