@@ -270,7 +270,7 @@ stout outdated
 
 Report security vulnerabilities to:
 
-- Email: security@neul-labs.com
+- Email: security@neullabs.com
 - GitHub: Private security advisory
 
 Please do not open public issues for security vulnerabilities.
