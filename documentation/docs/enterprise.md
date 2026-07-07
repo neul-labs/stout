@@ -342,7 +342,7 @@ Error: Package 'unapproved-pkg' is not in the approved list
 
 For enterprise support inquiries:
 
-- Email: enterprise@neul-labs.com
+- Email: enterprise@neullabs.com
 - Documentation: <https://docs.neullabs.com/stout/enterprise/>
 
 ---
